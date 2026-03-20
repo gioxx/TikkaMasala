@@ -1,0 +1,14 @@
+.env
+.env.local
+.env.*.local
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.db
+.DS_Store
+
+data/
+
+app/__pycache__/

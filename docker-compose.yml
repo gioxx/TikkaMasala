@@ -1,0 +1,13 @@
+services:
+  cloudflare-tunnel-backup:
+    build: .
+    container_name: cloudflare-tunnel-backup
+    restart: unless-stopped
+    environment:
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/data
