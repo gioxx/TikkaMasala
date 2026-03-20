@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -11,8 +12,10 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -29,6 +32,10 @@ TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "").strip()
 API_TOKEN_COOKIE_NAME = "cf_api_token"
 API_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 ENCRYPTED_VALUE_PREFIX = "enc:"
+AUTO_BACKUP_JOB_ID = "auto-backup-all-tunnels"
+DEFAULT_AUTO_BACKUP_CRON = "0 3 * * *"
+BACKUPS_PAGE_SIZE = 15
+BACKUPS_PAGE_SIZE_OPTIONS = {15, 50, 75, 100}
 
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -37,6 +44,8 @@ app = FastAPI(title="Cloudflare Tunnel Route Backup")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 logger = logging.getLogger(__name__)
+auto_backup_scheduler = AsyncIOScheduler(timezone="UTC")
+auto_backup_lock = asyncio.Lock()
 
 
 @dataclass
@@ -58,6 +67,19 @@ class RestoreRecord:
     restored_at: str
     account_id: str
     tunnel_id: str
+
+
+@dataclass
+class ScheduledRunRecord:
+    id: int
+    started_at: str
+    finished_at: str | None
+    status: str
+    account_id: str
+    tunnel_count: int
+    backup_count: int
+    error_count: int
+    details: str | None
 
 
 def db() -> sqlite3.Connection:
@@ -99,6 +121,21 @@ def init_db() -> None:
                 account_id TEXT NOT NULL,
                 tunnel_id TEXT NOT NULL,
                 FOREIGN KEY (backup_id) REFERENCES backups(id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS scheduled_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                started_at TEXT NOT NULL,
+                finished_at TEXT,
+                status TEXT NOT NULL,
+                account_id TEXT NOT NULL,
+                tunnel_count INTEGER NOT NULL DEFAULT 0,
+                backup_count INTEGER NOT NULL DEFAULT 0,
+                error_count INTEGER NOT NULL DEFAULT 0,
+                details TEXT
             )
             """
         )
@@ -233,6 +270,29 @@ def get_api_token_source(request: Request) -> str | None:
     return None
 
 
+def get_server_api_token() -> str:
+    stored_token = (get_setting("api_token") or "").strip()
+    if stored_token:
+        try:
+            return decrypt_secret(stored_token).strip()
+        except RuntimeError:
+            logger.exception("Unable to decrypt saved API token for server-side scheduler; falling back to environment token.")
+    return DEFAULT_API_TOKEN.strip()
+
+
+def get_server_api_token_source() -> str | None:
+    stored_token = (get_setting("api_token") or "").strip()
+    if stored_token:
+        try:
+            decrypt_secret(stored_token)
+            return "database"
+        except RuntimeError:
+            logger.exception("Saved API token exists in the database but is not readable for the scheduler.")
+    if DEFAULT_API_TOKEN:
+        return "environment"
+    return None
+
+
 def resolve_api_token(request: Request, api_token: str | None) -> str:
     resolved = (api_token or "").strip() or get_saved_api_token(request)
     if not resolved:
@@ -277,6 +337,177 @@ def build_prefill_status_from_sources(account_source: str | None, api_token_sour
 
 def build_prefill_status(request: Request) -> dict[str, Any]:
     return build_prefill_status_from_sources(get_account_id_source(), get_api_token_source(request))
+
+
+def get_auto_backup_enabled() -> bool:
+    return (get_setting("auto_backup_enabled") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def get_auto_backup_cron() -> str:
+    return (get_setting("auto_backup_cron") or DEFAULT_AUTO_BACKUP_CRON).strip()
+
+
+def set_auto_backup_enabled(enabled: bool) -> None:
+    set_setting("auto_backup_enabled", "1" if enabled else "0")
+
+
+def set_auto_backup_cron(cron_expression: str) -> None:
+    set_setting("auto_backup_cron", cron_expression.strip())
+
+
+def validate_cron_expression(cron_expression: str) -> str:
+    normalized = cron_expression.strip()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Cron expression is required.")
+    try:
+        CronTrigger.from_crontab(normalized, timezone="UTC")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid cron expression: {exc}") from exc
+    return normalized
+
+
+def get_auto_backup_prerequisites() -> dict[str, Any]:
+    account_id = get_saved_account_id()
+    account_source = get_account_id_source()
+    api_token = get_server_api_token()
+    api_token_source = get_server_api_token_source()
+    missing_items: list[str] = []
+    if not account_id:
+        missing_items.append("Server-side Account ID")
+    if not api_token:
+        missing_items.append("Server-side API token")
+    return {
+        "account_id_available": bool(account_id),
+        "account_id_source": account_source,
+        "api_token_available": bool(api_token),
+        "api_token_source": api_token_source,
+        "ready": bool(account_id and api_token),
+        "missing_items": missing_items,
+    }
+
+
+def create_scheduled_run(account_id: str, status: str, details: str | None = None) -> int:
+    started_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    with closing(db()) as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO scheduled_runs (started_at, status, account_id, details)
+            VALUES (?, ?, ?, ?)
+            """,
+            (started_at, status, account_id, details),
+        )
+        conn.commit()
+        return int(cursor.lastrowid)
+
+
+def complete_scheduled_run(
+    run_id: int,
+    status: str,
+    tunnel_count: int,
+    backup_count: int,
+    error_count: int,
+    details: str | None = None,
+) -> None:
+    finished_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    with closing(db()) as conn:
+        conn.execute(
+            """
+            UPDATE scheduled_runs
+            SET finished_at = ?, status = ?, tunnel_count = ?, backup_count = ?, error_count = ?, details = ?
+            WHERE id = ?
+            """,
+            (finished_at, status, tunnel_count, backup_count, error_count, details, run_id),
+        )
+        conn.commit()
+
+
+def get_recent_scheduled_runs(limit: int = 5) -> list[ScheduledRunRecord]:
+    with closing(db()) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, started_at, finished_at, status, account_id, tunnel_count, backup_count, error_count, details
+            FROM scheduled_runs
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [ScheduledRunRecord(**dict(row)) for row in rows]
+
+
+def get_next_auto_backup_run() -> str | None:
+    job = auto_backup_scheduler.get_job(AUTO_BACKUP_JOB_ID)
+    if job is None or job.next_run_time is None:
+        return None
+    return job.next_run_time.astimezone(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def get_last_auto_backup_run_at() -> str | None:
+    value = (get_setting("auto_backup_last_run_at") or "").strip()
+    return value or None
+
+
+def get_last_auto_backup_status() -> str | None:
+    value = (get_setting("auto_backup_last_status") or "").strip()
+    return value or None
+
+
+def build_auto_backup_status() -> dict[str, Any]:
+    prereqs = get_auto_backup_prerequisites()
+    enabled = get_auto_backup_enabled()
+    cron_expression = get_auto_backup_cron()
+    return {
+        "enabled": enabled,
+        "cron": cron_expression,
+        "last_run_at": get_last_auto_backup_run_at(),
+        "last_status": get_last_auto_backup_status(),
+        "next_run_at": get_next_auto_backup_run(),
+        "recent_runs": get_recent_scheduled_runs(),
+        "prereqs": prereqs,
+    }
+
+
+def configure_auto_backup_job() -> None:
+    existing_job = auto_backup_scheduler.get_job(AUTO_BACKUP_JOB_ID)
+    if existing_job is not None:
+        auto_backup_scheduler.remove_job(AUTO_BACKUP_JOB_ID)
+
+    if not get_auto_backup_enabled():
+        return
+
+    if not get_auto_backup_prerequisites()["ready"]:
+        logger.warning("Automatic backups are enabled but server-side prerequisites are missing; scheduler job not registered.")
+        return
+
+    cron_expression = get_auto_backup_cron()
+    try:
+        trigger = CronTrigger.from_crontab(cron_expression, timezone="UTC")
+    except ValueError:
+        logger.exception("Skipping auto-backup scheduler registration because the cron expression is invalid.")
+        return
+
+    auto_backup_scheduler.add_job(
+        run_auto_backup_job,
+        trigger=trigger,
+        id=AUTO_BACKUP_JOB_ID,
+        replace_existing=True,
+        kwargs={"trigger": "schedule"},
+        coalesce=True,
+        max_instances=1,
+    )
+
+
+@app.on_event("startup")
+async def startup_event() -> None:
+    if not auto_backup_scheduler.running:
+        auto_backup_scheduler.start()
+    configure_auto_backup_job()
+
+
+@app.on_event("shutdown")
+async def shutdown_event() -> None:
+    if auto_backup_scheduler.running:
+        auto_backup_scheduler.shutdown(wait=False)
 
 
 async def cloudflare_get(account_id: str, path: str, api_token: str) -> dict[str, Any]:
@@ -395,6 +626,108 @@ def get_backups() -> list[BackupRecord]:
     return [BackupRecord(**dict(row)) for row in rows]
 
 
+def get_backups_page(page: int, page_size: int = BACKUPS_PAGE_SIZE) -> tuple[list[BackupRecord], dict[str, int | bool]]:
+    page = max(page, 1)
+    page_size = page_size if page_size in BACKUPS_PAGE_SIZE_OPTIONS else BACKUPS_PAGE_SIZE
+    offset = (page - 1) * page_size
+
+    with closing(db()) as conn:
+        total_count = int(conn.execute("SELECT COUNT(*) FROM backups").fetchone()[0])
+        rows = conn.execute(
+            """
+            SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes
+            FROM backups
+            ORDER BY id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (page_size, offset),
+        ).fetchall()
+
+    backups = [BackupRecord(**dict(row)) for row in rows]
+    total_pages = max((total_count + page_size - 1) // page_size, 1)
+    current_page = min(page, total_pages)
+    start_index = offset + 1 if total_count and backups else 0
+    end_index = offset + len(backups)
+
+    return backups, {
+        "current_page": current_page,
+        "page_size": page_size,
+        "total_count": total_count,
+        "total_pages": total_pages,
+        "has_previous": current_page > 1,
+        "has_next": current_page < total_pages,
+        "previous_page": current_page - 1,
+        "next_page": current_page + 1,
+        "start_index": start_index,
+        "end_index": end_index,
+    }
+
+
+def get_database_stats() -> dict[str, Any]:
+    with closing(db()) as conn:
+        backup_stats = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS backup_count,
+                COUNT(DISTINCT tunnel_id) AS tunnel_count,
+                COALESCE(SUM(route_count), 0) AS route_total,
+                MAX(created_at) AS latest_backup_at
+            FROM backups
+            """
+        ).fetchone()
+        restore_stats = conn.execute(
+            """
+            SELECT COUNT(*) AS restore_count
+            FROM restores
+            """
+        ).fetchone()
+        run_stats = conn.execute(
+            """
+            SELECT COUNT(*) AS scheduled_run_count
+            FROM scheduled_runs
+            """
+        ).fetchone()
+
+    return {
+        "backup_count": int(backup_stats["backup_count"] or 0),
+        "tunnel_count": int(backup_stats["tunnel_count"] or 0),
+        "route_total": int(backup_stats["route_total"] or 0),
+        "restore_count": int(restore_stats["restore_count"] or 0),
+        "scheduled_run_count": int(run_stats["scheduled_run_count"] or 0),
+        "latest_backup_at": backup_stats["latest_backup_at"],
+        "database_size": format_bytes(DB_PATH.stat().st_size) if DB_PATH.exists() else "0 B",
+    }
+
+
+def format_bytes(size: int) -> str:
+    units = ["B", "KB", "MB", "GB", "TB"]
+    value = float(size)
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            if unit == "B":
+                return f"{int(value)} {unit}"
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{size} B"
+
+
+def get_requested_backup_page(request: Request) -> int:
+    raw_page = (request.query_params.get("page") or "1").strip()
+    try:
+        return max(int(raw_page), 1)
+    except ValueError:
+        return 1
+
+
+def get_requested_backup_page_size(request: Request) -> int:
+    raw_page_size = (request.query_params.get("page_size") or str(BACKUPS_PAGE_SIZE)).strip()
+    try:
+        page_size = int(raw_page_size)
+    except ValueError:
+        return BACKUPS_PAGE_SIZE
+    return page_size if page_size in BACKUPS_PAGE_SIZE_OPTIONS else BACKUPS_PAGE_SIZE
+
+
 def get_backup(backup_id: int) -> BackupRecord:
     with closing(db()) as conn:
         row = conn.execute(
@@ -442,6 +775,117 @@ def get_restore_history(backup_id: int) -> list[RestoreRecord]:
     return [RestoreRecord(**dict(row)) for row in rows]
 
 
+async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
+    if auto_backup_lock.locked():
+        details = json.dumps({"message": "Skipped because another automatic backup is already running."}, ensure_ascii=False)
+        run_id = create_scheduled_run(get_saved_account_id() or "unknown", "skipped", details)
+        complete_scheduled_run(run_id, "skipped", 0, 0, 0, details)
+        set_setting("auto_backup_last_run_at", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
+        set_setting("auto_backup_last_status", "skipped")
+        return {"status": "skipped", "tunnel_count": 0, "backup_count": 0, "error_count": 0}
+
+    async with auto_backup_lock:
+        account_id = get_saved_account_id()
+        api_token = get_server_api_token()
+        if not account_id or not api_token:
+            details = json.dumps(
+                {"message": "Missing server-side account ID or API token for automatic backups."},
+                ensure_ascii=False,
+            )
+            run_id = create_scheduled_run(account_id or "unknown", "skipped", details)
+            complete_scheduled_run(run_id, "skipped", 0, 0, 0, details)
+            set_setting("auto_backup_last_run_at", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
+            set_setting("auto_backup_last_status", "skipped")
+            return {"status": "skipped", "tunnel_count": 0, "backup_count": 0, "error_count": 0}
+
+        run_id = create_scheduled_run(account_id, "running")
+        tunnel_count = 0
+        backup_count = 0
+        errors: list[dict[str, str]] = []
+        details: str | None = None
+        status = "failed"
+
+        try:
+            tunnels = await list_tunnels(account_id, api_token)
+            tunnel_count = len(tunnels)
+            note = f"Automatic backup triggered by {trigger}."
+
+            for tunnel in tunnels:
+                tunnel_id = str(tunnel.get("id") or "").strip()
+                tunnel_name = str(tunnel.get("name") or "Unknown tunnel").strip()
+                if not tunnel_id:
+                    errors.append({"tunnel": tunnel_name, "message": "Tunnel ID missing in API response."})
+                    continue
+
+                try:
+                    await create_backup(account_id, tunnel_id, api_token, note)
+                    backup_count += 1
+                except HTTPException as exc:
+                    errors.append({"tunnel": tunnel_name, "tunnel_id": tunnel_id, "message": str(exc.detail)})
+
+            if errors and backup_count:
+                status = "partial"
+            elif errors and not backup_count:
+                status = "failed"
+            else:
+                status = "success"
+        except HTTPException as exc:
+            errors.append({"message": str(exc.detail)})
+            status = "failed"
+        except Exception as exc:
+            logger.exception("Unexpected error during automatic backup run.")
+            errors.append({"message": f"Unexpected error: {exc}"})
+            status = "failed"
+
+        if errors:
+            details = json.dumps({"errors": errors}, ensure_ascii=False)
+
+        complete_scheduled_run(run_id, status, tunnel_count, backup_count, len(errors), details)
+        set_setting("auto_backup_last_run_at", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
+        set_setting("auto_backup_last_status", status)
+        return {
+            "status": status,
+            "tunnel_count": tunnel_count,
+            "backup_count": backup_count,
+            "error_count": len(errors),
+        }
+
+
+def render_index_page(
+    request: Request,
+    message: str | None = None,
+    error: str | None = None,
+    success_target: str | None = "tunnels",
+    tunnels: list[dict[str, Any]] | None = None,
+    prefill_status: dict[str, Any] | None = None,
+    prefill_account_id: str | None = None,
+    prefill_api_token: str | None = None,
+    backup_page: int | None = None,
+    backup_page_size: int | None = None,
+) -> HTMLResponse:
+    resolved_page = backup_page or get_requested_backup_page(request)
+    resolved_page_size = backup_page_size or get_requested_backup_page_size(request)
+    backups, backup_pagination = get_backups_page(resolved_page, resolved_page_size)
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "message": message,
+            "error": error,
+            "success_target": success_target,
+            "backups": backups,
+            "backup_pagination": backup_pagination,
+            "backup_page_size_options": sorted(BACKUPS_PAGE_SIZE_OPTIONS),
+            "database_stats": get_database_stats(),
+            "tunnels": tunnels,
+            "prefill_status": prefill_status or build_prefill_status(request),
+            "prefill_account_id": prefill_account_id if prefill_account_id is not None else get_saved_account_id(),
+            "prefill_api_token": prefill_api_token if prefill_api_token is not None else get_saved_api_token(request),
+            "auto_backup": build_auto_backup_status(),
+        },
+    )
+
+
 def render_backup_page(
     request: Request,
     backup_id: int,
@@ -469,6 +913,8 @@ def render_backup_page(
 @app.get("/", response_class=HTMLResponse)
 async def index(
     request: Request,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=BACKUPS_PAGE_SIZE),
     message: str | None = None,
     error: str | None = None,
     success_target: str | None = "tunnels",
@@ -476,19 +922,16 @@ async def index(
     prefill_account_id: str | None = None,
     prefill_api_token: str | None = None,
 ) -> HTMLResponse:
-    backups = get_backups()
-    return templates.TemplateResponse(
+    return render_index_page(
         request,
-        "index.html",
-        {
-            "message": message,
-            "error": error,
-            "success_target": success_target,
-            "backups": backups,
-            "prefill_status": prefill_status or build_prefill_status(request),
-            "prefill_account_id": prefill_account_id if prefill_account_id is not None else get_saved_account_id(),
-            "prefill_api_token": prefill_api_token if prefill_api_token is not None else get_saved_api_token(request),
-        },
+        message=message,
+        error=error,
+        success_target=success_target,
+        prefill_status=prefill_status,
+        prefill_account_id=prefill_account_id,
+        prefill_api_token=prefill_api_token,
+        backup_page=page,
+        backup_page_size=page_size,
     )
 
 
@@ -522,20 +965,14 @@ async def list_tunnels_action(request: Request, account_id: str = Form(default="
         tunnels = await list_tunnels(account_id, api_token)
         remember_account_id(account_id)
         remember_api_token(api_token)
-        backups = get_backups()
-        response = templates.TemplateResponse(
+        response = render_index_page(
             request,
-            "index.html",
-            {
-                "message": f"Loaded {len(tunnels)} tunnel(s).",
-                "error": None,
-                "success_target": "tunnels",
-                "backups": backups,
-                "tunnels": tunnels,
-                "prefill_status": build_prefill_status_from_sources("database", "browser"),
-                "prefill_account_id": account_id,
-                "prefill_api_token": api_token,
-            },
+            message=f"Loaded {len(tunnels)} tunnel(s).",
+            success_target="tunnels",
+            tunnels=tunnels,
+            prefill_status=build_prefill_status_from_sources("database", "browser"),
+            prefill_account_id=account_id,
+            prefill_api_token=api_token,
         )
         set_api_token_cookie(response, api_token)
         return response
@@ -588,6 +1025,67 @@ async def clear_saved_auth(request: Request) -> HTMLResponse:
     )
     clear_api_token_cookie(response)
     return response
+
+
+@app.post("/auto-backup/settings", response_class=HTMLResponse)
+async def auto_backup_settings_action(
+    request: Request,
+    enabled: str | None = Form(default=None),
+    cron_expression: str = Form(default=DEFAULT_AUTO_BACKUP_CRON),
+) -> HTMLResponse:
+    try:
+        normalized_cron = validate_cron_expression(cron_expression)
+        enabled_flag = enabled == "on"
+        prereqs = get_auto_backup_prerequisites()
+
+        if enabled_flag and not prereqs["ready"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Automatic backups require a server-side Account ID and API token from the database or environment.",
+            )
+
+        set_auto_backup_cron(normalized_cron)
+        set_auto_backup_enabled(enabled_flag)
+        configure_auto_backup_job()
+
+        message = "Automatic backups enabled." if enabled_flag else "Automatic backups disabled."
+        return render_index_page(request, message=message, success_target="auto-backup")
+    except HTTPException as exc:
+        return render_index_page(request, error=exc.detail, success_target="auto-backup")
+
+
+@app.post("/auto-backup/run", response_class=HTMLResponse)
+async def auto_backup_run_action(request: Request) -> HTMLResponse:
+    try:
+        prereqs = get_auto_backup_prerequisites()
+        if not prereqs["ready"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Automatic backups require a server-side Account ID and API token from the database or environment.",
+            )
+
+        result = await run_auto_backup_job(trigger="manual")
+        status = result["status"]
+        if status == "success":
+            message = f"Automatic backup run completed: {result['backup_count']} backup(s) created from {result['tunnel_count']} tunnel(s)."
+            return render_index_page(request, message=message, success_target="auto-backup")
+        elif status == "partial":
+            error = (
+                f"Automatic backup run completed with errors: {result['backup_count']} backup(s) created, "
+                f"{result['error_count']} error(s)."
+            )
+            return render_index_page(request, error=error, success_target="auto-backup")
+        elif status == "skipped":
+            message = "Automatic backup run skipped because another run is already in progress."
+            return render_index_page(request, message=message, success_target="auto-backup")
+        else:
+            error = (
+                f"Automatic backup run failed: {result['error_count']} error(s), "
+                f"{result['backup_count']} backup(s) created."
+            )
+            return render_index_page(request, error=error, success_target="auto-backup")
+    except HTTPException as exc:
+        return render_index_page(request, error=exc.detail, success_target="auto-backup")
 
 
 @app.get("/backup/{backup_id}", response_class=HTMLResponse)

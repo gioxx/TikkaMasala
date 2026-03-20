@@ -14,6 +14,7 @@ Tikka Masala is a small FastAPI web app for backing up and restoring Cloudflare 
 - Prefill `Account ID` and `API token` from environment, browser, or database
 - Clear saved authentication data without deleting backups
 - Switch between system, dark, and light theme
+- Schedule automatic backups for all tunnels in the account
 
 ## Requirements
 
@@ -113,6 +114,13 @@ Effective priority:
 - `Account ID`: database, then environment
 - `API token`: browser cookie, then database, then environment
 
+Automatic backups use only server-side credentials:
+
+- `Account ID`: database or environment
+- `API token`: encrypted database value or environment
+
+Browser cookies are never used by the scheduler.
+
 After a successful token verification or API action:
 
 - the `Account ID` is saved in `./data/app.db`
@@ -154,6 +162,26 @@ The backup detail page keeps a restore history so you can see:
 - which tunnel it was restored to
 - whether the restore targeted the original tunnel, a different tunnel, or a different account
 
+## Automatic Backups
+
+Tikka Masala can schedule recurring backups for all tunnels visible in the configured account.
+
+The scheduler is built into the app and stores its configuration in the local SQLite database. From the home page you can:
+
+- enable or disable automatic backups
+- set a cron expression
+- run the job immediately with `Run now`
+- see the last run, next run, and recent execution history
+
+Cron expressions are interpreted in UTC.
+
+Important notes:
+
+- automatic backups require server-side credentials available from the database or environment
+- browser-only token prefill is not enough for scheduled jobs
+- each run creates normal backups, so automatic and manual backups share the same archive
+- `1.1.0` does not perform retention or deduplication automatically
+
 ## Security Notes
 
 - The API token is never persisted in plaintext in the database by current versions of the app.
@@ -166,7 +194,3 @@ The backup detail page keeps a restore history so you can see:
 - Main application entrypoint: [app/main.py](/Users/gioxx/Documents/GitHub/TikkaMasala/app/main.py)
 - Main UI template: [app/templates/index.html](/Users/gioxx/Documents/GitHub/TikkaMasala/app/templates/index.html)
 - Backup detail template: [app/templates/backup.html](/Users/gioxx/Documents/GitHub/TikkaMasala/app/templates/backup.html)
-
-Repository:
-
-- <https://github.com/gioxx/TikkaMasala>
