@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -29,13 +30,16 @@ REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "20"))
 DEFAULT_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
 DEFAULT_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
 TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "").strip()
+AUTO_BACKUP_TIMEZONE = os.getenv("AUTO_BACKUP_TIMEZONE", "").strip()
 API_TOKEN_COOKIE_NAME = "cf_api_token"
 API_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 ENCRYPTED_VALUE_PREFIX = "enc:"
 AUTO_BACKUP_JOB_ID = "auto-backup-all-tunnels"
 DEFAULT_AUTO_BACKUP_CRON = "0 3 * * *"
-BACKUPS_PAGE_SIZE = 15
-BACKUPS_PAGE_SIZE_OPTIONS = {15, 50, 75, 100}
+BACKUPS_PAGE_SIZE = 10
+BACKUPS_PAGE_SIZE_OPTIONS = {10, 25, 50, 75, 100}
+SCHEDULED_RUNS_PAGE_SIZE = 15
+SCHEDULED_RUNS_PAGE_SIZE_OPTIONS = (15, 30, 60, 90)
 
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -355,13 +359,57 @@ def set_auto_backup_cron(cron_expression: str) -> None:
     set_setting("auto_backup_cron", cron_expression.strip())
 
 
+def normalize_timezone_name(timezone_name: str) -> str:
+    normalized = timezone_name.strip()
+    if not normalized:
+        raise ValueError("Timezone is required.")
+    try:
+        ZoneInfo(normalized)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError(f"Unknown timezone: {normalized}") from exc
+    return normalized
+
+
+def get_saved_auto_backup_timezone() -> str | None:
+    value = (get_setting("auto_backup_timezone") or "").strip()
+    if not value:
+        return None
+    try:
+        return normalize_timezone_name(value)
+    except ValueError:
+        logger.exception("Saved auto-backup timezone is invalid; falling back to environment/default timezone.")
+        return None
+
+
+def set_auto_backup_timezone(timezone_name: str) -> None:
+    set_setting("auto_backup_timezone", normalize_timezone_name(timezone_name))
+
+
+def get_auto_backup_timezone_name() -> str:
+    if AUTO_BACKUP_TIMEZONE:
+        return normalize_timezone_name(AUTO_BACKUP_TIMEZONE)
+    return get_saved_auto_backup_timezone() or "UTC"
+
+
+def get_auto_backup_timezone() -> ZoneInfo:
+    return ZoneInfo(get_auto_backup_timezone_name())
+
+
+def get_auto_backup_timezone_source() -> str:
+    if AUTO_BACKUP_TIMEZONE:
+        return "environment"
+    if get_saved_auto_backup_timezone():
+        return "browser"
+    return "default"
+
+
 def validate_cron_expression(cron_expression: str) -> str:
     normalized = cron_expression.strip()
     if not normalized:
         raise HTTPException(status_code=400, detail="Cron expression is required.")
     try:
-        CronTrigger.from_crontab(normalized, timezone="UTC")
-    except ValueError as exc:
+        CronTrigger.from_crontab(normalized, timezone=get_auto_backup_timezone())
+    except (ValueError, ZoneInfoNotFoundError) as exc:
         raise HTTPException(status_code=400, detail=f"Invalid cron expression: {exc}") from exc
     return normalized
 
@@ -435,6 +483,120 @@ def get_recent_scheduled_runs(limit: int = 5) -> list[ScheduledRunRecord]:
     return [ScheduledRunRecord(**dict(row)) for row in rows]
 
 
+def get_all_scheduled_runs() -> list[ScheduledRunRecord]:
+    with closing(db()) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, started_at, finished_at, status, account_id, tunnel_count, backup_count, error_count, details
+            FROM scheduled_runs
+            ORDER BY id DESC
+            """
+        ).fetchall()
+    return [ScheduledRunRecord(**dict(row)) for row in rows]
+
+
+def get_scheduled_runs_stats() -> dict[str, int]:
+    with closing(db()) as conn:
+        row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS run_count,
+                COALESCE(SUM(backup_count), 0) AS total_backup_count
+            FROM scheduled_runs
+            """
+        ).fetchone()
+    return {
+        "run_count": int(row["run_count"] or 0),
+        "total_backup_count": int(row["total_backup_count"] or 0),
+    }
+
+
+def get_scheduled_runs_page(page: int, page_size: int | None = SCHEDULED_RUNS_PAGE_SIZE) -> tuple[list[ScheduledRunRecord], dict[str, Any]]:
+    page = max(page, 1)
+
+    with closing(db()) as conn:
+        total_count = int(conn.execute("SELECT COUNT(*) FROM scheduled_runs").fetchone()[0])
+
+        if page_size is None:
+            rows = conn.execute(
+                """
+                SELECT id, started_at, finished_at, status, account_id, tunnel_count, backup_count, error_count, details
+                FROM scheduled_runs
+                ORDER BY id DESC
+                """
+            ).fetchall()
+            runs = [ScheduledRunRecord(**dict(row)) for row in rows]
+            return runs, {
+                "current_page": 1,
+                "page_size": total_count,
+                "page_size_param": "all",
+                "total_count": total_count,
+                "total_pages": 1,
+                "has_previous": False,
+                "has_next": False,
+                "previous_page": 1,
+                "next_page": 1,
+                "start_index": 1 if total_count else 0,
+                "end_index": total_count,
+                "is_all": True,
+            }
+
+        resolved_page_size = page_size if page_size in SCHEDULED_RUNS_PAGE_SIZE_OPTIONS else SCHEDULED_RUNS_PAGE_SIZE
+        total_pages = max((total_count + resolved_page_size - 1) // resolved_page_size, 1)
+        current_page = min(page, total_pages)
+        offset = (current_page - 1) * resolved_page_size
+
+        rows = conn.execute(
+            """
+            SELECT id, started_at, finished_at, status, account_id, tunnel_count, backup_count, error_count, details
+            FROM scheduled_runs
+            ORDER BY id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (resolved_page_size, offset),
+        ).fetchall()
+
+    runs = [ScheduledRunRecord(**dict(row)) for row in rows]
+    start_index = offset + 1 if total_count and runs else 0
+    end_index = offset + len(runs)
+
+    return runs, {
+        "current_page": current_page,
+        "page_size": resolved_page_size,
+        "page_size_param": str(resolved_page_size),
+        "total_count": total_count,
+        "total_pages": total_pages,
+        "has_previous": current_page > 1,
+        "has_next": current_page < total_pages,
+        "previous_page": current_page - 1,
+        "next_page": current_page + 1,
+        "start_index": start_index,
+        "end_index": end_index,
+        "is_all": False,
+    }
+
+
+def summarize_scheduled_run_details(details: str | None) -> str | None:
+    if not details:
+        return None
+    try:
+        payload = json.loads(details)
+    except json.JSONDecodeError:
+        return details
+    if isinstance(payload, dict):
+        if isinstance(payload.get("message"), str):
+            return payload["message"]
+        errors = payload.get("errors")
+        if isinstance(errors, list) and errors:
+            first = errors[0]
+            if isinstance(first, dict):
+                message = str(first.get("message") or "Unknown error")
+                if len(errors) > 1:
+                    return f"{message} (+{len(errors) - 1} more)"
+                return message
+    return details
+
+
 def get_next_auto_backup_run() -> str | None:
     job = auto_backup_scheduler.get_job(AUTO_BACKUP_JOB_ID)
     if job is None or job.next_run_time is None:
@@ -456,9 +618,14 @@ def build_auto_backup_status() -> dict[str, Any]:
     prereqs = get_auto_backup_prerequisites()
     enabled = get_auto_backup_enabled()
     cron_expression = get_auto_backup_cron()
+    timezone_name = get_auto_backup_timezone_name()
+    timezone_source = get_auto_backup_timezone_source()
     return {
         "enabled": enabled,
         "cron": cron_expression,
+        "timezone_name": timezone_name,
+        "timezone_source": timezone_source,
+        "timezone_locked_by_env": timezone_source == "environment",
         "last_run_at": get_last_auto_backup_run_at(),
         "last_status": get_last_auto_backup_status(),
         "next_run_at": get_next_auto_backup_run(),
@@ -481,7 +648,7 @@ def configure_auto_backup_job() -> None:
 
     cron_expression = get_auto_backup_cron()
     try:
-        trigger = CronTrigger.from_crontab(cron_expression, timezone="UTC")
+        trigger = CronTrigger.from_crontab(cron_expression, timezone=get_auto_backup_timezone())
     except ValueError:
         logger.exception("Skipping auto-backup scheduler registration because the cron expression is invalid.")
         return
@@ -493,6 +660,7 @@ def configure_auto_backup_job() -> None:
         replace_existing=True,
         kwargs={"trigger": "schedule"},
         coalesce=True,
+        misfire_grace_time=300,
         max_instances=1,
     )
 
@@ -696,6 +864,7 @@ def get_database_stats() -> dict[str, Any]:
         "scheduled_run_count": int(run_stats["scheduled_run_count"] or 0),
         "latest_backup_at": backup_stats["latest_backup_at"],
         "database_size": format_bytes(DB_PATH.stat().st_size) if DB_PATH.exists() else "0 B",
+        "backup_storage_size": format_bytes(get_directory_size(BACKUP_DIR)),
     }
 
 
@@ -709,6 +878,16 @@ def format_bytes(size: int) -> str:
             return f"{value:.1f} {unit}"
         value /= 1024
     return f"{size} B"
+
+
+def get_directory_size(path: Path) -> int:
+    if not path.exists():
+        return 0
+    total = 0
+    for item in path.rglob("*"):
+        if item.is_file():
+            total += item.stat().st_size
+    return total
 
 
 def get_requested_backup_page(request: Request) -> int:
@@ -726,6 +905,25 @@ def get_requested_backup_page_size(request: Request) -> int:
     except ValueError:
         return BACKUPS_PAGE_SIZE
     return page_size if page_size in BACKUPS_PAGE_SIZE_OPTIONS else BACKUPS_PAGE_SIZE
+
+
+def get_requested_scheduled_runs_page(request: Request) -> int:
+    raw_page = (request.query_params.get("page") or "1").strip()
+    try:
+        return max(int(raw_page), 1)
+    except ValueError:
+        return 1
+
+
+def get_requested_scheduled_runs_page_size(request: Request) -> int | None:
+    raw_page_size = (request.query_params.get("page_size") or str(SCHEDULED_RUNS_PAGE_SIZE)).strip().lower()
+    if raw_page_size == "all":
+        return None
+    try:
+        page_size = int(raw_page_size)
+    except ValueError:
+        return SCHEDULED_RUNS_PAGE_SIZE
+    return page_size if page_size in SCHEDULED_RUNS_PAGE_SIZE_OPTIONS else SCHEDULED_RUNS_PAGE_SIZE
 
 
 def get_backup(backup_id: int) -> BackupRecord:
@@ -777,6 +975,7 @@ def get_restore_history(backup_id: int) -> list[RestoreRecord]:
 
 async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
     if auto_backup_lock.locked():
+        logger.info("Automatic backup run skipped because another run is already in progress.")
         details = json.dumps({"message": "Skipped because another automatic backup is already running."}, ensure_ascii=False)
         run_id = create_scheduled_run(get_saved_account_id() or "unknown", "skipped", details)
         complete_scheduled_run(run_id, "skipped", 0, 0, 0, details)
@@ -788,6 +987,7 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
         account_id = get_saved_account_id()
         api_token = get_server_api_token()
         if not account_id or not api_token:
+            logger.warning("Automatic backup run skipped because server-side credentials are missing.")
             details = json.dumps(
                 {"message": "Missing server-side account ID or API token for automatic backups."},
                 ensure_ascii=False,
@@ -799,6 +999,7 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
             return {"status": "skipped", "tunnel_count": 0, "backup_count": 0, "error_count": 0}
 
         run_id = create_scheduled_run(account_id, "running")
+        logger.info("Starting automatic backup run (trigger=%s, account_id=%s).", trigger, account_id)
         tunnel_count = 0
         backup_count = 0
         errors: list[dict[str, str]] = []
@@ -843,6 +1044,14 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
         complete_scheduled_run(run_id, status, tunnel_count, backup_count, len(errors), details)
         set_setting("auto_backup_last_run_at", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
         set_setting("auto_backup_last_status", status)
+        logger.info(
+            "Automatic backup run completed (trigger=%s, status=%s, tunnels=%s, backups=%s, errors=%s).",
+            trigger,
+            status,
+            tunnel_count,
+            backup_count,
+            len(errors),
+        )
         return {
             "status": status,
             "tunnel_count": tunnel_count,
@@ -906,6 +1115,31 @@ def render_backup_page(
             "error": error,
             "prefill_account_id": get_saved_account_id(),
             "prefill_api_token": get_saved_api_token(request),
+        },
+    )
+
+
+def render_scheduled_runs_page(request: Request) -> HTMLResponse:
+    runs, scheduled_runs_pagination = get_scheduled_runs_page(
+        get_requested_scheduled_runs_page(request),
+        get_requested_scheduled_runs_page_size(request),
+    )
+    scheduled_runs_stats = get_scheduled_runs_stats()
+    run_items = [
+        {
+            "record": run,
+            "details_summary": summarize_scheduled_run_details(run.details),
+        }
+        for run in runs
+    ]
+    return templates.TemplateResponse(
+        request,
+        "scheduled_runs.html",
+        {
+            "runs": run_items,
+            "scheduled_runs_pagination": scheduled_runs_pagination,
+            "scheduled_runs_page_size_options": SCHEDULED_RUNS_PAGE_SIZE_OPTIONS,
+            "scheduled_runs_stats": scheduled_runs_stats,
         },
     )
 
@@ -1032,8 +1266,15 @@ async def auto_backup_settings_action(
     request: Request,
     enabled: str | None = Form(default=None),
     cron_expression: str = Form(default=DEFAULT_AUTO_BACKUP_CRON),
+    browser_timezone: str = Form(default=""),
 ) -> HTMLResponse:
     try:
+        if not AUTO_BACKUP_TIMEZONE and browser_timezone.strip():
+            try:
+                set_auto_backup_timezone(browser_timezone)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
         normalized_cron = validate_cron_expression(cron_expression)
         enabled_flag = enabled == "on"
         prereqs = get_auto_backup_prerequisites()
@@ -1091,6 +1332,11 @@ async def auto_backup_run_action(request: Request) -> HTMLResponse:
 @app.get("/backup/{backup_id}", response_class=HTMLResponse)
 async def backup_details(request: Request, backup_id: int) -> HTMLResponse:
     return render_backup_page(request, backup_id)
+
+
+@app.get("/auto-backup/runs", response_class=HTMLResponse)
+async def auto_backup_runs(request: Request) -> HTMLResponse:
+    return render_scheduled_runs_page(request)
 
 
 @app.get("/backup/{backup_id}/download")

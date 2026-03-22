@@ -38,6 +38,7 @@ You can configure the app through environment variables, whether you use Docker 
 | `CLOUDFLARE_ACCOUNT_ID` | No | Prefills the Cloudflare account ID in the UI. |
 | `CLOUDFLARE_API_TOKEN` | No | Prefills the API token in the UI. |
 | `TOKEN_ENCRYPTION_KEY` | Recommended | Fernet key used to encrypt the API token before saving it in SQLite. |
+| `AUTO_BACKUP_TIMEZONE` | No | Force automatic backups to use a specific IANA timezone such as `Europe/Rome`. |
 | `DATA_DIR` | No | Storage path for the SQLite database and JSON backups. Default: `/data`. |
 | `REQUEST_TIMEOUT` | No | Outbound Cloudflare API timeout in seconds. Default: `20`. |
 | `CLOUDFLARE_API_BASE` | No | Override for the Cloudflare API base URL. Default: `https://api.cloudflare.com/client/v4`. |
@@ -74,6 +75,7 @@ Example `.env` for Compose:
 CLOUDFLARE_ACCOUNT_ID=your-32-char-account-id
 CLOUDFLARE_API_TOKEN=your-cloudflare-api-token
 TOKEN_ENCRYPTION_KEY=your-generated-fernet-key
+AUTO_BACKUP_TIMEZONE=Europe/Rome
 ```
 
 ## Run with Docker Only
@@ -173,7 +175,7 @@ The scheduler is built into the app and stores its configuration in the local SQ
 - run the job immediately with `Run now`
 - see the last run, next run, and recent execution history
 
-Cron expressions are interpreted in UTC.
+By default, automatic backups use the timezone detected from the browser when you save the schedule. If you want a fixed server-side timezone for all users, set `AUTO_BACKUP_TIMEZONE`.
 
 Important notes:
 

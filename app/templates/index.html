@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="/static/styles.css">
   </head>
   <body>
-    <main class="container" data-success-target="{{ success_target or '' }}">
+    <main id="page-top" class="container" data-success-target="{{ success_target or '' }}" data-auto-backup-timezone="{{ auto_backup.timezone_name }}" data-auto-backup-timezone-source="{{ auto_backup.timezone_source }}">
       <header class="hero">
         <div class="hero-main">
           <div class="hero-copy">
@@ -32,13 +32,28 @@
           </div>
           <img src="/static/cloudflare-logo.png" alt="Cloudflare logo" class="hero-logo">
         </div>
+        <div class="hero-nav-shell">
+          <nav class="section-nav hero-nav" data-floating-nav aria-label="Quick navigation">
+            <div class="floating-nav-meta" aria-hidden="true">
+              <img src="/static/favicon.ico" alt="" class="floating-nav-icon">
+              <span class="floating-nav-title">Tikka Masala</span>
+              <span class="floating-nav-version">v1.1.0</span>
+            </div>
+            <a href="#page-top" class="floating-only-nav-item">↑ Go to Top</a>
+            <a href="#guide-section">Guide</a>
+            <a href="#tunnels-section">Load tunnels</a>
+            <a href="#backup-section">Create backup</a>
+            <a href="#auto-backup-section">Automatic backups</a>
+            <a href="#saved-backups-section">Saved backups</a>
+          </nav>
+        </div>
       </header>
 
       {% if error and success_target != "auto-backup" %}
       <section class="notice error">{{ error }}</section>
       {% endif %}
 
-      <section class="guide-panel card">
+      <section class="guide-panel card" id="guide-section">
         <div class="guide-header">
           <div>
             <h2>How to use Tikka Masala</h2>
@@ -47,7 +62,7 @@
           <button type="button" class="toggle-button" data-toggle-guide aria-expanded="false">Show guide</button>
         </div>
 
-        <div class="guide-content" data-guide-content hidden>
+        <div class="guide-content is-collapsed" data-guide-content hidden>
           <section class="guide-copy">
             <p>
               Before creating a backup, make sure you have your Cloudflare <strong>Account ID</strong>,
@@ -236,7 +251,7 @@
         <div class="auto-backup-grid">
           <section class="auto-backup-panel">
             <h3>Scheduler configuration</h3>
-            <form method="post" action="/auto-backup/settings" class="stack">
+            <form method="post" action="/auto-backup/settings" class="stack auto-backup-stack">
               <label class="checkbox-row">
                 <input
                   type="checkbox"
@@ -253,20 +268,19 @@
               {% endif %}
               <label>
                 <span>Cron expression</span>
+                <small class="hint cron-timezone-note" id="cron-timezone-note">Automatic backups currently use UTC.</small>
                 <input type="text" name="cron_expression" value="{{ auto_backup.cron }}" placeholder="0 3 * * *" required>
               </label>
-              <p class="hint">Cron expressions use UTC.</p>
+              <input type="hidden" name="browser_timezone" id="browser-timezone-input" value="">
+              <p class="hint cron-explanation" id="cron-explanation"></p>
               <div class="preset-list" aria-label="Suggested cron expressions">
+                <button type="button" class="secondary-button preset-button" data-cron-preset="0 * * * *">Every hour</button>
                 <button type="button" class="secondary-button preset-button" data-cron-preset="0 3 * * *">Daily at 03:00</button>
                 <button type="button" class="secondary-button preset-button" data-cron-preset="0 */12 * * *">Every 12 hours</button>
                 <button type="button" class="secondary-button preset-button" data-cron-preset="0 */6 * * *">Every 6 hours</button>
               </div>
-              <p class="hint">
-                Automatic backups use only server-side credentials from the database or environment.
-                Browser cookies are ignored.
-              </p>
-              <div class="actions">
-                <button type="submit">Save schedule</button>
+              <div class="actions auto-backup-footer">
+                <button type="submit" class="auto-backup-primary">Save schedule</button>
               </div>
             </form>
           </section>
@@ -283,6 +297,10 @@
             <div class="server-readiness">
               {% if auto_backup.prereqs.ready %}
               <div class="server-readiness-item">
+                <p class="hint">
+                  Automatic backups use only server-side credentials from the database or environment.
+                  Browser cookies are ignored.
+                </p>
                 <span class="server-readiness-detail">
                   Server-side credentials are available. Account ID comes from {{ auto_backup.prereqs.account_id_source or 'unknown source' }},
                   API token comes from {{ auto_backup.prereqs.api_token_source or 'unknown source' }}.
@@ -290,6 +308,10 @@
               </div>
               {% else %}
               <div class="server-readiness-item">
+                <p class="hint">
+                  Automatic backups use only server-side credentials from the database or environment.
+                  Browser cookies are ignored.
+                </p>
                 <span class="server-readiness-detail">
                   Missing: {{ auto_backup.prereqs.missing_items | join(', ') }}.
                   Add them through the app and save them, or provide them from the environment.
@@ -316,7 +338,13 @@
               </div>
               <div>
                 <dt>Last run</dt>
-                <dd>{{ auto_backup.last_run_at or 'Never' }}</dd>
+                <dd>
+                  {% if auto_backup.last_run_at %}
+                  <span class="local-datetime" data-utc-datetime="{{ auto_backup.last_run_at }}" data-display-timezone="{{ auto_backup.timezone_name }}">{{ auto_backup.last_run_at }}</span>
+                  {% else %}
+                  Never
+                  {% endif %}
+                </dd>
               </div>
               <div>
                 <dt>Last status</dt>
@@ -324,7 +352,13 @@
               </div>
               <div>
                 <dt>Next run</dt>
-                <dd>{{ auto_backup.next_run_at or 'Not scheduled' }}</dd>
+                <dd>
+                  {% if auto_backup.next_run_at %}
+                  <span class="local-datetime" data-utc-datetime="{{ auto_backup.next_run_at }}" data-display-timezone="{{ auto_backup.timezone_name }}">{{ auto_backup.next_run_at }}</span>
+                  {% else %}
+                  Not scheduled
+                  {% endif %}
+                </dd>
               </div>
             </dl>
             {% if not auto_backup.prereqs.ready %}
@@ -334,14 +368,22 @@
               You need values available to the server from the database or environment.
             </section>
             {% endif %}
-            <form method="post" action="/auto-backup/run" class="top-gap">
-              <button type="submit" {% if not auto_backup.prereqs.ready %}disabled{% endif %}>Run now</button>
+            <form method="post" action="/auto-backup/run" class="top-gap auto-backup-footer">
+              <button type="submit" class="auto-backup-primary" {% if not auto_backup.prereqs.ready %}disabled{% endif %}>Run now</button>
             </form>
           </section>
         </div>
 
         <section class="top-gap">
-          <h3>Recent automatic backup runs</h3>
+          <div class="section-header-row">
+            <div>
+              <h3>Recent automatic backup runs</h3>
+              <p class="hint">
+                Below you will find the five most recent runs. To view the entire archive, open the
+                <a href="/auto-backup/runs">Automatic Backup Archive</a>.
+              </p>
+            </div>
+          </div>
           {% if auto_backup.recent_runs %}
           <div class="table-wrap">
             <table>
@@ -381,6 +423,9 @@
               </tbody>
             </table>
           </div>
+          <div class="archive-link-row">
+            <a href="/auto-backup/runs" class="secondary-link-button secondary-link-button-small">View full archive</a>
+          </div>
           {% else %}
           <p>No automatic backup runs yet.</p>
           {% endif %}
@@ -409,6 +454,10 @@
           <div class="database-stat">
             <span class="database-stat-label">Database size</span>
             <strong class="database-stat-value">{{ database_stats.database_size }}</strong>
+          </div>
+          <div class="database-stat">
+            <span class="database-stat-label">Backup storage</span>
+            <strong class="database-stat-value">{{ database_stats.backup_storage_size }}</strong>
           </div>
           <div class="database-stat database-stat-latest">
             <span class="database-stat-label">Latest backup</span>
@@ -519,6 +568,33 @@
       ↑
     </button>
     <script>
+      const smoothScrollToY = (targetY, duration = 560) => {
+        const startY = window.scrollY;
+        const distance = targetY - startY;
+        if (Math.abs(distance) < 2) return;
+
+        const startTime = performance.now();
+        const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2);
+
+        const step = (currentTime) => {
+          const elapsed = currentTime - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const eased = easeInOutCubic(progress);
+          window.scrollTo(0, startY + distance * eased);
+          if (progress < 1) {
+            window.requestAnimationFrame(step);
+          }
+        };
+
+        window.requestAnimationFrame(step);
+      };
+
+      const smoothScrollToElement = (element, offset = 0, duration = 560) => {
+        if (!element) return;
+        const targetY = Math.max(0, window.scrollY + element.getBoundingClientRect().top - offset);
+        smoothScrollToY(targetY, duration);
+      };
+
       document.querySelectorAll(".copy-button").forEach((button) => {
         button.addEventListener("click", async () => {
           if (!button.dataset.copyValue) return;
@@ -557,7 +633,7 @@
           backupTunnelIdInput.select();
 
           if (backupSection) {
-            backupSection.scrollIntoView({ behavior: "smooth", block: "start" });
+            smoothScrollToElement(backupSection, 68);
           }
         });
       });
@@ -566,44 +642,154 @@
       const guideToggle = document.querySelector("[data-toggle-guide]");
 
       if (guideContent && guideToggle) {
+        let isGuideAnimating = false;
+        let guideTransitionFallback = null;
+
+        const setGuideExpandedState = (expanded) => {
+          guideToggle.textContent = expanded ? "Hide guide" : "Show guide";
+          guideToggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+        };
+
+        const clearGuideTransitionFallback = () => {
+          if (guideTransitionFallback) {
+            window.clearTimeout(guideTransitionFallback);
+            guideTransitionFallback = null;
+          }
+        };
+
+        const expandGuide = () => {
+          if (isGuideAnimating) return;
+          isGuideAnimating = true;
+          clearGuideTransitionFallback();
+          guideContent.hidden = false;
+          guideContent.style.willChange = "max-height, opacity, transform";
+          guideContent.classList.remove("is-collapsed");
+          guideContent.style.maxHeight = "0px";
+          guideContent.style.opacity = "0";
+          guideContent.style.transform = "translateY(-8px)";
+
+          void guideContent.offsetHeight;
+
+          window.requestAnimationFrame(() => {
+            guideContent.style.maxHeight = `${guideContent.scrollHeight}px`;
+            guideContent.style.opacity = "1";
+            guideContent.style.transform = "translateY(0)";
+          });
+
+          const handleExpanded = (event) => {
+            if (event.target !== guideContent || event.propertyName !== "max-height") return;
+            guideContent.style.maxHeight = "none";
+            guideContent.style.opacity = "";
+            guideContent.style.overflow = "";
+            guideContent.style.transform = "";
+            guideContent.style.willChange = "";
+            guideContent.removeEventListener("transitionend", handleExpanded);
+            clearGuideTransitionFallback();
+            isGuideAnimating = false;
+          };
+
+          guideContent.addEventListener("transitionend", handleExpanded);
+          guideTransitionFallback = window.setTimeout(() => {
+            guideContent.style.maxHeight = "none";
+            guideContent.style.opacity = "";
+            guideContent.style.overflow = "";
+            guideContent.style.transform = "";
+            guideContent.style.willChange = "";
+            guideContent.removeEventListener("transitionend", handleExpanded);
+            isGuideAnimating = false;
+          }, 420);
+          setGuideExpandedState(true);
+        };
+
+        const collapseGuide = () => {
+          if (isGuideAnimating) return;
+          isGuideAnimating = true;
+          clearGuideTransitionFallback();
+          guideContent.hidden = false;
+          guideContent.style.willChange = "max-height, opacity, transform";
+          guideContent.style.overflow = "hidden";
+          guideContent.style.maxHeight = `${guideContent.scrollHeight}px`;
+          guideContent.style.opacity = "1";
+          guideContent.style.transform = "translateY(0)";
+
+          void guideContent.offsetHeight;
+
+          window.requestAnimationFrame(() => {
+            guideContent.classList.add("is-collapsed");
+            guideContent.style.maxHeight = "0px";
+            guideContent.style.opacity = "0";
+            guideContent.style.transform = "translateY(-8px)";
+          });
+
+          const handleCollapsed = (event) => {
+            if (event.target !== guideContent || event.propertyName !== "max-height") return;
+            guideContent.hidden = true;
+            guideContent.style.maxHeight = "";
+            guideContent.style.opacity = "";
+            guideContent.style.overflow = "";
+            guideContent.style.transform = "";
+            guideContent.style.willChange = "";
+            guideContent.removeEventListener("transitionend", handleCollapsed);
+            clearGuideTransitionFallback();
+            isGuideAnimating = false;
+          };
+
+          guideContent.addEventListener("transitionend", handleCollapsed);
+          guideTransitionFallback = window.setTimeout(() => {
+            guideContent.hidden = true;
+            guideContent.style.maxHeight = "";
+            guideContent.style.opacity = "";
+            guideContent.style.overflow = "";
+            guideContent.style.transform = "";
+            guideContent.style.willChange = "";
+            guideContent.removeEventListener("transitionend", handleCollapsed);
+            isGuideAnimating = false;
+          }, 420);
+          setGuideExpandedState(false);
+        };
+
         guideToggle.addEventListener("click", () => {
-          const isHidden = guideContent.hasAttribute("hidden");
-          if (isHidden) {
-            guideContent.removeAttribute("hidden");
-            guideToggle.textContent = "Hide guide";
-            guideToggle.setAttribute("aria-expanded", "true");
+          if (guideContent.hidden) {
+            expandGuide();
           } else {
-            guideContent.setAttribute("hidden", "");
-            guideToggle.textContent = "Show guide";
-            guideToggle.setAttribute("aria-expanded", "false");
+            collapseGuide();
           }
         });
       }
 
       const pageContainer = document.querySelector("[data-success-target]");
       const successTarget = pageContainer?.dataset.successTarget || "";
+      const schedulerTimezone = pageContainer?.dataset.autoBackupTimezone || "UTC";
+      const schedulerTimezoneSource = pageContainer?.dataset.autoBackupTimezoneSource || "default";
+      const browserTimezoneName = Intl.DateTimeFormat().resolvedOptions().timeZone || "your local timezone";
+      const effectiveSchedulerTimezone = schedulerTimezoneSource === "default" ? browserTimezoneName : schedulerTimezone;
       const tunnelsSection = document.getElementById("tunnels-section");
       const tunnelsResults = document.getElementById("tunnels-results");
       const savedBackupsSection = document.getElementById("saved-backups-section");
       const autoBackupSection = document.getElementById("auto-backup-section");
       const backToTopButton = document.getElementById("back-to-top");
       const cronExpressionInput = document.querySelector('input[name="cron_expression"]');
+      const cronTimezoneNote = document.getElementById("cron-timezone-note");
+      const cronExplanation = document.getElementById("cron-explanation");
+      const browserTimezoneInput = document.getElementById("browser-timezone-input");
+      const floatingNav = document.querySelector("[data-floating-nav]");
+      const floatingNavLabel = document.querySelector("[data-hero-nav-label]");
 
       if (successTarget === "tunnels" && tunnelsSection && tunnelsResults) {
         window.requestAnimationFrame(() => {
-          tunnelsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+          smoothScrollToElement(tunnelsSection, 68);
         });
       }
 
       if (successTarget === "backup" && savedBackupsSection) {
         window.requestAnimationFrame(() => {
-          savedBackupsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+          smoothScrollToElement(savedBackupsSection, 68);
         });
       }
 
       if (successTarget === "auto-backup" && autoBackupSection) {
         window.requestAnimationFrame(() => {
-          autoBackupSection.scrollIntoView({ behavior: "smooth", block: "start" });
+          smoothScrollToElement(autoBackupSection, 68);
         });
       }
 
@@ -613,12 +799,39 @@
         };
 
         backToTopButton.addEventListener("click", () => {
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          smoothScrollToY(0, 620);
         });
 
         window.addEventListener("scroll", toggleBackToTop, { passive: true });
         toggleBackToTop();
       }
+
+      if (floatingNav) {
+        let isFloating = false;
+        const toggleFloatingNav = () => {
+          const shouldFloat = isFloating ? window.scrollY > 132 : window.scrollY > 180;
+          isFloating = shouldFloat;
+          floatingNav.classList.toggle("is-floating", shouldFloat);
+          if (floatingNavLabel) {
+            floatingNavLabel.classList.toggle("is-hidden", shouldFloat);
+          }
+        };
+
+        window.addEventListener("scroll", toggleFloatingNav, { passive: true });
+        toggleFloatingNav();
+      }
+
+      document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+        anchor.addEventListener("click", (event) => {
+          const href = anchor.getAttribute("href") || "";
+          if (!href.startsWith("#")) return;
+          const target = document.querySelector(href);
+          if (!target) return;
+          event.preventDefault();
+          smoothScrollToElement(target, 68, href === "#page-top" ? 620 : 560);
+          history.replaceState(null, "", href);
+        });
+      });
 
       const root = document.documentElement;
       const themeButtons = document.querySelectorAll("[data-theme-value]");
@@ -669,8 +882,121 @@
           cronExpressionInput.value = button.dataset.cronPreset || "";
           cronExpressionInput.focus();
           cronExpressionInput.select();
+          updateCronExplanation();
         });
       });
+
+      const describeCronExpression = (expression) => {
+        const value = (expression || "").trim();
+        const timezoneLabel = effectiveSchedulerTimezone || "UTC";
+        if (!value) {
+          return "Enter a cron expression to see a plain-language explanation.";
+        }
+
+        const parts = value.split(/\s+/);
+        if (parts.length !== 5) {
+          return "Use a standard 5-field cron expression, for example `0 * * * *` or `*/5 * * * *`.";
+        }
+
+        const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+        const everyDay = dayOfMonth === "*" && month === "*" && dayOfWeek === "*";
+
+        if (minute.startsWith("*/") && hour === "*" && everyDay) {
+          const step = Number.parseInt(minute.slice(2), 10);
+          if (Number.isFinite(step) && step > 0) {
+            return `This schedule runs every ${step} minute${step === 1 ? "" : "s"} (${timezoneLabel}).`;
+          }
+        }
+
+        if (minute === "0" && hour.startsWith("*/") && everyDay) {
+          const step = Number.parseInt(hour.slice(2), 10);
+          if (Number.isFinite(step) && step > 0) {
+            return `This schedule runs every ${step} hour${step === 1 ? "" : "s"} at minute 00 (${timezoneLabel}).`;
+          }
+        }
+
+        if (minute === "0" && hour === "*" && everyDay) {
+          return `This schedule runs every hour at minute 00 (${timezoneLabel}).`;
+        }
+
+        if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && everyDay) {
+          const hourValue = Number.parseInt(hour, 10);
+          const minuteValue = Number.parseInt(minute, 10);
+          if (hourValue >= 0 && hourValue <= 23 && minuteValue >= 0 && minuteValue <= 59) {
+            return `This schedule runs every day at ${String(hourValue).padStart(2, "0")}:${String(minuteValue).padStart(2, "0")} ${timezoneLabel}.`;
+          }
+        }
+
+        if (/^\d+$/.test(minute) && hour === "*" && everyDay) {
+          const minuteValue = Number.parseInt(minute, 10);
+          if (minuteValue >= 0 && minuteValue <= 59) {
+            return `This schedule runs every hour at minute ${String(minuteValue).padStart(2, "0")} (${timezoneLabel}).`;
+          }
+        }
+
+        return `This schedule uses a custom cron expression. It will run according to the 5-field pattern in ${timezoneLabel}.`;
+      };
+
+      const buildTimezoneNote = () => {
+        if (!cronTimezoneNote) return;
+
+        const offsetMinutes = -new Date().getTimezoneOffset();
+        const sign = offsetMinutes >= 0 ? "+" : "-";
+        const absoluteMinutes = Math.abs(offsetMinutes);
+        const hours = String(Math.floor(absoluteMinutes / 60)).padStart(2, "0");
+        const minutes = String(absoluteMinutes % 60).padStart(2, "0");
+        const browserOffset = `UTC${sign}${hours}:${minutes}`;
+
+        if (schedulerTimezoneSource === "environment") {
+          cronTimezoneNote.textContent = `Automatic backups currently use ${schedulerTimezone}, forced by environment configuration. Your browser is using ${browserTimezoneName} (${browserOffset}).`;
+          return;
+        }
+
+        if (schedulerTimezoneSource === "browser") {
+          cronTimezoneNote.textContent = `Automatic backups currently use ${schedulerTimezone}. Your browser is using ${browserTimezoneName} (${browserOffset}).`;
+          return;
+        }
+
+        cronTimezoneNote.textContent = `Automatic backups currently use ${browserTimezoneName} (${browserOffset}) by default, unless overridden from the environment.`;
+      };
+
+      const formatLocalDateTimes = () => {
+        document.querySelectorAll("[data-utc-datetime]").forEach((element) => {
+          const rawValue = element.dataset.utcDatetime || "";
+          const displayTimezone = element.dataset.displayTimezone || effectiveSchedulerTimezone;
+          const parsed = new Date(rawValue);
+          if (Number.isNaN(parsed.getTime())) return;
+          const zonedFormatter = new Intl.DateTimeFormat(undefined, {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            timeZone: displayTimezone,
+            timeZoneName: "short",
+          });
+          element.textContent = zonedFormatter.format(parsed);
+          element.title = `${rawValue} UTC`;
+        });
+      };
+
+      const updateCronExplanation = () => {
+        if (!cronExpressionInput || !cronExplanation) return;
+        cronExplanation.textContent = describeCronExpression(cronExpressionInput.value);
+      };
+
+      if (cronExpressionInput && cronExplanation) {
+        cronExpressionInput.addEventListener("input", updateCronExplanation);
+        buildTimezoneNote();
+        updateCronExplanation();
+      }
+
+      if (browserTimezoneInput) {
+        browserTimezoneInput.value = browserTimezoneName || "";
+      }
+
+      formatLocalDateTimes();
     </script>
   </body>
 </html>
