@@ -39,8 +39,10 @@ You can configure the app through environment variables, whether you use Docker 
 | `CLOUDFLARE_API_TOKEN` | No | Prefills the API token in the UI. |
 | `TOKEN_ENCRYPTION_KEY` | Recommended | Fernet key used to encrypt the API token before saving it in SQLite. |
 | `AUTO_BACKUP_TIMEZONE` | No | Force automatic backups to use a specific IANA timezone such as `Europe/Rome`. |
+| `BACKUP_RETENTION_DAYS` | No | Automatically delete backups older than this many days after new backups are created. |
 | `DATA_DIR` | No | Storage path for the SQLite database and JSON backups. Default: `/data`. |
 | `REQUEST_TIMEOUT` | No | Outbound Cloudflare API timeout in seconds. Default: `20`. |
+| `LOG_LEVEL` | No | Application log level written to container stdout. Default: `INFO`. |
 | `CLOUDFLARE_API_BASE` | No | Override for the Cloudflare API base URL. Default: `https://api.cloudflare.com/client/v4`. |
 
 Start from [`.env.sample`](/Users/gioxx/Documents/GitHub/TikkaMasala/.env.sample):
@@ -76,6 +78,8 @@ CLOUDFLARE_ACCOUNT_ID=your-32-char-account-id
 CLOUDFLARE_API_TOKEN=your-cloudflare-api-token
 TOKEN_ENCRYPTION_KEY=your-generated-fernet-key
 AUTO_BACKUP_TIMEZONE=Europe/Rome
+BACKUP_RETENTION_DAYS=90
+LOG_LEVEL=INFO
 ```
 
 ## Run with Docker Only
@@ -182,7 +186,9 @@ Important notes:
 - automatic backups require server-side credentials available from the database or environment
 - browser-only token prefill is not enough for scheduled jobs
 - each run creates normal backups, so automatic and manual backups share the same archive
-- `1.1.0` does not perform retention or deduplication automatically
+- if `BACKUP_RETENTION_DAYS` is set, old backup files and related database records are deleted automatically after new backups are created
+- retention cleanup removes both the JSON snapshot and its related restore history
+- container logs include both Uvicorn access logs and application logs for startup, backup creation, restore, scheduler activity, cleanup, and most UI-triggered operations
 
 ## Security Notes
 

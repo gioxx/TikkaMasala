@@ -7,7 +7,7 @@ import os
 import sqlite3
 from contextlib import closing
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -27,10 +27,12 @@ BACKUP_DIR = DATA_DIR / "backups"
 DB_PATH = DATA_DIR / "app.db"
 API_BASE = os.getenv("CLOUDFLARE_API_BASE", "https://api.cloudflare.com/client/v4")
 REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "20"))
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").strip().upper()
 DEFAULT_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
 DEFAULT_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
 TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "").strip()
 AUTO_BACKUP_TIMEZONE = os.getenv("AUTO_BACKUP_TIMEZONE", "").strip()
+BACKUP_RETENTION_DAYS_RAW = os.getenv("BACKUP_RETENTION_DAYS", "").strip()
 API_TOKEN_COOKIE_NAME = "cf_api_token"
 API_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 ENCRYPTED_VALUE_PREFIX = "enc:"
@@ -43,6 +45,11 @@ SCHEDULED_RUNS_PAGE_SIZE_OPTIONS = (15, 30, 60, 90)
 
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
 
 app = FastAPI(title="Cloudflare Tunnel Route Backup")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
@@ -295,6 +302,20 @@ def get_server_api_token_source() -> str | None:
     if DEFAULT_API_TOKEN:
         return "environment"
     return None
+
+
+def get_backup_retention_days() -> int | None:
+    if not BACKUP_RETENTION_DAYS_RAW:
+        return None
+    try:
+        days = int(BACKUP_RETENTION_DAYS_RAW)
+    except ValueError:
+        logger.warning("Ignoring BACKUP_RETENTION_DAYS because it is not a valid integer: %s", BACKUP_RETENTION_DAYS_RAW)
+        return None
+    if days <= 0:
+        logger.warning("Ignoring BACKUP_RETENTION_DAYS because it must be greater than zero: %s", BACKUP_RETENTION_DAYS_RAW)
+        return None
+    return days
 
 
 def resolve_api_token(request: Request, api_token: str | None) -> str:
@@ -667,15 +688,26 @@ def configure_auto_backup_job() -> None:
 
 @app.on_event("startup")
 async def startup_event() -> None:
+    logger.info(
+        "Starting Tikka Masala (data_dir=%s, api_base=%s, log_level=%s, auto_backup_timezone=%s, retention_days=%s).",
+        DATA_DIR,
+        API_BASE,
+        LOG_LEVEL,
+        AUTO_BACKUP_TIMEZONE or "auto",
+        get_backup_retention_days() or "disabled",
+    )
     if not auto_backup_scheduler.running:
         auto_backup_scheduler.start()
     configure_auto_backup_job()
+    logger.info("Application startup complete.")
 
 
 @app.on_event("shutdown")
 async def shutdown_event() -> None:
+    logger.info("Shutting down Tikka Masala.")
     if auto_backup_scheduler.running:
         auto_backup_scheduler.shutdown(wait=False)
+    logger.info("Application shutdown complete.")
 
 
 async def cloudflare_get(account_id: str, path: str, api_token: str) -> dict[str, Any]:
@@ -760,6 +792,8 @@ async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: 
         conn.commit()
         backup_id = cursor.lastrowid
 
+    purge_expired_backups(datetime.fromisoformat(created_at))
+
     return BackupRecord(
         id=backup_id,
         created_at=created_at,
@@ -770,6 +804,52 @@ async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: 
         filename=filename,
         notes=notes,
     )
+
+
+def purge_expired_backups(reference_time: datetime | None = None) -> int:
+    retention_days = get_backup_retention_days()
+    if retention_days is None:
+        return 0
+
+    cutoff_time = (reference_time or datetime.now(timezone.utc)) - timedelta(days=retention_days)
+    cutoff_iso = cutoff_time.replace(microsecond=0).isoformat()
+
+    with closing(db()) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, filename
+            FROM backups
+            WHERE created_at < ?
+            ORDER BY id ASC
+            """,
+            (cutoff_iso,),
+        ).fetchall()
+
+        deleted_count = 0
+        for row in rows:
+            backup_id = int(row["id"])
+            filename = str(row["filename"])
+            file_path = BACKUP_DIR / filename
+
+            try:
+                file_path.unlink(missing_ok=True)
+            except OSError:
+                logger.exception("Failed to remove expired backup file: %s", file_path)
+
+            conn.execute("DELETE FROM restores WHERE backup_id = ?", (backup_id,))
+            conn.execute("DELETE FROM backups WHERE id = ?", (backup_id,))
+            deleted_count += 1
+
+        conn.commit()
+
+    if deleted_count:
+        logger.info(
+            "Deleted %s expired backup(s) older than %s day(s) due to BACKUP_RETENTION_DAYS.",
+            deleted_count,
+            retention_days,
+        )
+
+    return deleted_count
 
 
 def extract_error_message(payload: dict[str, Any]) -> str:
@@ -1173,9 +1253,11 @@ async def index(
 async def verify_token_action(request: Request, api_token: str = Form(default="")) -> HTMLResponse:
     try:
         api_token = resolve_api_token(request, api_token)
+        logger.info("Token verification requested.")
         result = await verify_token(api_token)
         status = result.get("result", {}).get("status", "unknown")
         message = f"Token verified successfully. Status: {status}."
+        logger.info("Token verification completed successfully (status=%s).", status)
         remember_api_token(api_token)
         response = await index(
             request,
@@ -1188,6 +1270,7 @@ async def verify_token_action(request: Request, api_token: str = Form(default=""
         set_api_token_cookie(response, api_token)
         return response
     except HTTPException as exc:
+        logger.warning("Token verification failed: %s", exc.detail)
         return await index(request, error=exc.detail)
 
 
@@ -1196,7 +1279,9 @@ async def list_tunnels_action(request: Request, account_id: str = Form(default="
     try:
         account_id = resolve_account_id(account_id)
         api_token = resolve_api_token(request, api_token)
+        logger.info("Tunnel listing requested (account_id=%s).", account_id)
         tunnels = await list_tunnels(account_id, api_token)
+        logger.info("Tunnel listing completed (account_id=%s, tunnels=%s).", account_id, len(tunnels))
         remember_account_id(account_id)
         remember_api_token(api_token)
         response = render_index_page(
@@ -1211,6 +1296,7 @@ async def list_tunnels_action(request: Request, account_id: str = Form(default="
         set_api_token_cookie(response, api_token)
         return response
     except HTTPException as exc:
+        logger.warning("Tunnel listing failed: %s", exc.detail)
         return await index(request, error=exc.detail)
 
 
@@ -1225,7 +1311,15 @@ async def backup_action(
     try:
         account_id = resolve_account_id(account_id)
         api_token = resolve_api_token(request, api_token)
+        logger.info("Manual backup requested (account_id=%s, tunnel_id=%s).", account_id, tunnel_id)
         backup = await create_backup(account_id, tunnel_id, api_token, notes)
+        logger.info(
+            "Manual backup created successfully (backup_id=%s, account_id=%s, tunnel_id=%s, tunnel_name=%s).",
+            backup.id,
+            account_id,
+            tunnel_id,
+            backup.tunnel_name,
+        )
         remember_account_id(account_id)
         remember_api_token(api_token)
         response = await index(
@@ -1239,11 +1333,13 @@ async def backup_action(
         set_api_token_cookie(response, api_token)
         return response
     except HTTPException as exc:
+        logger.warning("Manual backup failed (tunnel_id=%s): %s", tunnel_id, exc.detail)
         return await index(request, error=exc.detail)
 
 
 @app.post("/clear-saved-auth", response_class=HTMLResponse)
 async def clear_saved_auth(request: Request) -> HTMLResponse:
+    logger.info("Clearing saved authentication data from database and browser cookie.")
     delete_setting("account_id")
     delete_setting("api_token")
     response = await index(
@@ -1269,6 +1365,7 @@ async def auto_backup_settings_action(
     browser_timezone: str = Form(default=""),
 ) -> HTMLResponse:
     try:
+        logger.info("Automatic backup settings update requested.")
         if not AUTO_BACKUP_TIMEZONE and browser_timezone.strip():
             try:
                 set_auto_backup_timezone(browser_timezone)
@@ -1288,16 +1385,24 @@ async def auto_backup_settings_action(
         set_auto_backup_cron(normalized_cron)
         set_auto_backup_enabled(enabled_flag)
         configure_auto_backup_job()
+        logger.info(
+            "Automatic backup settings updated (enabled=%s, cron=%s, timezone=%s).",
+            enabled_flag,
+            normalized_cron,
+            get_auto_backup_timezone_name(),
+        )
 
         message = "Automatic backups enabled." if enabled_flag else "Automatic backups disabled."
         return render_index_page(request, message=message, success_target="auto-backup")
     except HTTPException as exc:
+        logger.warning("Automatic backup settings update failed: %s", exc.detail)
         return render_index_page(request, error=exc.detail, success_target="auto-backup")
 
 
 @app.post("/auto-backup/run", response_class=HTMLResponse)
 async def auto_backup_run_action(request: Request) -> HTMLResponse:
     try:
+        logger.info("Manual automatic-backup run requested from UI.")
         prereqs = get_auto_backup_prerequisites()
         if not prereqs["ready"]:
             raise HTTPException(
@@ -1307,6 +1412,13 @@ async def auto_backup_run_action(request: Request) -> HTMLResponse:
 
         result = await run_auto_backup_job(trigger="manual")
         status = result["status"]
+        logger.info(
+            "Manual automatic-backup run finished (status=%s, tunnels=%s, backups=%s, errors=%s).",
+            status,
+            result["tunnel_count"],
+            result["backup_count"],
+            result["error_count"],
+        )
         if status == "success":
             message = f"Automatic backup run completed: {result['backup_count']} backup(s) created from {result['tunnel_count']} tunnel(s)."
             return render_index_page(request, message=message, success_target="auto-backup")
@@ -1326,6 +1438,7 @@ async def auto_backup_run_action(request: Request) -> HTMLResponse:
             )
             return render_index_page(request, error=error, success_target="auto-backup")
     except HTTPException as exc:
+        logger.warning("Manual automatic-backup run failed before execution: %s", exc.detail)
         return render_index_page(request, error=exc.detail, success_target="auto-backup")
 
 
@@ -1345,6 +1458,7 @@ async def download_backup(backup_id: int) -> FileResponse:
     file_path = BACKUP_DIR / backup.filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Backup file not found")
+    logger.info("Backup download requested (backup_id=%s, filename=%s).", backup_id, backup.filename)
     return FileResponse(path=file_path, filename=backup.filename, media_type="application/json")
 
 
@@ -1359,6 +1473,12 @@ async def restore_backup(
     try:
         account_id = resolve_account_id(account_id)
         api_token = resolve_api_token(request, api_token)
+        logger.info(
+            "Restore requested (backup_id=%s, account_id=%s, tunnel_id=%s).",
+            backup_id,
+            account_id,
+            tunnel_id,
+        )
         payload = load_backup_json(backup_id)
         configuration = payload.get("configuration", {})
         config_body = configuration.get("config")
@@ -1368,10 +1488,12 @@ async def restore_backup(
         remember_account_id(account_id)
         remember_api_token(api_token)
         record_restore(backup_id, account_id, tunnel_id)
+        logger.info("Restore completed successfully (backup_id=%s, account_id=%s, tunnel_id=%s).", backup_id, account_id, tunnel_id)
         response = render_backup_page(request, backup_id, message="Backup restored successfully.")
         set_api_token_cookie(response, api_token)
         return response
     except HTTPException as exc:
+        logger.warning("Restore failed (backup_id=%s): %s", backup_id, exc.detail)
         return render_backup_page(request, backup_id, error=exc.detail)
 
 
