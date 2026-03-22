@@ -186,10 +186,10 @@
                     </button>
                     {% if prefill_account_id %}
                     <a
-                      href="https://dash.cloudflare.com/?to=%2F%3Aaccount%2Ftunnels"
+                      href="https://one.dash.cloudflare.com/{{ prefill_account_id }}/networks/connectors"
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label="Open Cloudflare Tunnels dashboard for tunnel {{ tunnel.name or tunnel.id }}"
+                      aria-label="Open Cloudflare Connectors dashboard for tunnel {{ tunnel.name or tunnel.id }}"
                     >
                       Admin
                     </a>
