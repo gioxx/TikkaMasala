@@ -14,6 +14,7 @@ Tikka Masala is a small FastAPI web app for backing up and restoring Cloudflare 
 - Prefill `Account ID` and `API token` from environment, browser, or database
 - Clear saved authentication data without deleting backups
 - Switch between system, dark, and light theme
+- Schedule automatic backups for all tunnels in the account
 
 ## Requirements
 
@@ -37,8 +38,11 @@ You can configure the app through environment variables, whether you use Docker 
 | `CLOUDFLARE_ACCOUNT_ID` | No | Prefills the Cloudflare account ID in the UI. |
 | `CLOUDFLARE_API_TOKEN` | No | Prefills the API token in the UI. |
 | `TOKEN_ENCRYPTION_KEY` | Recommended | Fernet key used to encrypt the API token before saving it in SQLite. |
+| `AUTO_BACKUP_TIMEZONE` | No | Force automatic backups to use a specific IANA timezone such as `Europe/Rome`. |
+| `BACKUP_RETENTION_DAYS` | No | Automatically delete backups older than this many days after new backups are created. |
 | `DATA_DIR` | No | Storage path for the SQLite database and JSON backups. Default: `/data`. |
 | `REQUEST_TIMEOUT` | No | Outbound Cloudflare API timeout in seconds. Default: `20`. |
+| `LOG_LEVEL` | No | Application log level written to container stdout. Default: `INFO`. |
 | `CLOUDFLARE_API_BASE` | No | Override for the Cloudflare API base URL. Default: `https://api.cloudflare.com/client/v4`. |
 
 Start from [`.env.sample`](/Users/gioxx/Documents/GitHub/TikkaMasala/.env.sample):
@@ -73,6 +77,9 @@ Example `.env` for Compose:
 CLOUDFLARE_ACCOUNT_ID=your-32-char-account-id
 CLOUDFLARE_API_TOKEN=your-cloudflare-api-token
 TOKEN_ENCRYPTION_KEY=your-generated-fernet-key
+AUTO_BACKUP_TIMEZONE=Europe/Rome
+BACKUP_RETENTION_DAYS=90
+LOG_LEVEL=INFO
 ```
 
 ## Run with Docker Only
@@ -112,6 +119,13 @@ Effective priority:
 
 - `Account ID`: database, then environment
 - `API token`: browser cookie, then database, then environment
+
+Automatic backups use only server-side credentials:
+
+- `Account ID`: database or environment
+- `API token`: encrypted database value or environment
+
+Browser cookies are never used by the scheduler.
 
 After a successful token verification or API action:
 
@@ -154,6 +168,28 @@ The backup detail page keeps a restore history so you can see:
 - which tunnel it was restored to
 - whether the restore targeted the original tunnel, a different tunnel, or a different account
 
+## Automatic Backups
+
+Tikka Masala can schedule recurring backups for all tunnels visible in the configured account.
+
+The scheduler is built into the app and stores its configuration in the local SQLite database. From the home page you can:
+
+- enable or disable automatic backups
+- set a cron expression
+- run the job immediately with `Run now`
+- see the last run, next run, and recent execution history
+
+By default, automatic backups use the timezone detected from the browser when you save the schedule. If you want a fixed server-side timezone for all users, set `AUTO_BACKUP_TIMEZONE`.
+
+Important notes:
+
+- automatic backups require server-side credentials available from the database or environment
+- browser-only token prefill is not enough for scheduled jobs
+- each run creates normal backups, so automatic and manual backups share the same archive
+- if `BACKUP_RETENTION_DAYS` is set, old backup files and related database records are deleted automatically after new backups are created
+- retention cleanup removes both the JSON snapshot and its related restore history
+- container logs include both Uvicorn access logs and application logs for startup, backup creation, restore, scheduler activity, cleanup, and most UI-triggered operations
+
 ## Security Notes
 
 - The API token is never persisted in plaintext in the database by current versions of the app.
@@ -166,7 +202,3 @@ The backup detail page keeps a restore history so you can see:
 - Main application entrypoint: [app/main.py](/Users/gioxx/Documents/GitHub/TikkaMasala/app/main.py)
 - Main UI template: [app/templates/index.html](/Users/gioxx/Documents/GitHub/TikkaMasala/app/templates/index.html)
 - Backup detail template: [app/templates/backup.html](/Users/gioxx/Documents/GitHub/TikkaMasala/app/templates/backup.html)
-
-Repository:
-
-- <https://github.com/gioxx/TikkaMasala>
