@@ -42,6 +42,7 @@
             <a href="#page-top" class="floating-only-nav-item">↑ Go to Top</a>
             <a href="/">Dashboard</a>
             <a href="/#auto-backup-section">Automatic backups</a>
+            <a href="/#notifications-section">Notifications</a>
             <a href="/#saved-backups-section">Saved backups</a>
             <a href="#runs-archive">Run archive</a>
           </nav>
@@ -53,7 +54,16 @@
       <section class="card" id="runs-archive">
         <div class="section-header-row">
           <div>
-            <h2>Automatic backup archive</h2>
+            <h2 class="heading-with-icon">
+              <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                <path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v3h-18z" />
+                <path d="M4 10v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-8" />
+                <path d="M10 12l4 0" />
+              </svg>
+              <span>Automatic backup archive</span>
+            </h2>
             <p class="hint">Full execution history for scheduled and manual automatic backup runs.</p>
             <p class="hint">
               Total recorded runs: {{ scheduled_runs_stats.run_count }}.
@@ -152,6 +162,7 @@
           <div class="footer-text">
             <div class="footer-title">Tikka Masala</div>
             <div class="footer-meta">Cloudflare Tunnel backup and restore utility for local JSON snapshots.</div>
+            <div class="footer-credit">Icons by <a href="https://tabler.io/icons" target="_blank" rel="noopener noreferrer">Tabler Icons</a>.</div>
           </div>
           <div class="footer-actions">
             <div class="theme-switcher" role="group" aria-label="Theme">

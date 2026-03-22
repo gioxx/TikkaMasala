@@ -45,22 +45,39 @@
             <a href="#backup-section">Create backup</a>
             <a href="#auto-backup-section">Automatic backups</a>
             <a href="#saved-backups-section">Saved backups</a>
+            <a href="#notifications-section">Notifications</a>
           </nav>
         </div>
       </header>
 
-      {% if error and success_target != "auto-backup" %}
+      {% if error and success_target not in ["guide", "tunnels", "backup", "auto-backup", "notifications"] %}
       <section class="notice error">{{ error }}</section>
       {% endif %}
 
       <section class="guide-panel card" id="guide-section">
         <div class="guide-header">
           <div>
-            <h2>How to use Tikka Masala</h2>
+            <h2 class="heading-with-icon">
+              <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" />
+                <path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" />
+                <path d="M3 6l0 13" />
+                <path d="M12 6l0 13" />
+                <path d="M21 6l0 13" />
+              </svg>
+              <span>How to use Tikka Masala</span>
+            </h2>
             <p class="hint">Use this section only when you need the setup steps or want to verify the token first.</p>
           </div>
           <button type="button" class="toggle-button" data-toggle-guide aria-expanded="false">Show guide</button>
         </div>
+        {% if message and success_target == "guide" %}
+        <section class="notice success" id="guide-notice">{{ message }}</section>
+        {% endif %}
+        {% if error and success_target == "guide" %}
+        <section class="notice error" id="guide-notice">{{ error }}</section>
+        {% endif %}
 
         <div class="guide-content is-collapsed" data-guide-content hidden>
           <section class="guide-copy">
@@ -94,7 +111,19 @@
 
           <section class="verify-card">
             <div class="section-heading">
-              <h2>Verify API token</h2>
+              <h2 class="heading-with-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  class="icon icon-tabler icons-tabler-outline icon-tabler-user-key">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                  <path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" />
+                  <path d="M6 21v-2a4 4 0 0 1 4 -4h5" />
+                  <path d="M18.5 18.5l-3.5 3.5l-1.5 -1.5" />
+                  <path d="M18.554 18.414a2 2 0 1 1 2.828 -2.828a2 2 0 0 1 -2.828 2.828" />
+                  <path d="M16 19l1 1" />
+                </svg>
+                <span>Verify API token</span>
+              </h2>
               <p class="hint">Optional, but useful before loading tunnels, creating a backup, or restoring a snapshot.</p>
             </div>
             <form method="post" action="/verify-token" class="stack">
@@ -109,7 +138,20 @@
           </section>
           <section class="auth-status-card">
             <div class="auth-status-copy">
-              <h2>Authentication data</h2>
+              <h2 class="heading-with-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  class="icon icon-tabler icons-tabler-outline icon-tabler-user-scan">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                  <path d="M10 9a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+                  <path d="M4 8v-2a2 2 0 0 1 2 -2h2" />
+                  <path d="M4 16v2a2 2 0 0 0 2 2h2" />
+                  <path d="M16 4h2a2 2 0 0 1 2 2v2" />
+                  <path d="M16 20h2a2 2 0 0 0 2 -2v-2" />
+                  <path d="M8 16a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2" />
+                </svg>
+                <span>Authentication data</span>
+              </h2>
               {% if prefill_status.has_prefill %}
               <p class="hint">
                 {% if prefill_status.account_id_source %}
@@ -145,15 +187,32 @@
         </div>
       </section>
 
-      {% if message and success_target == "tunnels" %}
-      <section class="notice success">{{ message }}</section>
-      {% endif %}
-
       <section class="card" id="tunnels-section">
         <div class="section-heading">
-          <h2>Load tunnels</h2>
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon icon-tabler icons-tabler-outline icon-tabler-network">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0" />
+              <path d="M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6" />
+              <path d="M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6" />
+              <path d="M6 9h12" />
+              <path d="M3 20h7" />
+              <path d="M14 20h7" />
+              <path d="M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+              <path d="M12 15v3" />
+            </svg>
+            <span>Load tunnels</span>
+          </h2>
           <p class="hint">Load every tunnel available for the current account so you can copy IDs, reuse them for backups, or open the Cloudflare admin page directly.</p>
         </div>
+        {% if message and success_target == "tunnels" %}
+        <section class="notice success top-gap" id="tunnels-notice">{{ message }}</section>
+        {% endif %}
+        {% if error and success_target == "tunnels" %}
+        <section class="notice error top-gap" id="tunnels-notice">{{ error }}</section>
+        {% endif %}
         <form method="post" action="/list-tunnels" class="stack">
           <label>
             <span>Account ID</span>
@@ -222,15 +281,27 @@
         {% endif %}
       </section>
 
-      {% if message and success_target == "backup" %}
-      <section class="notice success">{{ message }}</section>
-      {% endif %}
-
       <section class="card" id="backup-section">
         <div class="section-heading">
-          <h2>Create a single backup</h2>
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon icon-tabler icons-tabler-outline icon-tabler-device-floppy">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2" />
+              <path d="M10 14a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+              <path d="M14 4l0 4l-6 0l0 -4" />
+            </svg>
+            <span>Create a single backup</span>
+          </h2>
           <p class="hint">Create a fresh JSON snapshot of one tunnel configuration so you can keep it locally, download it, or restore it later.</p>
         </div>
+        {% if message and success_target == "backup" %}
+        <section class="notice success top-gap" id="backup-notice">{{ message }}</section>
+        {% endif %}
+        {% if error and success_target == "backup" %}
+        <section class="notice error top-gap" id="backup-notice">{{ error }}</section>
+        {% endif %}
         <form method="post" action="/backup" class="grid form-grid">
           <label>
             <span>Account ID</span>
@@ -254,18 +325,30 @@
         </form>
       </section>
 
-      {% if message and success_target == "auto-backup" %}
-      <section class="notice success">{{ message }}</section>
-      {% endif %}
-      {% if error and success_target == "auto-backup" %}
-      <section class="notice error">{{ error }}</section>
-      {% endif %}
-
       <section class="card" id="auto-backup-section">
         <div class="section-heading">
-          <h2>Automatic backups</h2>
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon icon-tabler icons-tabler-outline icon-tabler-calendar-clock">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M10.5 21h-4.5a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v3" />
+              <path d="M16 3v4" />
+              <path d="M8 3v4" />
+              <path d="M4 11h10" />
+              <path d="M14 18a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
+              <path d="M18 16.5v1.5l.5 .5" />
+            </svg>
+            <span>Automatic backups</span>
+          </h2>
           <p class="hint">Schedule recurring backups for all tunnels in the configured account.</p>
         </div>
+        {% if message and success_target == "auto-backup" %}
+        <section class="notice success top-gap" id="auto-backup-notice">{{ message }}</section>
+        {% endif %}
+        {% if error and success_target == "auto-backup" %}
+        <section class="notice error top-gap" id="auto-backup-notice">{{ error }}</section>
+        {% endif %}
 
         <div class="auto-backup-grid">
           <section class="auto-backup-panel">
@@ -357,6 +440,14 @@
                 <dd>{{ auto_backup.prereqs.api_token_source or 'missing' }}</dd>
               </div>
               <div>
+                <dt>Notifications</dt>
+                <dd>{{ auto_backup.notifications.summary_label }}</dd>
+              </div>
+              <div>
+                <dt>Enabled events</dt>
+                <dd>{{ auto_backup.notifications.event_count }}</dd>
+              </div>
+              <div>
                 <dt>Last run</dt>
                 <dd>
                   {% if auto_backup.last_run_at %}
@@ -396,7 +487,14 @@
 
         <section class="top-gap">
           <div class="section-heading">
-            <h3>Recent automatic backup runs</h3>
+            <h3 class="heading-with-icon">
+              <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M12 8l0 4l2 2" />
+                <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5" />
+              </svg>
+              <span>Recent automatic backup runs</span>
+            </h3>
             <p class="hint">
               Below you will find the five most recent runs. To view the entire archive, open the
               <a href="/auto-backup/runs">Automatic Backup Archive</a>.
@@ -452,7 +550,15 @@
 
       <section class="card" id="saved-backups-section">
         <div class="section-heading">
-          <h2>Saved backups</h2>
+          <h2 class="heading-with-icon">
+            <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v3h-18z" />
+              <path d="M4 10v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-8" />
+              <path d="M10 12l4 0" />
+            </svg>
+            <span>Saved backups</span>
+          </h2>
           <p class="hint">Browse the local archive of saved tunnel snapshots, review database statistics, and manage how much backup history Tikka Masala keeps over time.</p>
         </div>
         <div class="saved-backups-overview">
@@ -583,11 +689,67 @@
         {% endif %}
       </section>
 
+      <section class="card notification-panel" id="notifications-section">
+        <div class="section-heading">
+          <div class="panel-heading-inline">
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon icon-tabler icons-tabler-outline icon-tabler-bell">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6" />
+              <path d="M9 17v1a3 3 0 0 0 6 0v-1" />
+            </svg>
+            <span>Notifications</span>
+          </h2>
+            <div class="panel-heading-badges">
+              {% if auto_backup.notifications.configured %}
+              <span class="status-pill status-match status-pill-compact">{{ auto_backup.notifications.channel_label }}</span>
+              {% else %}
+              <span class="status-pill status-muted status-pill-compact">Disabled</span>
+              {% endif %}
+            </div>
+          </div>
+          <p class="hint">Review the configured notification channels and send a live test message to the currently enabled destinations.</p>
+        </div>
+        {% if message and success_target == "notifications" %}
+        <section class="notice success top-gap" id="notifications-notice">{{ message }}</section>
+        {% endif %}
+        {% if error and success_target == "notifications" %}
+        <section class="notice error top-gap" id="notifications-notice">{{ error }}</section>
+        {% endif %}
+        <dl class="status-grid top-gap">
+          <div>
+            <dt>Channels</dt>
+            <dd>{{ auto_backup.notifications.channel_label }}</dd>
+          </div>
+          <div>
+            <dt>Enabled events</dt>
+            <dd>{{ auto_backup.notifications.event_count }}</dd>
+          </div>
+          <div>
+            <dt>Webhook events</dt>
+            <dd>{{ auto_backup.notifications.webhook_event_count }}</dd>
+          </div>
+          <div>
+            <dt>Telegram events</dt>
+            <dd>{{ auto_backup.notifications.telegram_event_count }}</dd>
+          </div>
+        </dl>
+        <p class="hint top-gap">{{ auto_backup.notifications.summary }}</p>
+        <form method="post" action="/notifications/test" class="notification-test-form">
+          <button type="submit" class="secondary-button" {% if not auto_backup.notifications.webhook_enabled and not auto_backup.notifications.telegram_enabled %}disabled{% endif %}>
+            Send test notification
+          </button>
+        </form>
+      </section>
+
       <footer class="site-footer footer-panel">
         <div class="footer-grid">
           <div class="footer-text">
             <div class="footer-title">Tikka Masala</div>
             <div class="footer-meta">Cloudflare Tunnel backup and restore utility for local JSON snapshots.</div>
+            <div class="footer-credit">Icons by <a href="https://tabler.io/icons" target="_blank" rel="noopener noreferrer">Tabler Icons</a>.</div>
           </div>
           <div class="footer-actions">
             <div class="theme-switcher" role="group" aria-label="Theme">
@@ -823,22 +985,36 @@
       const floatingNav = document.querySelector("[data-floating-nav]");
       const floatingNavLabel = document.querySelector("[data-hero-nav-label]");
 
-      if (successTarget === "tunnels" && tunnelsSection && tunnelsResults) {
+      const scrollToTargetNotice = (targetName, fallbackElement) => {
+        const noticeElement = document.getElementById(`${targetName}-notice`);
+        const targetElement = noticeElement || fallbackElement;
+        if (!targetElement) return false;
         window.requestAnimationFrame(() => {
-          smoothScrollToElement(tunnelsSection, 68);
+          smoothScrollToElement(targetElement, 68);
         });
+        return true;
+      };
+
+      if (successTarget === "tunnels" && tunnelsSection && tunnelsResults) {
+        scrollToTargetNotice("tunnels", tunnelsSection);
+      }
+
+      if (successTarget === "guide") {
+        const guideSection = document.getElementById("guide-section");
+        scrollToTargetNotice("guide", guideSection);
       }
 
       if (successTarget === "backup" && savedBackupsSection) {
-        window.requestAnimationFrame(() => {
-          smoothScrollToElement(savedBackupsSection, 68);
-        });
+        scrollToTargetNotice("backup", document.getElementById("backup-section") || savedBackupsSection);
       }
 
       if (successTarget === "auto-backup" && autoBackupSection) {
-        window.requestAnimationFrame(() => {
-          smoothScrollToElement(autoBackupSection, 68);
-        });
+        scrollToTargetNotice("auto-backup", autoBackupSection);
+      }
+
+      if (successTarget === "notifications") {
+        const notificationsSection = document.getElementById("notifications-section");
+        scrollToTargetNotice("notifications", notificationsSection);
       }
 
       if (backToTopButton) {

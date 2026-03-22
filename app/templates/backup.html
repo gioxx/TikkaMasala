@@ -42,6 +42,7 @@
             <a href="#page-top" class="floating-only-nav-item">↑ Go to Top</a>
             <a href="/">Dashboard</a>
             <a href="/#auto-backup-section">Automatic backups</a>
+            <a href="/#notifications-section">Notifications</a>
             <a href="/auto-backup/runs">Automatic backup archive</a>
             <a href="#restore-form">Restore</a>
             <a href="#restore-history">Restore history</a>
@@ -51,15 +52,18 @@
 
       <p><a href="/">← Back to dashboard</a></p>
 
-      {% if message %}
-      <section class="notice success">{{ message }}</section>
-      {% endif %}
-      {% if error %}
-      <section class="notice error">{{ error }}</section>
-      {% endif %}
-
       <section class="card" id="restore-form">
-        <h1>Backup #{{ backup.id }}</h1>
+        <h1 class="heading-with-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="icon icon-tabler icons-tabler-outline icon-tabler-cloud-download">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M19 18a3.5 3.5 0 0 0 0 -7h-1a5 4.5 0 0 0 -11 -2a4.6 4.4 0 0 0 -2.1 8.4" />
+            <path d="M12 13l0 9" />
+            <path d="M9 19l3 3l3 -3" />
+          </svg>
+          <span>Backup #{{ backup.id }}</span>
+        </h1>
         <dl class="meta-grid">
           <div>
             <dt>Created</dt>
@@ -92,11 +96,29 @@
       </section>
 
       <section class="card" id="restore-history">
-        <h2>Restore this backup</h2>
+        <h2 class="heading-with-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="icon icon-tabler icons-tabler-outline icon-tabler-database-import">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M4 6c0 1.657 3.582 3 8 3s8 -1.343 8 -3s-3.582 -3 -8 -3s-8 1.343 -8 3" />
+            <path d="M4 6v6c0 1.657 3.582 3 8 3c.856 0 1.68 -.05 2.454 -.144m5.546 -2.856v-6" />
+            <path d="M4 12v6c0 1.657 3.582 3 8 3c.171 0 .341 -.002 .51 -.006" />
+            <path d="M19 22v-6" />
+            <path d="M22 19l-3 -3l-3 3" />
+          </svg>
+          <span>Restore this backup</span>
+        </h2>
         <p>
           Restoring will replace the current remote tunnel configuration with the configuration stored
           in this snapshot.
         </p>
+        {% if message %}
+        <section class="notice success top-gap" id="restore-notice">{{ message }}</section>
+        {% endif %}
+        {% if error %}
+        <section class="notice error top-gap" id="restore-notice">{{ error }}</section>
+        {% endif %}
         <form method="post" action="/backup/{{ backup.id }}/restore" class="grid form-grid">
           <label>
             <span>Account ID</span>
@@ -117,12 +139,27 @@
       </section>
 
       <section class="card code-card">
-        <h2>Snapshot JSON</h2>
+        <h2 class="heading-with-icon">
+          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M7 8l-4 4l4 4"/>
+            <path d="M17 8l4 4l-4 4"/>
+            <path d="M14 4l-4 16"/>
+          </svg>
+          <span>Snapshot JSON</span>
+        </h2>
         <pre class="json-view"><code>{{ content }}</code></pre>
       </section>
 
       <section class="card">
-        <h2>Restore history</h2>
+        <h2 class="heading-with-icon">
+          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M12 8l0 4l2 2"/>
+            <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
+          </svg>
+          <span>Restore history</span>
+        </h2>
         {% if restores %}
         <div class="table-wrap">
           <table>
@@ -166,6 +203,7 @@
           <div class="footer-text">
             <div class="footer-title">Tikka Masala</div>
             <div class="footer-meta">Cloudflare Tunnel backup and restore utility for local JSON snapshots.</div>
+            <div class="footer-credit">Icons by <a href="https://tabler.io/icons" target="_blank" rel="noopener noreferrer">Tabler Icons</a>.</div>
           </div>
           <div class="footer-actions">
             <div class="theme-switcher" role="group" aria-label="Theme">
@@ -252,6 +290,13 @@
 
         window.addEventListener("scroll", toggleFloatingNav, { passive: true });
         toggleFloatingNav();
+      }
+
+      const restoreNotice = document.getElementById("restore-notice");
+      if (restoreNotice) {
+        window.requestAnimationFrame(() => {
+          smoothScrollToElement(restoreNotice, 68);
+        });
       }
 
       document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
