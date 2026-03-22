@@ -15,6 +15,7 @@ Tikka Masala is a small FastAPI web app for backing up and restoring Cloudflare 
 - Clear saved authentication data without deleting backups
 - Switch between system, dark, and light theme
 - Schedule automatic backups for all tunnels in the account
+- Send notifications through a generic webhook and/or Telegram
 
 ## Requirements
 
@@ -40,12 +41,17 @@ You can configure the app through environment variables, whether you use Docker 
 | `TOKEN_ENCRYPTION_KEY` | Recommended | Fernet key used to encrypt the API token before saving it in SQLite. |
 | `AUTO_BACKUP_TIMEZONE` | No | Force automatic backups to use a specific IANA timezone such as `Europe/Rome`. |
 | `BACKUP_RETENTION_DAYS` | No | Automatically delete backups older than this many days after new backups are created. |
+| `NOTIFICATION_WEBHOOK_URL` | No | Send JSON notifications to a generic webhook endpoint. |
+| `NOTIFICATION_WEBHOOK_EVENTS` | No | Comma-separated list of notification events to emit to the webhook. |
+| `TELEGRAM_BOT_TOKEN` | No | Telegram bot token used to send notifications through the Bot API. |
+| `TELEGRAM_CHAT_ID` | No | Telegram chat, group, or channel ID where notifications should be sent. |
+| `TELEGRAM_NOTIFICATION_EVENTS` | No | Comma-separated list of notification events to emit to Telegram. |
 | `DATA_DIR` | No | Storage path for the SQLite database and JSON backups. Default: `/data`. |
 | `REQUEST_TIMEOUT` | No | Outbound Cloudflare API timeout in seconds. Default: `20`. |
 | `LOG_LEVEL` | No | Application log level written to container stdout. Default: `INFO`. |
 | `CLOUDFLARE_API_BASE` | No | Override for the Cloudflare API base URL. Default: `https://api.cloudflare.com/client/v4`. |
 
-Start from [`.env.sample`](/Users/gioxx/Documents/GitHub/TikkaMasala/.env.sample):
+Start from [`.env.sample`](.env.sample):
 
 ```bash
 cp .env.sample .env
@@ -59,7 +65,7 @@ python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().
 
 ## Run with Docker Compose
 
-The included [docker-compose.yml](/Users/gioxx/Documents/GitHub/TikkaMasala/docker-compose.yml) mounts `./data` into the container so backups and settings survive restarts.
+The included [`docker-compose.yml`](docker-compose.yml) mounts `./data` into the container so backups and settings survive restarts.
 
 ```bash
 docker compose up -d --build
@@ -79,6 +85,11 @@ CLOUDFLARE_API_TOKEN=your-cloudflare-api-token
 TOKEN_ENCRYPTION_KEY=your-generated-fernet-key
 AUTO_BACKUP_TIMEZONE=Europe/Rome
 BACKUP_RETENTION_DAYS=90
+NOTIFICATION_WEBHOOK_URL=
+NOTIFICATION_WEBHOOK_EVENTS=auto_backup_partial,auto_backup_failed,restore_failed,retention_cleanup
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+TELEGRAM_NOTIFICATION_EVENTS=auto_backup_partial,auto_backup_failed,restore_failed,retention_cleanup
 LOG_LEVEL=INFO
 ```
 
@@ -190,6 +201,58 @@ Important notes:
 - retention cleanup removes both the JSON snapshot and its related restore history
 - container logs include both Uvicorn access logs and application logs for startup, backup creation, restore, scheduler activity, cleanup, and most UI-triggered operations
 
+## Notifications
+
+Tikka Masala can send server-side notifications through:
+
+- a generic webhook endpoint
+- Telegram
+
+You can use either channel on its own or enable both at the same time.
+
+Set:
+
+- `NOTIFICATION_WEBHOOK_URL` to the target endpoint
+- `NOTIFICATION_WEBHOOK_EVENTS` to a comma-separated list of events
+- `TELEGRAM_BOT_TOKEN` to your Telegram bot token
+- `TELEGRAM_CHAT_ID` to the destination chat ID
+- `TELEGRAM_NOTIFICATION_EVENTS` to a comma-separated list of events
+
+Supported events:
+
+- `manual_backup_success`
+- `manual_backup_failed`
+- `auto_backup_success`
+- `auto_backup_partial`
+- `auto_backup_failed`
+- `restore_success`
+- `restore_failed`
+- `retention_cleanup`
+
+If `NOTIFICATION_WEBHOOK_EVENTS` or `TELEGRAM_NOTIFICATION_EVENTS` is left empty, Tikka Masala enables a conservative default set for that channel:
+
+- `auto_backup_partial`
+- `auto_backup_failed`
+- `restore_failed`
+- `retention_cleanup`
+
+Webhook notifications send a JSON payload with:
+
+- app name and version
+- event name
+- message
+- timestamp
+- event-specific details
+
+Telegram notifications send the same information as a formatted plain-text message through the Telegram Bot API.
+
+When notifications are configured:
+
+- container logs show the active channels and event counts at startup
+- the home page shows a dedicated `Notifications` box with channel and event counts
+- you can use `Send test notification` from the UI to verify webhook and/or Telegram delivery immediately
+- notification results are shown directly inside the section that triggered them instead of at the top of the page
+
 ## Security Notes
 
 - The API token is never persisted in plaintext in the database by current versions of the app.
@@ -199,6 +262,11 @@ Important notes:
 
 ## Project Notes
 
-- Main application entrypoint: [app/main.py](/Users/gioxx/Documents/GitHub/TikkaMasala/app/main.py)
-- Main UI template: [app/templates/index.html](/Users/gioxx/Documents/GitHub/TikkaMasala/app/templates/index.html)
-- Backup detail template: [app/templates/backup.html](/Users/gioxx/Documents/GitHub/TikkaMasala/app/templates/backup.html)
+- Main application entrypoint: [`app/main.py`](app/main.py)
+- Main UI template: [`app/templates/index.html`](app/templates/index.html)
+- Backup detail template: [`app/templates/backup.html`](app/templates/backup.html)
+- Automatic backup archive template: [`app/templates/scheduled_runs.html`](app/templates/scheduled_runs.html)
+
+## Credits
+
+- Icons: [Tabler Icons](https://tabler.io/icons)

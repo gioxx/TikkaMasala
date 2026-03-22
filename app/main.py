@@ -8,6 +8,7 @@ import sqlite3
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -33,6 +34,11 @@ DEFAULT_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
 TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "").strip()
 AUTO_BACKUP_TIMEZONE = os.getenv("AUTO_BACKUP_TIMEZONE", "").strip()
 BACKUP_RETENTION_DAYS_RAW = os.getenv("BACKUP_RETENTION_DAYS", "").strip()
+NOTIFICATION_WEBHOOK_URL = os.getenv("NOTIFICATION_WEBHOOK_URL", "").strip()
+NOTIFICATION_WEBHOOK_EVENTS_RAW = os.getenv("NOTIFICATION_WEBHOOK_EVENTS", "").strip()
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+TELEGRAM_NOTIFICATION_EVENTS_RAW = os.getenv("TELEGRAM_NOTIFICATION_EVENTS", "").strip()
 API_TOKEN_COOKIE_NAME = "cf_api_token"
 API_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 ENCRYPTED_VALUE_PREFIX = "enc:"
@@ -42,6 +48,28 @@ BACKUPS_PAGE_SIZE = 5
 BACKUPS_PAGE_SIZE_OPTIONS = {5, 10, 25, 50, 75, 100}
 SCHEDULED_RUNS_PAGE_SIZE = 15
 SCHEDULED_RUNS_PAGE_SIZE_OPTIONS = (15, 30, 60, 90)
+APP_VERSION = "1.1.0"
+SUPPORTED_NOTIFICATION_EVENTS = frozenset(
+    {
+        "notification_test",
+        "manual_backup_success",
+        "manual_backup_failed",
+        "auto_backup_success",
+        "auto_backup_partial",
+        "auto_backup_failed",
+        "restore_success",
+        "restore_failed",
+        "retention_cleanup",
+    }
+)
+DEFAULT_NOTIFICATION_EVENTS = frozenset(
+    {
+        "auto_backup_partial",
+        "auto_backup_failed",
+        "restore_failed",
+        "retention_cleanup",
+    }
+)
 
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -57,6 +85,7 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 logger = logging.getLogger(__name__)
 auto_backup_scheduler = AsyncIOScheduler(timezone="UTC")
 auto_backup_lock = asyncio.Lock()
+background_tasks: set[asyncio.Task[Any]] = set()
 
 
 @dataclass
@@ -316,6 +345,254 @@ def get_backup_retention_days() -> int | None:
         logger.warning("Ignoring BACKUP_RETENTION_DAYS because it must be greater than zero: %s", BACKUP_RETENTION_DAYS_RAW)
         return None
     return days
+
+
+@lru_cache(maxsize=1)
+def parse_notification_events(raw_value: str, source_name: str) -> set[str]:
+    if not raw_value:
+        return set(DEFAULT_NOTIFICATION_EVENTS)
+
+    requested_events = {
+        item.strip().lower().replace("-", "_")
+        for item in raw_value.split(",")
+        if item.strip()
+    }
+    valid_events = requested_events & SUPPORTED_NOTIFICATION_EVENTS
+    invalid_events = requested_events - SUPPORTED_NOTIFICATION_EVENTS
+    if invalid_events:
+        logger.warning(
+            "Ignoring unsupported notification events for %s: %s",
+            source_name,
+            ", ".join(sorted(invalid_events)),
+        )
+    return valid_events
+
+
+@lru_cache(maxsize=1)
+def get_webhook_notification_events() -> set[str]:
+    return parse_notification_events(NOTIFICATION_WEBHOOK_EVENTS_RAW, "webhook")
+
+
+@lru_cache(maxsize=1)
+def get_telegram_notification_events() -> set[str]:
+    return parse_notification_events(TELEGRAM_NOTIFICATION_EVENTS_RAW, "telegram")
+
+
+def get_notification_status() -> dict[str, Any]:
+    webhook_enabled = bool(NOTIFICATION_WEBHOOK_URL)
+    telegram_enabled = bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
+    webhook_events = get_webhook_notification_events() if webhook_enabled else set()
+    telegram_events = get_telegram_notification_events() if telegram_enabled else set()
+    configured = (webhook_enabled and bool(webhook_events)) or (telegram_enabled and bool(telegram_events))
+    active_events = sorted(webhook_events | telegram_events)
+
+    channel_labels: list[str] = []
+    if webhook_enabled and webhook_events:
+        channel_labels.append("Webhook")
+    if telegram_enabled and telegram_events:
+        channel_labels.append("Telegram")
+
+    if channel_labels:
+        summary_label = " + ".join(channel_labels)
+        summary = f"{summary_label} notifications enabled for {len(active_events)} event(s)."
+    elif webhook_enabled or telegram_enabled:
+        summary_label = "Incomplete"
+        summary = "A notification channel is configured, but no valid notification events are enabled."
+    else:
+        summary_label = "Disabled"
+        summary = "Notifications are disabled."
+
+    return {
+        "webhook_enabled": webhook_enabled,
+        "telegram_enabled": telegram_enabled,
+        "configured": configured,
+        "summary_label": summary_label,
+        "channel_label": build_channel_label(bool(webhook_events), bool(telegram_events)),
+        "event_count": len(active_events),
+        "events": active_events,
+        "webhook_event_count": len(webhook_events),
+        "telegram_event_count": len(telegram_events),
+        "summary": summary,
+    }
+
+
+def humanize_notification_event(event: str) -> str:
+    mapping = {
+        "notification_test": "Notification test",
+        "manual_backup_success": "Manual backup completed",
+        "manual_backup_failed": "Manual backup failed",
+        "auto_backup_success": "Automatic backup completed",
+        "auto_backup_partial": "Automatic backup completed with errors",
+        "auto_backup_failed": "Automatic backup failed",
+        "restore_success": "Restore completed",
+        "restore_failed": "Restore failed",
+        "retention_cleanup": "Retention cleanup completed",
+    }
+    return mapping.get(event, event.replace("_", " ").title())
+
+
+def build_channel_label(webhook: bool, telegram: bool) -> str:
+    labels: list[str] = []
+    if webhook:
+        labels.append("Webhook")
+    if telegram:
+        labels.append("Telegram")
+    return " + ".join(labels) if labels else "Disabled"
+
+
+def format_notification_detail_value(value: Any) -> str | None:
+    if value in (None, "", [], {}):
+        return None
+    if isinstance(value, list):
+        if all(isinstance(item, dict) for item in value):
+            rendered_items = []
+            for item in value[:5]:
+                tunnel = item.get("tunnel") or item.get("tunnel_id") or "item"
+                message = item.get("message") or "Unknown issue"
+                rendered_items.append(f"- {tunnel}: {message}")
+            if len(value) > 5:
+                rendered_items.append(f"- ... and {len(value) - 5} more")
+            return "\n".join(rendered_items)
+        return ", ".join(str(item) for item in value)
+    if isinstance(value, dict):
+        return ", ".join(f"{key}={val}" for key, val in value.items())
+    return str(value)
+
+
+async def send_webhook_notification(event: str, payload: dict[str, Any], force: bool = False) -> dict[str, Any]:
+    if not NOTIFICATION_WEBHOOK_URL:
+        return {"channel": "webhook", "attempted": False, "success": False, "reason": "not_configured"}
+    if not force and event not in get_webhook_notification_events():
+        return {"channel": "webhook", "attempted": False, "success": False, "reason": "event_disabled"}
+    try:
+        async with httpx.AsyncClient(timeout=min(REQUEST_TIMEOUT, 10.0)) as client:
+            response = await client.post(NOTIFICATION_WEBHOOK_URL, json=payload)
+        if response.status_code >= 400:
+            logger.warning(
+                "Notification webhook returned HTTP %s for event %s: %s",
+                response.status_code,
+                event,
+                response.text[:300].strip(),
+            )
+            return {"channel": "webhook", "attempted": True, "success": False, "reason": f"http_{response.status_code}"}
+        logger.info("Webhook notification sent successfully (event=%s).", event)
+        return {"channel": "webhook", "attempted": True, "success": True}
+    except Exception:
+        logger.exception("Failed to send webhook notification (event=%s).", event)
+        return {"channel": "webhook", "attempted": True, "success": False, "reason": "exception"}
+
+
+async def send_telegram_notification(event: str, payload: dict[str, Any], force: bool = False) -> dict[str, Any]:
+    if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
+        return {"channel": "telegram", "attempted": False, "success": False, "reason": "not_configured"}
+    if not force and event not in get_telegram_notification_events():
+        return {"channel": "telegram", "attempted": False, "success": False, "reason": "event_disabled"}
+
+    message = payload["message"]
+    details = payload.get("details") or {}
+    event_title = humanize_notification_event(event)
+    lines = [
+        f"Tikka Masala {APP_VERSION}",
+        event_title,
+        message,
+    ]
+    if details:
+        lines.append("")
+        for key, value in details.items():
+            rendered = format_notification_detail_value(value)
+            if not rendered:
+                continue
+            lines.append(f"{key}: {rendered}")
+
+    telegram_payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": "\n".join(lines)[:4096],
+        "disable_web_page_preview": True,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=min(REQUEST_TIMEOUT, 10.0)) as client:
+            response = await client.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                json=telegram_payload,
+            )
+        if response.status_code >= 400:
+            logger.warning(
+                "Telegram notification returned HTTP %s for event %s: %s",
+                response.status_code,
+                event,
+                response.text[:300].strip(),
+            )
+            return {"channel": "telegram", "attempted": True, "success": False, "reason": f"http_{response.status_code}"}
+        logger.info("Telegram notification sent successfully (event=%s).", event)
+        return {"channel": "telegram", "attempted": True, "success": True}
+    except Exception:
+        logger.exception("Failed to send Telegram notification (event=%s).", event)
+        return {"channel": "telegram", "attempted": True, "success": False, "reason": "exception"}
+
+
+async def deliver_notification(
+    event: str,
+    message: str,
+    details: dict[str, Any] | None = None,
+    level: str = "info",
+    force: bool = False,
+) -> dict[str, Any]:
+    status = get_notification_status()
+    if not force and (event not in status["events"] or not status["configured"]):
+        return {"attempted": False, "sent_count": 0, "successful_channels": [], "failed_channels": []}
+
+    payload = {
+        "app": "Tikka Masala",
+        "version": APP_VERSION,
+        "event": event,
+        "title": humanize_notification_event(event),
+        "level": level,
+        "message": message,
+        "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "details": details or {},
+    }
+    results = await asyncio.gather(
+        send_webhook_notification(event, payload, force=force),
+        send_telegram_notification(event, payload, force=force),
+    )
+    attempted = [result for result in results if result.get("attempted")]
+    successful_channels = [result["channel"] for result in attempted if result.get("success")]
+    failed_channels = [result["channel"] for result in attempted if not result.get("success")]
+    return {
+        "attempted": bool(attempted),
+        "sent_count": len(successful_channels),
+        "successful_channels": successful_channels,
+        "failed_channels": failed_channels,
+    }
+
+
+async def send_notification(event: str, message: str, details: dict[str, Any] | None = None, level: str = "info") -> None:
+    await deliver_notification(event, message, details, level)
+
+
+def get_notification_log_context() -> dict[str, Any]:
+    status = get_notification_status()
+    return {
+        "summary": status["summary_label"],
+        "events": ", ".join(status["events"]) if status["events"] else "none",
+        "webhook_enabled": status["webhook_enabled"],
+        "telegram_enabled": status["telegram_enabled"],
+        "webhook_event_count": status["webhook_event_count"],
+        "telegram_event_count": status["telegram_event_count"],
+    }
+
+
+def queue_notification(event: str, message: str, details: dict[str, Any] | None = None, level: str = "info") -> None:
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        logger.debug("Skipping queued notification because no running event loop is available (event=%s).", event)
+        return
+
+    task = loop.create_task(send_notification(event, message, details, level))
+    background_tasks.add(task)
+    task.add_done_callback(background_tasks.discard)
 
 
 def resolve_api_token(request: Request, api_token: str | None) -> str:
@@ -652,6 +929,7 @@ def build_auto_backup_status() -> dict[str, Any]:
         "next_run_at": get_next_auto_backup_run(),
         "recent_runs": get_recent_scheduled_runs(),
         "prereqs": prereqs,
+        "notifications": get_notification_status(),
     }
 
 
@@ -689,12 +967,23 @@ def configure_auto_backup_job() -> None:
 @app.on_event("startup")
 async def startup_event() -> None:
     logger.info(
-        "Starting Tikka Masala (data_dir=%s, api_base=%s, log_level=%s, auto_backup_timezone=%s, retention_days=%s).",
+        "Starting Tikka Masala (data_dir=%s, api_base=%s, log_level=%s, auto_backup_timezone=%s, retention_days=%s, notifications=%s).",
         DATA_DIR,
         API_BASE,
         LOG_LEVEL,
         AUTO_BACKUP_TIMEZONE or "auto",
         get_backup_retention_days() or "disabled",
+        get_notification_status()["summary_label"],
+    )
+    notification_log_context = get_notification_log_context()
+    logger.info(
+        "Notification channels: summary=%s, events=%s, webhook_enabled=%s, telegram_enabled=%s, webhook_event_count=%s, telegram_event_count=%s.",
+        notification_log_context["summary"],
+        notification_log_context["events"],
+        notification_log_context["webhook_enabled"],
+        notification_log_context["telegram_enabled"],
+        notification_log_context["webhook_event_count"],
+        notification_log_context["telegram_event_count"],
     )
     if not auto_backup_scheduler.running:
         auto_backup_scheduler.start()
@@ -847,6 +1136,16 @@ def purge_expired_backups(reference_time: datetime | None = None) -> int:
             "Deleted %s expired backup(s) older than %s day(s) due to BACKUP_RETENTION_DAYS.",
             deleted_count,
             retention_days,
+        )
+        queue_notification(
+            "retention_cleanup",
+            f"Retention cleanup deleted {deleted_count} backup(s).",
+            {
+                "deleted_count": deleted_count,
+                "retention_days": retention_days,
+                "cutoff": cutoff_iso,
+            },
+            level="info",
         )
 
     return deleted_count
@@ -1152,6 +1451,25 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
             backup_count,
             len(errors),
         )
+        if status in {"success", "partial", "failed"}:
+            auto_backup_messages = {
+                "success": f"Created {backup_count} backup(s) from {tunnel_count} tunnel(s).",
+                "partial": f"Created {backup_count} backup(s) from {tunnel_count} tunnel(s), with {len(errors)} error(s).",
+                "failed": f"No backups were created successfully. Encountered {len(errors)} error(s) while processing {tunnel_count} tunnel(s).",
+            }
+            queue_notification(
+                f"auto_backup_{status}",
+                auto_backup_messages[status],
+                {
+                    "trigger": trigger,
+                    "account_id": account_id,
+                    "tunnel_count": tunnel_count,
+                    "backup_count": backup_count,
+                    "error_count": len(errors),
+                    "errors": errors,
+                },
+                level="warning" if status in {"partial", "failed"} else "info",
+            )
         return {
             "status": status,
             "tunnel_count": tunnel_count,
@@ -1283,7 +1601,7 @@ async def verify_token_action(request: Request, api_token: str = Form(default=""
         response = await index(
             request,
             message=message,
-            success_target="tunnels",
+            success_target="guide",
             prefill_status=build_prefill_status_from_sources(get_account_id_source(), "browser"),
             prefill_account_id=get_saved_account_id(),
             prefill_api_token=api_token,
@@ -1292,7 +1610,7 @@ async def verify_token_action(request: Request, api_token: str = Form(default=""
         return response
     except HTTPException as exc:
         logger.warning("Token verification failed: %s", exc.detail)
-        return await index(request, error=exc.detail)
+        return await index(request, error=exc.detail, success_target="guide")
 
 
 @app.post("/list-tunnels", response_class=HTMLResponse)
@@ -1318,7 +1636,7 @@ async def list_tunnels_action(request: Request, account_id: str = Form(default="
         return response
     except HTTPException as exc:
         logger.warning("Tunnel listing failed: %s", exc.detail)
-        return await index(request, error=exc.detail)
+        return await index(request, error=exc.detail, success_target="tunnels")
 
 
 @app.post("/backup", response_class=HTMLResponse)
@@ -1341,6 +1659,18 @@ async def backup_action(
             tunnel_id,
             backup.tunnel_name,
         )
+        queue_notification(
+            "manual_backup_success",
+            f"Created backup #{backup.id} for tunnel {backup.tunnel_name}.",
+            {
+                "backup_id": backup.id,
+                "account_id": account_id,
+                "tunnel_id": tunnel_id,
+                "tunnel_name": backup.tunnel_name,
+                "route_count": backup.route_count,
+            },
+            level="info",
+        )
         remember_account_id(account_id)
         remember_api_token(api_token)
         response = await index(
@@ -1355,7 +1685,17 @@ async def backup_action(
         return response
     except HTTPException as exc:
         logger.warning("Manual backup failed (tunnel_id=%s): %s", tunnel_id, exc.detail)
-        return await index(request, error=exc.detail)
+        queue_notification(
+            "manual_backup_failed",
+            f"Failed to create a manual backup for tunnel {tunnel_id.strip() or 'unknown'}.",
+            {
+                "account_id": account_id.strip() or None,
+                "tunnel_id": tunnel_id.strip() or None,
+                "error": str(exc.detail),
+            },
+            level="warning",
+        )
+        return await index(request, error=exc.detail, success_target="backup")
 
 
 @app.post("/clear-saved-auth", response_class=HTMLResponse)
@@ -1366,7 +1706,7 @@ async def clear_saved_auth(request: Request) -> HTMLResponse:
     response = await index(
         request,
         message="Saved authentication data removed from the database. Backups were left untouched.",
-        success_target="tunnels",
+        success_target="guide",
         prefill_status=build_prefill_status_from_sources(
             "environment" if DEFAULT_ACCOUNT_ID else None,
             "environment" if DEFAULT_API_TOKEN else None,
@@ -1463,6 +1803,51 @@ async def auto_backup_run_action(request: Request) -> HTMLResponse:
         return render_index_page(request, error=exc.detail, success_target="auto-backup")
 
 
+@app.post("/notifications/test", response_class=HTMLResponse)
+async def notifications_test_action(request: Request) -> HTMLResponse:
+    status = get_notification_status()
+    if not status["webhook_enabled"] and not status["telegram_enabled"]:
+        logger.warning("Notification test requested, but no notification channel is configured.")
+        return render_index_page(
+            request,
+            error="Notification test failed: no configured channel found. Set a webhook URL and/or Telegram bot settings first.",
+            success_target="notifications",
+        )
+
+    logger.info(
+        "Notification test requested from UI (channels=%s, events=%s).",
+        status["channel_label"],
+        ", ".join(status["events"]) if status["events"] else "none",
+    )
+    result = await deliver_notification(
+        "notification_test",
+        "This is a test notification sent from Tikka Masala.",
+        {
+            "configured_channels": status["channel_label"],
+            "enabled_events": status["events"],
+        },
+        level="info",
+        force=True,
+    )
+    logger.info(
+        "Notification test finished (sent=%s, successful_channels=%s, failed_channels=%s).",
+        result["sent_count"],
+        ", ".join(result["successful_channels"]) or "none",
+        ", ".join(result["failed_channels"]) or "none",
+    )
+    if result["sent_count"]:
+        message = f"Notification test sent successfully via {', '.join(result['successful_channels'])}."
+        if result["failed_channels"]:
+            message += f" Failed channels: {', '.join(result['failed_channels'])}."
+        return render_index_page(request, message=message, success_target="notifications")
+
+    return render_index_page(
+        request,
+        error="Notification test failed. Check the container logs for channel-specific errors.",
+        success_target="notifications",
+    )
+
+
 @app.get("/backup/{backup_id}", response_class=HTMLResponse)
 async def backup_details(request: Request, backup_id: int) -> HTMLResponse:
     return render_backup_page(request, backup_id)
@@ -1510,11 +1895,32 @@ async def restore_backup(
         remember_api_token(api_token)
         record_restore(backup_id, account_id, tunnel_id)
         logger.info("Restore completed successfully (backup_id=%s, account_id=%s, tunnel_id=%s).", backup_id, account_id, tunnel_id)
+        queue_notification(
+            "restore_success",
+            f"Backup #{backup_id} was restored to tunnel {tunnel_id}.",
+            {
+                "backup_id": backup_id,
+                "account_id": account_id,
+                "tunnel_id": tunnel_id,
+            },
+            level="info",
+        )
         response = render_backup_page(request, backup_id, message="Backup restored successfully.")
         set_api_token_cookie(response, api_token)
         return response
     except HTTPException as exc:
         logger.warning("Restore failed (backup_id=%s): %s", backup_id, exc.detail)
+        queue_notification(
+            "restore_failed",
+            f"Failed to restore backup #{backup_id} to tunnel {tunnel_id.strip() or 'unknown'}.",
+            {
+                "backup_id": backup_id,
+                "account_id": account_id.strip() or None,
+                "tunnel_id": tunnel_id.strip() or None,
+                "error": str(exc.detail),
+            },
+            level="warning",
+        )
         return render_backup_page(request, backup_id, error=exc.detail)
 
 
