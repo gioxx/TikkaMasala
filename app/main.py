@@ -79,7 +79,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
 
-app = FastAPI(title="Cloudflare Tunnel Route Backup")
+app = FastAPI(title="Tikka Masala")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 logger = logging.getLogger(__name__)
@@ -1836,9 +1836,11 @@ async def notifications_test_action(request: Request) -> HTMLResponse:
         ", ".join(result["failed_channels"]) or "none",
     )
     if result["sent_count"]:
-        message = f"Notification test sent successfully via {', '.join(result['successful_channels'])}."
+        successful_channels = [channel.title() for channel in result["successful_channels"]]
+        failed_channels = [channel.title() for channel in result["failed_channels"]]
+        message = f"Notification test sent successfully via {', '.join(successful_channels)}."
         if result["failed_channels"]:
-            message += f" Failed channels: {', '.join(result['failed_channels'])}."
+            message += f" Failed channels: {', '.join(failed_channels)}."
         return render_index_page(request, message=message, success_target="notifications")
 
     return render_index_page(
