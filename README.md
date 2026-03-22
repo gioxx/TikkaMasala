@@ -37,6 +37,7 @@ You can configure the app through environment variables, whether you use Docker 
 | `CLOUDFLARE_ACCOUNT_ID` | No | Prefills the Cloudflare account ID in the UI. |
 | `CLOUDFLARE_API_TOKEN` | No | Prefills the API token in the UI. |
 | `TOKEN_ENCRYPTION_KEY` | Recommended | Fernet key used to encrypt the API token before saving it in SQLite. |
+| `BACKUP_RETENTION_DAYS` | No | Automatically delete backups older than this many days after new backups are created. |
 | `DATA_DIR` | No | Storage path for the SQLite database and JSON backups. Default: `/data`. |
 | `REQUEST_TIMEOUT` | No | Outbound Cloudflare API timeout in seconds. Default: `20`. |
 | `CLOUDFLARE_API_BASE` | No | Override for the Cloudflare API base URL. Default: `https://api.cloudflare.com/client/v4`. |
@@ -73,6 +74,7 @@ Example `.env` for Compose:
 CLOUDFLARE_ACCOUNT_ID=your-32-char-account-id
 CLOUDFLARE_API_TOKEN=your-cloudflare-api-token
 TOKEN_ENCRYPTION_KEY=your-generated-fernet-key
+BACKUP_RETENTION_DAYS=90
 ```
 
 ## Run with Docker Only
@@ -99,6 +101,16 @@ source .env
 set +a
 uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
+
+## Backup Retention
+
+If `BACKUP_RETENTION_DAYS` is set to an integer greater than zero, Tikka Masala automatically deletes backups older than that many days after creating new backups.
+
+Important notes:
+
+- if `BACKUP_RETENTION_DAYS` is empty or not set, no automatic deletion is performed and backups are kept indefinitely
+- cleanup removes both the JSON snapshot and its related restore history
+- cleanup runs only after a new backup is created
 
 ## How Prefill and Persistence Work
 

@@ -6,7 +6,7 @@ import os
 import sqlite3
 from contextlib import closing
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +26,7 @@ REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "20"))
 DEFAULT_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "").strip()
 DEFAULT_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "").strip()
 TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "").strip()
+BACKUP_RETENTION_DAYS_RAW = os.getenv("BACKUP_RETENTION_DAYS", "").strip()
 API_TOKEN_COOKIE_NAME = "cf_api_token"
 API_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 ENCRYPTED_VALUE_PREFIX = "enc:"
@@ -243,6 +244,20 @@ def resolve_api_token(request: Request, api_token: str | None) -> str:
     return resolved
 
 
+def get_backup_retention_days() -> int | None:
+    if not BACKUP_RETENTION_DAYS_RAW:
+        return None
+    try:
+        days = int(BACKUP_RETENTION_DAYS_RAW)
+    except ValueError:
+        logger.warning("Ignoring BACKUP_RETENTION_DAYS because it is not a valid integer: %s", BACKUP_RETENTION_DAYS_RAW)
+        return None
+    if days <= 0:
+        logger.warning("Ignoring BACKUP_RETENTION_DAYS because it must be greater than zero: %s", BACKUP_RETENTION_DAYS_RAW)
+        return None
+    return days
+
+
 def remember_api_token(api_token: str) -> None:
     normalized = api_token.strip()
     if normalized and TOKEN_ENCRYPTION_KEY:
@@ -361,6 +376,8 @@ async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: 
         conn.commit()
         backup_id = cursor.lastrowid
 
+    purge_expired_backups(datetime.fromisoformat(created_at))
+
     return BackupRecord(
         id=backup_id,
         created_at=created_at,
@@ -371,6 +388,52 @@ async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: 
         filename=filename,
         notes=notes,
     )
+
+
+def purge_expired_backups(reference_time: datetime | None = None) -> int:
+    retention_days = get_backup_retention_days()
+    if retention_days is None:
+        return 0
+
+    cutoff_time = (reference_time or datetime.now(timezone.utc)) - timedelta(days=retention_days)
+    cutoff_iso = cutoff_time.replace(microsecond=0).isoformat()
+
+    with closing(db()) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, filename
+            FROM backups
+            WHERE created_at < ?
+            ORDER BY id ASC
+            """,
+            (cutoff_iso,),
+        ).fetchall()
+
+        deleted_count = 0
+        for row in rows:
+            backup_id = int(row["id"])
+            filename = str(row["filename"])
+            file_path = BACKUP_DIR / filename
+
+            try:
+                file_path.unlink(missing_ok=True)
+            except OSError:
+                logger.exception("Failed to remove expired backup file: %s", file_path)
+
+            conn.execute("DELETE FROM restores WHERE backup_id = ?", (backup_id,))
+            conn.execute("DELETE FROM backups WHERE id = ?", (backup_id,))
+            deleted_count += 1
+
+        conn.commit()
+
+    if deleted_count:
+        logger.info(
+            "Deleted %s expired backup(s) older than %s day(s) due to BACKUP_RETENTION_DAYS.",
+            deleted_count,
+            retention_days,
+        )
+
+    return deleted_count
 
 
 def extract_error_message(payload: dict[str, Any]) -> str:
