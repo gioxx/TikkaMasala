@@ -1004,6 +1004,13 @@ th { color: var(--muted); font-weight: 600; }
 .footer-credit a {
   color: inherit;
 }
+.footer-legal {
+  margin-top: 0.28rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+  max-width: 58rem;
+}
 .footer-actions {
   display: flex;
   align-items: center;
