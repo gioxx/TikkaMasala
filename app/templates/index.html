@@ -155,6 +155,7 @@
                 <th>Name</th>
                 <th>ID</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -162,8 +163,11 @@
               <tr>
                 <td>{{ tunnel.name }}</td>
                 <td>
-                  <div class="copy-field">
-                    <code>{{ tunnel.id }}</code>
+                  <code>{{ tunnel.id }}</code>
+                </td>
+                <td>{{ tunnel.status or 'unknown' }}</td>
+                <td>
+                  <div class="inline-actions tunnel-actions">
                     <button
                       type="button"
                       class="copy-button"
@@ -180,9 +184,18 @@
                     >
                       Use
                     </button>
+                    {% if prefill_account_id %}
+                    <a
+                      href="https://dash.cloudflare.com/?to=%2F%3Aaccount%2Ftunnels"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Open Cloudflare Tunnels dashboard for tunnel {{ tunnel.name or tunnel.id }}"
+                    >
+                      Admin
+                    </a>
+                    {% endif %}
                   </div>
                 </td>
-                <td>{{ tunnel.status or 'unknown' }}</td>
               </tr>
               {% endfor %}
             </tbody>
