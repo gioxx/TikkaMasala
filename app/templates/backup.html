@@ -244,6 +244,7 @@
           const shouldFloat = isFloating ? window.scrollY > 132 : window.scrollY > 180;
           isFloating = shouldFloat;
           floatingNav.classList.toggle("is-floating", shouldFloat);
+          document.body.classList.toggle("has-floating-nav", shouldFloat);
           if (floatingNavLabel) {
             floatingNavLabel.classList.toggle("is-hidden", shouldFloat);
           }

@@ -150,7 +150,10 @@
       {% endif %}
 
       <section class="card" id="tunnels-section">
-        <h2>Load tunnels</h2>
+        <div class="section-heading">
+          <h2>Load tunnels</h2>
+          <p class="hint">Load every tunnel available for the current account so you can copy IDs, reuse them for backups, or open the Cloudflare admin page directly.</p>
+        </div>
         <form method="post" action="/list-tunnels" class="stack">
           <label>
             <span>Account ID</span>
@@ -224,7 +227,10 @@
       {% endif %}
 
       <section class="card" id="backup-section">
-        <h2>Create a backup</h2>
+        <div class="section-heading">
+          <h2>Create a single backup</h2>
+          <p class="hint">Create a fresh JSON snapshot of one tunnel configuration so you can keep it locally, download it, or restore it later.</p>
+        </div>
         <form method="post" action="/backup" class="grid form-grid">
           <label>
             <span>Account ID</span>
@@ -243,7 +249,7 @@
             <textarea name="notes" rows="3" placeholder="Optional notes for this snapshot"></textarea>
           </label>
           <div class="full-row actions">
-            <button type="submit">Create backup</button>
+            <button type="submit" class="auto-backup-primary">Create backup</button>
           </div>
         </form>
       </section>
@@ -292,40 +298,41 @@
                 <button type="button" class="secondary-button preset-button" data-cron-preset="0 */12 * * *">Every 12 hours</button>
                 <button type="button" class="secondary-button preset-button" data-cron-preset="0 */6 * * *">Every 6 hours</button>
               </div>
-              <div class="actions auto-backup-footer">
-                <button type="submit" class="auto-backup-primary">Save schedule</button>
-              </div>
+              <button type="submit" class="auto-backup-primary auto-backup-footer-button">Save schedule</button>
             </form>
           </section>
 
           <section class="auto-backup-panel">
             <div class="panel-heading-inline">
               <h3>Scheduler status</h3>
-              {% if auto_backup.prereqs.ready %}
-              <span class="status-pill status-match status-pill-compact">Can run</span>
-              {% else %}
-              <span class="status-pill status-warn status-pill-compact">Needs credentials</span>
-              {% endif %}
+              <div class="panel-heading-badges">
+                {% if auto_backup.prereqs.ready %}
+                <span class="status-pill status-match status-pill-compact">Can run</span>
+                {% else %}
+                <span class="status-pill status-warn status-pill-compact">Needs credentials</span>
+                {% endif %}
+                {% if backup_retention.enabled %}
+                <a href="#backup-retention-status" class="status-pill status-alt status-pill-compact">Keep {{ backup_retention.days }} day(s)</a>
+                {% else %}
+                <a href="#backup-retention-status" class="status-pill status-match status-pill-compact">Keep all backups</a>
+                {% endif %}
+              </div>
             </div>
             <div class="server-readiness">
               {% if auto_backup.prereqs.ready %}
               <div class="server-readiness-item">
-                <p class="hint">
+                <span class="hint">
                   Automatic backups use only server-side credentials from the database or environment.
-                  Browser cookies are ignored.
-                </p>
-                <span class="server-readiness-detail">
+                  Browser cookies are ignored.<br>
                   Server-side credentials are available. Account ID comes from {{ auto_backup.prereqs.account_id_source or 'unknown source' }},
                   API token comes from {{ auto_backup.prereqs.api_token_source or 'unknown source' }}.
                 </span>
               </div>
               {% else %}
               <div class="server-readiness-item">
-                <p class="hint">
+                <span class="hint">
                   Automatic backups use only server-side credentials from the database or environment.
-                  Browser cookies are ignored.
-                </p>
-                <span class="server-readiness-detail">
+                  Browser cookies are ignored.<br>
                   Missing: {{ auto_backup.prereqs.missing_items | join(', ') }}.
                   Add them through the app and save them, or provide them from the environment.
                 </span>
@@ -381,21 +388,19 @@
               You need values available to the server from the database or environment.
             </section>
             {% endif %}
-            <form method="post" action="/auto-backup/run" class="top-gap auto-backup-footer">
-              <button type="submit" class="auto-backup-primary" {% if not auto_backup.prereqs.ready %}disabled{% endif %}>Run now</button>
+            <form method="post" action="/auto-backup/run" class="auto-backup-footer-form">
+              <button type="submit" class="auto-backup-primary auto-backup-footer-button" {% if not auto_backup.prereqs.ready %}disabled{% endif %}>Run now</button>
             </form>
           </section>
         </div>
 
         <section class="top-gap">
-          <div class="section-header-row">
-            <div>
-              <h3>Recent automatic backup runs</h3>
-              <p class="hint">
-                Below you will find the five most recent runs. To view the entire archive, open the
-                <a href="/auto-backup/runs">Automatic Backup Archive</a>.
-              </p>
-            </div>
+          <div class="section-heading">
+            <h3>Recent automatic backup runs</h3>
+            <p class="hint">
+              Below you will find the five most recent runs. To view the entire archive, open the
+              <a href="/auto-backup/runs">Automatic Backup Archive</a>.
+            </p>
           </div>
           {% if auto_backup.recent_runs %}
           <div class="table-wrap">
@@ -446,36 +451,66 @@
       </section>
 
       <section class="card" id="saved-backups-section">
-        <h2>Saved backups</h2>
-        <div class="database-stats">
-          <div class="database-stat">
-            <span class="database-stat-label">Backups</span>
-            <strong class="database-stat-value">{{ database_stats.backup_count }}</strong>
-          </div>
-          <div class="database-stat">
-            <span class="database-stat-label">Unique tunnels</span>
-            <strong class="database-stat-value">{{ database_stats.tunnel_count }}</strong>
-          </div>
-          <div class="database-stat">
-            <span class="database-stat-label">Restores</span>
-            <strong class="database-stat-value">{{ database_stats.restore_count }}</strong>
-          </div>
-          <div class="database-stat">
-            <span class="database-stat-label">Scheduled runs</span>
-            <strong class="database-stat-value">{{ database_stats.scheduled_run_count }}</strong>
-          </div>
-          <div class="database-stat">
-            <span class="database-stat-label">Database size</span>
-            <strong class="database-stat-value">{{ database_stats.database_size }}</strong>
-          </div>
-          <div class="database-stat">
-            <span class="database-stat-label">Backup storage</span>
-            <strong class="database-stat-value">{{ database_stats.backup_storage_size }}</strong>
-          </div>
-          <div class="database-stat database-stat-latest">
-            <span class="database-stat-label">Latest backup</span>
-            <strong class="database-stat-value">{{ database_stats.latest_backup_at or 'None yet' }}</strong>
-          </div>
+        <div class="section-heading">
+          <h2>Saved backups</h2>
+          <p class="hint">Browse the local archive of saved tunnel snapshots, review database statistics, and manage how much backup history Tikka Masala keeps over time.</p>
+        </div>
+        <div class="saved-backups-overview">
+          <section class="saved-backups-panel">
+            <h3>Archive statistics</h3>
+            <dl class="status-grid archive-stats-grid">
+              <div>
+                <dt>Unique tunnels</dt>
+                <dd>{{ database_stats.tunnel_count }}</dd>
+              </div>
+              <div>
+                <dt>Routes archived</dt>
+                <dd>{{ database_stats.route_total }}</dd>
+              </div>
+              <div>
+                <dt>Restores</dt>
+                <dd>{{ database_stats.restore_count }}</dd>
+              </div>
+              <div>
+                <dt>Scheduled runs</dt>
+                <dd>{{ database_stats.scheduled_run_count }}</dd>
+              </div>
+              <div class="archive-stats-wide">
+                <dt>Oldest backup</dt>
+                <dd>{{ database_stats.oldest_backup_at or 'None yet' }}</dd>
+              </div>
+              <div class="archive-stats-wide archive-stats-latest">
+                <dt>Latest backup</dt>
+                <dd>{{ database_stats.latest_backup_at or 'None yet' }}</dd>
+              </div>
+            </dl>
+          </section>
+          <section class="saved-backups-panel" id="backup-retention-status">
+            <div class="panel-heading-inline">
+              <h3>Archive retention</h3>
+              {% if backup_retention.enabled %}
+              <span class="status-pill status-alt status-pill-compact">{{ backup_retention.days }} day(s)</span>
+              {% else %}
+              <span class="status-pill status-match status-pill-compact">Keep all backups</span>
+              {% endif %}
+            </div>
+            <dl class="status-grid archive-stats-grid">
+              <div>
+                <dt>Backups kept</dt>
+                <dd>{{ database_stats.backup_count }}</dd>
+              </div>
+              <div>
+                <dt>Backup storage</dt>
+                <dd>{{ database_stats.backup_storage_size }}</dd>
+              </div>
+              <div>
+                <dt>Database size</dt>
+                <dd>{{ database_stats.database_size }}</dd>
+              </div>
+            </dl>
+            <p class="hint">{{ backup_retention.summary }}</p>
+            <p class="hint">{{ backup_retention.detail }}</p>
+          </section>
         </div>
         {% if backups %}
         <div class="table-wrap">
@@ -825,6 +860,7 @@
           const shouldFloat = isFloating ? window.scrollY > 132 : window.scrollY > 180;
           isFloating = shouldFloat;
           floatingNav.classList.toggle("is-floating", shouldFloat);
+          document.body.classList.toggle("has-floating-nav", shouldFloat);
           if (floatingNavLabel) {
             floatingNavLabel.classList.toggle("is-hidden", shouldFloat);
           }

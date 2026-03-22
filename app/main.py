@@ -38,8 +38,8 @@ API_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 ENCRYPTED_VALUE_PREFIX = "enc:"
 AUTO_BACKUP_JOB_ID = "auto-backup-all-tunnels"
 DEFAULT_AUTO_BACKUP_CRON = "0 3 * * *"
-BACKUPS_PAGE_SIZE = 10
-BACKUPS_PAGE_SIZE_OPTIONS = {10, 25, 50, 75, 100}
+BACKUPS_PAGE_SIZE = 5
+BACKUPS_PAGE_SIZE_OPTIONS = {5, 10, 25, 50, 75, 100}
 SCHEDULED_RUNS_PAGE_SIZE = 15
 SCHEDULED_RUNS_PAGE_SIZE_OPTIONS = (15, 30, 60, 90)
 
@@ -919,6 +919,7 @@ def get_database_stats() -> dict[str, Any]:
                 COUNT(*) AS backup_count,
                 COUNT(DISTINCT tunnel_id) AS tunnel_count,
                 COALESCE(SUM(route_count), 0) AS route_total,
+                MIN(created_at) AS oldest_backup_at,
                 MAX(created_at) AS latest_backup_at
             FROM backups
             """
@@ -942,9 +943,28 @@ def get_database_stats() -> dict[str, Any]:
         "route_total": int(backup_stats["route_total"] or 0),
         "restore_count": int(restore_stats["restore_count"] or 0),
         "scheduled_run_count": int(run_stats["scheduled_run_count"] or 0),
+        "oldest_backup_at": backup_stats["oldest_backup_at"],
         "latest_backup_at": backup_stats["latest_backup_at"],
         "database_size": format_bytes(DB_PATH.stat().st_size) if DB_PATH.exists() else "0 B",
         "backup_storage_size": format_bytes(get_directory_size(BACKUP_DIR)),
+    }
+
+
+def get_backup_retention_status() -> dict[str, Any]:
+    retention_days = get_backup_retention_days()
+    if retention_days is None:
+        return {
+            "enabled": False,
+            "days": None,
+            "summary": "Full archive retention is active. Backups are kept until you remove them manually.",
+            "detail": "BACKUP_RETENTION_DAYS is not currently set, so Tikka Masala will not delete old backups automatically.",
+        }
+
+    return {
+        "enabled": True,
+        "days": retention_days,
+        "summary": f"Automatic retention is active. Backups older than {retention_days} day(s) are deleted when new backups are created.",
+        "detail": "Cleanup removes both the JSON snapshot and its related restore history from the database.",
     }
 
 
@@ -1166,6 +1186,7 @@ def render_index_page(
             "backup_pagination": backup_pagination,
             "backup_page_size_options": sorted(BACKUPS_PAGE_SIZE_OPTIONS),
             "database_stats": get_database_stats(),
+            "backup_retention": get_backup_retention_status(),
             "tunnels": tunnels,
             "prefill_status": prefill_status or build_prefill_status(request),
             "prefill_account_id": prefill_account_id if prefill_account_id is not None else get_saved_account_id(),
