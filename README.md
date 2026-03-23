@@ -86,10 +86,10 @@ TOKEN_ENCRYPTION_KEY=your-generated-fernet-key
 AUTO_BACKUP_TIMEZONE=Europe/Rome
 BACKUP_RETENTION_DAYS=90
 NOTIFICATION_WEBHOOK_URL=
-NOTIFICATION_WEBHOOK_EVENTS=auto_backup_partial,auto_backup_failed,restore_failed,retention_cleanup
+NOTIFICATION_WEBHOOK_EVENTS=auto_backup_success,auto_backup_partial,auto_backup_failed,restore_failed,retention_cleanup
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
-TELEGRAM_NOTIFICATION_EVENTS=auto_backup_partial,auto_backup_failed,restore_failed,retention_cleanup
+TELEGRAM_NOTIFICATION_EVENTS=auto_backup_success,auto_backup_partial,auto_backup_failed,restore_failed,retention_cleanup
 LOG_LEVEL=INFO
 ```
 
@@ -229,8 +229,9 @@ Supported events:
 - `restore_failed`
 - `retention_cleanup`
 
-If `NOTIFICATION_WEBHOOK_EVENTS` or `TELEGRAM_NOTIFICATION_EVENTS` is left empty, Tikka Masala enables a conservative default set for that channel:
+If `NOTIFICATION_WEBHOOK_EVENTS` or `TELEGRAM_NOTIFICATION_EVENTS` is left empty, Tikka Masala enables the default event set for that channel:
 
+- `auto_backup_success`
 - `auto_backup_partial`
 - `auto_backup_failed`
 - `restore_failed`

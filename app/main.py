@@ -64,6 +64,7 @@ SUPPORTED_NOTIFICATION_EVENTS = frozenset(
 )
 DEFAULT_NOTIFICATION_EVENTS = frozenset(
     {
+        "auto_backup_success",
         "auto_backup_partial",
         "auto_backup_failed",
         "restore_failed",
