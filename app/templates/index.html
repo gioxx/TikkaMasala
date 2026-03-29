@@ -44,7 +44,7 @@
             <a href="#tunnels-section">Load tunnels</a>
             <a href="#backup-section">Create backup</a>
             {% if not demo_mode %}<a href="#auto-backup-section">Automatic backups</a>{% endif %}
-            <a href="#saved-backups-section">Saved backups</a>
+            {% if not demo_mode %}<a href="#saved-backups-section">Saved backups</a>{% endif %}
             {% if not demo_mode %}<a href="#notifications-section">Notifications</a>{% endif %}
           </nav>
         </div>
@@ -53,7 +53,7 @@
       {% if demo_mode %}
       <section class="demo-banner">
         <p>Demo mode is active.</p>
-        <p>Authentication data is not saved to the database or browser. Automatic backups and notifications are disabled. Manual tunnel listing and backups work normally during this session.</p>
+        <p>Authentication data is not saved to the database or browser. Automatic backups, notifications, and backup archive are disabled. Manual tunnel listing and backups work normally: completed backups are downloaded directly as JSON files.</p>
       </section>
       {% endif %}
 
@@ -557,6 +557,7 @@
       </section>
       {% endif %}
 
+      {% if not demo_mode %}
       <section class="card" id="saved-backups-section">
         <div class="section-heading">
           <h2 class="heading-with-icon">
@@ -697,6 +698,7 @@
         <p>No backups yet.</p>
         {% endif %}
       </section>
+      {% endif %}
 
       {% if not demo_mode %}
       <section class="card notification-panel" id="notifications-section">

@@ -1671,7 +1671,7 @@ async def backup_action(
     tunnel_id: str = Form(...),
     api_token: str = Form(default=""),
     notes: str | None = Form(default=None),
-) -> HTMLResponse:
+) -> HTMLResponse | FileResponse:
     try:
         account_id = resolve_account_id(account_id)
         api_token = resolve_api_token(request, api_token)
@@ -1698,6 +1698,9 @@ async def backup_action(
         )
         remember_account_id(account_id)
         remember_api_token(api_token)
+        if DEMO_MODE:
+            file_path = BACKUP_DIR / backup.filename
+            return FileResponse(path=file_path, filename=backup.filename, media_type="application/json")
         response = await index(
             request,
             message=f"Backup created: #{backup.id} for tunnel {backup.tunnel_name}.",
@@ -1883,6 +1886,8 @@ async def notifications_test_action(request: Request) -> HTMLResponse:
 
 @app.get("/backup/{backup_id}", response_class=HTMLResponse)
 async def backup_details(request: Request, backup_id: int) -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/", status_code=303)
     return render_backup_page(request, backup_id)
 
 
@@ -1892,7 +1897,9 @@ async def auto_backup_runs(request: Request) -> HTMLResponse:
 
 
 @app.get("/backup/{backup_id}/download")
-async def download_backup(backup_id: int) -> FileResponse:
+async def download_backup(backup_id: int) -> FileResponse | RedirectResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/", status_code=303)
     backup = get_backup(backup_id)
     file_path = BACKUP_DIR / backup.filename
     if not file_path.exists():
@@ -1909,6 +1916,8 @@ async def restore_backup(
     tunnel_id: str = Form(...),
     api_token: str = Form(default=""),
 ) -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/", status_code=303)
     try:
         account_id = resolve_account_id(account_id)
         api_token = resolve_api_token(request, api_token)
