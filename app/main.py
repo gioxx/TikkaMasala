@@ -1664,7 +1664,7 @@ async def list_tunnels_action(request: Request, account_id: str = Form(default="
         return await index(request, error=exc.detail, success_target="tunnels")
 
 
-@app.post("/backup", response_class=HTMLResponse)
+@app.post("/backup", response_model=None)
 async def backup_action(
     request: Request,
     account_id: str = Form(default=""),
@@ -1896,7 +1896,7 @@ async def auto_backup_runs(request: Request) -> HTMLResponse:
     return render_scheduled_runs_page(request)
 
 
-@app.get("/backup/{backup_id}/download")
+@app.get("/backup/{backup_id}/download", response_model=None)
 async def download_backup(backup_id: int) -> FileResponse | RedirectResponse:
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
