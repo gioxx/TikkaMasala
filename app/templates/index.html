@@ -37,18 +37,25 @@
             <div class="floating-nav-meta" aria-hidden="true">
               <img src="/static/favicon.ico" alt="" class="floating-nav-icon">
               <span class="floating-nav-title">Tikka Masala</span>
-              <span class="floating-nav-version">v1.1.1</span>
+              <span class="floating-nav-version">v1.1.2</span>
             </div>
             <a href="#page-top" class="floating-only-nav-item">↑ Go to Top</a>
             <a href="#guide-section">Guide</a>
             <a href="#tunnels-section">Load tunnels</a>
             <a href="#backup-section">Create backup</a>
-            <a href="#auto-backup-section">Automatic backups</a>
+            {% if not demo_mode %}<a href="#auto-backup-section">Automatic backups</a>{% endif %}
             <a href="#saved-backups-section">Saved backups</a>
-            <a href="#notifications-section">Notifications</a>
+            {% if not demo_mode %}<a href="#notifications-section">Notifications</a>{% endif %}
           </nav>
         </div>
       </header>
+
+      {% if demo_mode %}
+      <section class="demo-banner">
+        <p>Demo mode is active.</p>
+        <p>Authentication data is not saved to the database or browser. Automatic backups and notifications are disabled. Manual tunnel listing and backups work normally during this session.</p>
+      </section>
+      {% endif %}
 
       {% if error and success_target not in ["guide", "tunnels", "backup", "auto-backup", "notifications"] %}
       <section class="notice error">{{ error }}</section>
@@ -325,6 +332,7 @@
         </form>
       </section>
 
+      {% if not demo_mode %}
       <section class="card" id="auto-backup-section">
         <div class="section-heading">
           <h2 class="heading-with-icon">
@@ -547,6 +555,7 @@
           {% endif %}
         </section>
       </section>
+      {% endif %}
 
       <section class="card" id="saved-backups-section">
         <div class="section-heading">
@@ -689,6 +698,7 @@
         {% endif %}
       </section>
 
+      {% if not demo_mode %}
       <section class="card notification-panel" id="notifications-section">
         <div class="section-heading">
           <div class="panel-heading-inline">
@@ -743,6 +753,7 @@
           </button>
         </form>
       </section>
+      {% endif %}
 
       <footer class="site-footer footer-panel">
         <div class="footer-grid">
@@ -758,7 +769,7 @@
               <button type="button" class="theme-button" data-theme-value="dark">Dark</button>
               <button type="button" class="theme-button" data-theme-value="light">Light</button>
             </div>
-            <div class="footer-pill">Version 1.1.1</div>
+            <div class="footer-pill">Version 1.1.2</div>
             <a
               class="footer-pill footer-icon-button"
               href="https://github.com/gioxx/TikkaMasala"
