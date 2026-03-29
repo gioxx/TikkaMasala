@@ -1512,8 +1512,8 @@ def render_index_page(
     backup_page: int | None = None,
     backup_page_size: int | None = None,
 ) -> HTMLResponse:
-    resolved_page = backup_page or get_requested_backup_page(request)
-    resolved_page_size = backup_page_size or get_requested_backup_page_size(request)
+    resolved_page = backup_page if isinstance(backup_page, int) else get_requested_backup_page(request)
+    resolved_page_size = backup_page_size if isinstance(backup_page_size, int) else get_requested_backup_page_size(request)
     backups, backup_pagination = get_backups_page(resolved_page, resolved_page_size)
     return templates.TemplateResponse(
         request,
