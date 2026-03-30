@@ -1455,8 +1455,19 @@ html[data-theme="dark"] .hero-nav-shell::after {
 }
 
 /* === Light mode structural enhancements === */
-body {
-  /* Subtle warm grid for light mode — barely visible */
+/* Scoped: only applies when system is light AND no forced dark theme */
+@media (prefers-color-scheme: light) {
+  html:not([data-theme="dark"]) body {
+    background:
+      linear-gradient(rgba(180,90,10,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(180,90,10,0.04) 1px, transparent 1px),
+      linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);
+    background-size: 48px 48px, 48px 48px, 100% 100%;
+    background-attachment: fixed;
+  }
+}
+/* Forced light theme — always clean sandy background, no orbs */
+html[data-theme="light"] body {
   background:
     linear-gradient(rgba(180,90,10,0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(180,90,10,0.04) 1px, transparent 1px),
@@ -1464,7 +1475,7 @@ body {
   background-size: 48px 48px, 48px 48px, 100% 100%;
   background-attachment: fixed;
 }
-/* Gradient separator under hero nav in light mode */
+/* Gradient separator under hero nav */
 .hero-nav-shell {
   position: relative;
 }
@@ -1477,15 +1488,6 @@ body {
   height: 1px;
   background: linear-gradient(90deg, transparent 0%, rgba(246,130,31,0.45) 30%, rgba(200,80,0,0.35) 70%, transparent 100%);
   z-index: 2;
-}
-/* Explicitly override body background for light data-theme */
-html[data-theme="light"] body {
-  background:
-    linear-gradient(rgba(180,90,10,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(180,90,10,0.04) 1px, transparent 1px),
-    linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);
-  background-size: 48px 48px, 48px 48px, 100% 100%;
-  background-attachment: fixed;
 }
 
 /* === Responsive === */
