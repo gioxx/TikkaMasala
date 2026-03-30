@@ -1101,7 +1101,7 @@ async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: 
     }
 
     file_path = (BACKUP_DIR / filename).resolve()
-    if not str(file_path).startswith(str(BACKUP_DIR.resolve())):
+    if not file_path.is_relative_to(BACKUP_DIR.resolve()):
         raise ValueError(f"Refusing to write outside backup directory: {file_path}")
     with file_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, ensure_ascii=False)
