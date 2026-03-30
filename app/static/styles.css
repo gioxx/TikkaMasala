@@ -294,10 +294,10 @@ body.has-floating-nav { --floating-nav-offset: 3.2rem; }
 }
 .hero h1 {
   margin: 0;
-  font-size: 1.85rem;
+  font-size: 2.6rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
 }
 .eyebrow {
   text-transform: uppercase;
