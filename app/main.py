@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sqlite3
+import uuid
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -1060,17 +1061,6 @@ async def fetch_tunnel_configuration(account_id: str, tunnel_id: str, api_token:
     return tunnel_data, config_data
 
 
-def _sanitize_tunnel_id_for_filename(tunnel_id: str) -> str:
-    """
-    Return a filesystem-safe representation of a tunnel_id suitable for use in a filename.
-
-    Only allow alphanumeric characters, dash, underscore, and dot. Replace all other
-    characters (including path separators) with an underscore to prevent path traversal.
-    """
-    safe_chars = "-_."
-    return "".join(ch if (ch.isalnum() or ch in safe_chars) else "_" for ch in tunnel_id)
-
-
 async def list_tunnels(account_id: str, api_token: str) -> list[dict[str, Any]]:
     data = await cloudflare_get(account_id, "cfd_tunnel", api_token)
     result = data.get("result", [])
@@ -1088,8 +1078,7 @@ async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: 
     tunnel_name = tunnel.get("name") or "Unknown tunnel"
     ingress = config.get("config", {}).get("ingress", [])
     route_count = len(ingress)
-    safe_tunnel_id = _sanitize_tunnel_id_for_filename(tunnel_id)
-    filename = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}_{safe_tunnel_id}.json"
+    filename = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}_{uuid.uuid4().hex[:12]}.json"
 
     payload = {
         "exported_at": created_at,
@@ -1100,9 +1089,7 @@ async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: 
         "notes": notes or "",
     }
 
-    file_path = (BACKUP_DIR / filename).resolve()
-    if not file_path.is_relative_to(BACKUP_DIR.resolve()):
-        raise ValueError(f"Refusing to write outside backup directory: {file_path}")
+    file_path = BACKUP_DIR / filename
     with file_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, ensure_ascii=False)
 
