@@ -114,13 +114,13 @@
     --row-hover: rgba(246, 130, 31, 0.05);
     --backdrop-blur: 12px;
     /* Button tokens — dark (banner style) */
-    --btn-bg: rgba(246, 130, 31, 0.15);
-    --btn-border: 1px solid rgba(246, 130, 31, 0.35);
-    --btn-color: #fdba74;
-    --btn-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-    --btn-bg-hover: rgba(246, 130, 31, 0.28);
-    --btn-color-hover: #fff;
-    --btn-shadow-hover: 0 0 0 1px rgba(246,130,31,0.55), 0 4px 16px rgba(246,130,31,0.20);
+    --btn-bg: rgba(246, 130, 31, 0.22);
+    --btn-border: 1px solid rgba(246, 130, 31, 0.45);
+    --btn-color: #ffffff;
+    --btn-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    --btn-bg-hover: rgba(246, 130, 31, 0.36);
+    --btn-color-hover: #ffffff;
+    --btn-shadow-hover: 0 0 0 1px rgba(246,130,31,0.60), 0 4px 16px rgba(246,130,31,0.22);
   }
 }
 
