@@ -1253,7 +1253,7 @@ a { color: var(--link); }
 
 /* === Dark mode structural enhancements === */
 @media (prefers-color-scheme: dark) {
-  body {
+  html:not([data-theme="light"]) body {
     background:
       linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px),
@@ -1263,66 +1263,14 @@ a { color: var(--link); }
     background-size: 48px 48px, 48px 48px, 100% 100%, 100% 100%, 100% 100%;
     background-attachment: fixed;
   }
-  /* === Card tints per section — banner style === */
-  /* Backup: orange tint */
-  #backup-section {
-    background: rgba(246, 130, 31, 0.08);
-    border-color: rgba(246, 130, 31, 0.18);
-  }
-  /* Auto-backup: subtle orange, slightly different shade */
-  #auto-backup-section {
-    background: rgba(246, 130, 31, 0.06);
-    border-color: rgba(246, 130, 31, 0.14);
-  }
-  /* Saved backups: neutral glass, slightly more opaque */
-  #saved-backups-section {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.10);
-  }
-  /* Notifications: violet tint */
-  #notifications-section {
-    background: rgba(139, 92, 246, 0.08);
-    border-color: rgba(139, 92, 246, 0.18);
-  }
-  /* Tunnels: neutral glass */
-  #tunnels-section {
-    background: rgba(255, 255, 255, 0.045);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-  /* Guide: neutral, slightly dimmer */
-  .guide-panel {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.07);
-  }
-  /* Inner panels: tinted to match parent */
-  #backup-section .auto-backup-panel,
-  #auto-backup-section .auto-backup-panel {
-    background: rgba(246, 130, 31, 0.06);
-    border-color: rgba(246, 130, 31, 0.14);
-  }
-  #notifications-section .auto-backup-panel,
-  #notifications-section .saved-backups-panel {
-    background: rgba(139, 92, 246, 0.06);
-    border-color: rgba(139, 92, 246, 0.14);
-  }
-  #saved-backups-section .saved-backups-panel {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.08);
-  }
-  /* Success/error notices keep their own color */
-  .notice.success, .notice.error { background: var(--success); border-color: var(--success-border); }
-  .notice.error { background: var(--error); border-color: var(--error-border); }
-  /* Footer */
-  .footer-panel {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(255, 255, 255, 0.07);
-  }
-  .auto-backup-panel, .saved-backups-panel, .footer-panel {
+  html:not([data-theme="light"]) .auto-backup-panel,
+  html:not([data-theme="light"]) .saved-backups-panel,
+  html:not([data-theme="light"]) .footer-panel {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
   /* Glow orb behind hero logo area */
-  .hero::before {
+  html:not([data-theme="light"]) .hero::before {
     content: '';
     position: absolute;
     top: 50%;
@@ -1336,19 +1284,17 @@ a { color: var(--link); }
     pointer-events: none;
     z-index: 0;
   }
-  .hero-main, .hero-nav-shell { position: relative; z-index: 1; }
+  html:not([data-theme="light"]) .hero-main,
+  html:not([data-theme="light"]) .hero-nav-shell { position: relative; z-index: 1; }
   /* Gradient text for the app title */
-  .hero h1 a {
+  html:not([data-theme="light"]) .hero h1 a {
     background: linear-gradient(115deg, #f6821f 15%, #fb923c 45%, #c084fc 82%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
   /* Gradient separator line under nav */
-  .hero-nav-shell {
-    position: relative;
-  }
-  .hero-nav-shell::after {
+  html:not([data-theme="light"]) .hero-nav-shell::after {
     content: '';
     position: absolute;
     bottom: -1px;
@@ -1358,6 +1304,21 @@ a { color: var(--link); }
     background: linear-gradient(90deg, transparent 0%, rgba(246,130,31,0.55) 25%, rgba(139,92,246,0.55) 75%, transparent 100%);
     z-index: 2;
   }
+  /* Card tints only in actual dark mode */
+  html:not([data-theme="light"]) #backup-section { background: rgba(246,130,31,0.08); border-color: rgba(246,130,31,0.18); }
+  html:not([data-theme="light"]) #auto-backup-section { background: rgba(246,130,31,0.06); border-color: rgba(246,130,31,0.14); }
+  html:not([data-theme="light"]) #saved-backups-section { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.10); }
+  html:not([data-theme="light"]) #notifications-section { background: rgba(139,92,246,0.08); border-color: rgba(139,92,246,0.18); }
+  html:not([data-theme="light"]) #tunnels-section { background: rgba(255,255,255,0.045); border-color: rgba(255,255,255,0.08); }
+  html:not([data-theme="light"]) .guide-panel { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.07); }
+  html:not([data-theme="light"]) #backup-section .auto-backup-panel,
+  html:not([data-theme="light"]) #auto-backup-section .auto-backup-panel { background: rgba(246,130,31,0.06); border-color: rgba(246,130,31,0.14); }
+  html:not([data-theme="light"]) #notifications-section .auto-backup-panel,
+  html:not([data-theme="light"]) #notifications-section .saved-backups-panel { background: rgba(139,92,246,0.06); border-color: rgba(139,92,246,0.14); }
+  html:not([data-theme="light"]) #saved-backups-section .saved-backups-panel { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.08); }
+  html:not([data-theme="light"]) .footer-panel { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.07); }
+  html:not([data-theme="light"]) .notice.success { background: var(--success); border-color: var(--success-border); }
+  html:not([data-theme="light"]) .notice.error { background: var(--error); border-color: var(--error-border); }
 }
 html[data-theme="dark"] body {
   background:
