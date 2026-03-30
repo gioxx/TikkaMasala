@@ -37,7 +37,7 @@
             <div class="floating-nav-meta" aria-hidden="true">
               <img src="/static/favicon.ico" alt="" class="floating-nav-icon">
               <span class="floating-nav-title">Tikka Masala</span>
-              <span class="floating-nav-version">v1.1.1</span>
+              <span class="floating-nav-version">v1.1.2</span>
             </div>
             <a href="#page-top" class="floating-only-nav-item">↑ Go to Top</a>
             <a href="/">Dashboard</a>
@@ -50,7 +50,12 @@
         </div>
       </header>
 
-      <p><a href="/">← Back to dashboard</a></p>
+      {% if demo_mode %}
+      <section class="demo-banner">
+        <p>Demo mode is active.</p>
+        <p>Authentication data is not saved. You can still restore backups during this session.</p>
+      </section>
+      {% endif %}
 
       <section class="card" id="restore-form">
         <h1 class="heading-with-icon">
@@ -95,7 +100,7 @@
         {% endif %}
       </section>
 
-      <section class="card" id="restore-history">
+      <section class="card" id="restore-form">
         <h2 class="heading-with-icon">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -151,7 +156,7 @@
         <pre class="json-view"><code>{{ content }}</code></pre>
       </section>
 
-      <section class="card">
+      <section class="card" id="restore-history">
         <h2 class="heading-with-icon">
           <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -212,7 +217,7 @@
               <button type="button" class="theme-button" data-theme-value="dark">Dark</button>
               <button type="button" class="theme-button" data-theme-value="light">Light</button>
             </div>
-            <div class="footer-pill">Version 1.1.1</div>
+            <div class="footer-pill">Version 1.1.2</div>
             <a
               class="footer-pill footer-icon-button"
               href="https://github.com/gioxx/TikkaMasala"

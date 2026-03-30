@@ -39,6 +39,7 @@ NOTIFICATION_WEBHOOK_EVENTS_RAW = os.getenv("NOTIFICATION_WEBHOOK_EVENTS", "").s
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 TELEGRAM_NOTIFICATION_EVENTS_RAW = os.getenv("TELEGRAM_NOTIFICATION_EVENTS", "").strip()
+DEMO_MODE = os.getenv("DEMO", "false").strip().lower() in ("true", "1", "yes")
 API_TOKEN_COOKIE_NAME = "cf_api_token"
 API_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 ENCRYPTED_VALUE_PREFIX = "enc:"
@@ -48,7 +49,7 @@ BACKUPS_PAGE_SIZE = 5
 BACKUPS_PAGE_SIZE_OPTIONS = {5, 10, 25, 50, 75, 100}
 SCHEDULED_RUNS_PAGE_SIZE = 15
 SCHEDULED_RUNS_PAGE_SIZE_OPTIONS = (15, 30, 60, 90)
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 SUPPORTED_NOTIFICATION_EVENTS = frozenset(
     {
         "notification_test",
@@ -64,6 +65,7 @@ SUPPORTED_NOTIFICATION_EVENTS = frozenset(
 )
 DEFAULT_NOTIFICATION_EVENTS = frozenset(
     {
+        "auto_backup_success",
         "auto_backup_partial",
         "auto_backup_failed",
         "restore_failed",
@@ -220,10 +222,14 @@ def delete_setting(key: str) -> None:
 
 
 def get_saved_account_id() -> str:
+    if DEMO_MODE:
+        return DEFAULT_ACCOUNT_ID
     return (get_setting("account_id") or DEFAULT_ACCOUNT_ID).strip()
 
 
 def get_account_id_source() -> str | None:
+    if DEMO_MODE:
+        return "environment" if DEFAULT_ACCOUNT_ID else None
     stored_value = (get_setting("account_id") or "").strip()
     if stored_value:
         return "database"
@@ -243,6 +249,8 @@ def resolve_account_id(account_id: str | None) -> str:
 
 
 def remember_account_id(account_id: str) -> None:
+    if DEMO_MODE:
+        return
     normalized = account_id.strip()
     if normalized:
         set_setting("account_id", normalized)
@@ -279,6 +287,8 @@ def decrypt_secret(value: str) -> str:
 
 
 def get_saved_api_token(request: Request) -> str:
+    if DEMO_MODE:
+        return DEFAULT_API_TOKEN.strip()
     cookie_token = request.cookies.get(API_TOKEN_COOKIE_NAME, "").strip()
     if cookie_token:
         return cookie_token
@@ -295,6 +305,8 @@ def get_saved_api_token(request: Request) -> str:
 
 
 def get_api_token_source(request: Request) -> str | None:
+    if DEMO_MODE:
+        return "environment" if DEFAULT_API_TOKEN else None
     cookie_token = request.cookies.get(API_TOKEN_COOKIE_NAME, "").strip()
     if cookie_token:
         return "browser"
@@ -606,12 +618,16 @@ def resolve_api_token(request: Request, api_token: str | None) -> str:
 
 
 def remember_api_token(api_token: str) -> None:
+    if DEMO_MODE:
+        return
     normalized = api_token.strip()
     if normalized and TOKEN_ENCRYPTION_KEY:
         set_setting("api_token", encrypt_secret(normalized))
 
 
 def set_api_token_cookie(response: HTMLResponse | RedirectResponse, api_token: str) -> None:
+    if DEMO_MODE:
+        return
     response.set_cookie(
         key=API_TOKEN_COOKIE_NAME,
         value=api_token.strip(),
@@ -966,14 +982,19 @@ def configure_auto_backup_job() -> None:
 
 @app.on_event("startup")
 async def startup_event() -> None:
+    if DEMO_MODE:
+        logger.warning(
+            "DEMO mode is active. Authentication data will not be persisted and the automatic backup scheduler is disabled."
+        )
     logger.info(
-        "Starting Tikka Masala (data_dir=%s, api_base=%s, log_level=%s, auto_backup_timezone=%s, retention_days=%s, notifications=%s).",
+        "Starting Tikka Masala (data_dir=%s, api_base=%s, log_level=%s, auto_backup_timezone=%s, retention_days=%s, notifications=%s, demo_mode=%s).",
         DATA_DIR,
         API_BASE,
         LOG_LEVEL,
         AUTO_BACKUP_TIMEZONE or "auto",
         get_backup_retention_days() or "disabled",
         get_notification_status()["summary_label"],
+        DEMO_MODE,
     )
     notification_log_context = get_notification_log_context()
     logger.info(
@@ -985,9 +1006,10 @@ async def startup_event() -> None:
         notification_log_context["webhook_event_count"],
         notification_log_context["telegram_event_count"],
     )
-    if not auto_backup_scheduler.running:
-        auto_backup_scheduler.start()
-    configure_auto_backup_job()
+    if not DEMO_MODE:
+        if not auto_backup_scheduler.running:
+            auto_backup_scheduler.start()
+        configure_auto_backup_job()
     logger.info("Application startup complete.")
 
 
@@ -1490,8 +1512,8 @@ def render_index_page(
     backup_page: int | None = None,
     backup_page_size: int | None = None,
 ) -> HTMLResponse:
-    resolved_page = backup_page or get_requested_backup_page(request)
-    resolved_page_size = backup_page_size or get_requested_backup_page_size(request)
+    resolved_page = backup_page if isinstance(backup_page, int) else get_requested_backup_page(request)
+    resolved_page_size = backup_page_size if isinstance(backup_page_size, int) else get_requested_backup_page_size(request)
     backups, backup_pagination = get_backups_page(resolved_page, resolved_page_size)
     return templates.TemplateResponse(
         request,
@@ -1510,6 +1532,7 @@ def render_index_page(
             "prefill_account_id": prefill_account_id if prefill_account_id is not None else get_saved_account_id(),
             "prefill_api_token": prefill_api_token if prefill_api_token is not None else get_saved_api_token(request),
             "auto_backup": build_auto_backup_status(),
+            "demo_mode": DEMO_MODE,
         },
     )
 
@@ -1534,6 +1557,7 @@ def render_backup_page(
             "error": error,
             "prefill_account_id": get_saved_account_id(),
             "prefill_api_token": get_saved_api_token(request),
+            "demo_mode": DEMO_MODE,
         },
     )
 
@@ -1559,6 +1583,7 @@ def render_scheduled_runs_page(request: Request) -> HTMLResponse:
             "scheduled_runs_pagination": scheduled_runs_pagination,
             "scheduled_runs_page_size_options": SCHEDULED_RUNS_PAGE_SIZE_OPTIONS,
             "scheduled_runs_stats": scheduled_runs_stats,
+            "demo_mode": DEMO_MODE,
         },
     )
 
@@ -1639,14 +1664,14 @@ async def list_tunnels_action(request: Request, account_id: str = Form(default="
         return await index(request, error=exc.detail, success_target="tunnels")
 
 
-@app.post("/backup", response_class=HTMLResponse)
+@app.post("/backup", response_model=None)
 async def backup_action(
     request: Request,
     account_id: str = Form(default=""),
     tunnel_id: str = Form(...),
     api_token: str = Form(default=""),
     notes: str | None = Form(default=None),
-) -> HTMLResponse:
+) -> HTMLResponse | FileResponse:
     try:
         account_id = resolve_account_id(account_id)
         api_token = resolve_api_token(request, api_token)
@@ -1673,6 +1698,9 @@ async def backup_action(
         )
         remember_account_id(account_id)
         remember_api_token(api_token)
+        if DEMO_MODE:
+            file_path = BACKUP_DIR / backup.filename
+            return FileResponse(path=file_path, filename=backup.filename, media_type="application/json")
         response = await index(
             request,
             message=f"Backup created: #{backup.id} for tunnel {backup.tunnel_name}.",
@@ -1725,6 +1753,8 @@ async def auto_backup_settings_action(
     cron_expression: str = Form(default=DEFAULT_AUTO_BACKUP_CRON),
     browser_timezone: str = Form(default=""),
 ) -> HTMLResponse:
+    if DEMO_MODE:
+        return render_index_page(request, error="Automatic backups are not available in Demo mode.", success_target="auto-backup")
     try:
         logger.info("Automatic backup settings update requested.")
         if not AUTO_BACKUP_TIMEZONE and browser_timezone.strip():
@@ -1762,6 +1792,8 @@ async def auto_backup_settings_action(
 
 @app.post("/auto-backup/run", response_class=HTMLResponse)
 async def auto_backup_run_action(request: Request) -> HTMLResponse:
+    if DEMO_MODE:
+        return render_index_page(request, error="Automatic backups are not available in Demo mode.", success_target="auto-backup")
     try:
         logger.info("Manual automatic-backup run requested from UI.")
         prereqs = get_auto_backup_prerequisites()
@@ -1805,6 +1837,8 @@ async def auto_backup_run_action(request: Request) -> HTMLResponse:
 
 @app.post("/notifications/test", response_class=HTMLResponse)
 async def notifications_test_action(request: Request) -> HTMLResponse:
+    if DEMO_MODE:
+        return render_index_page(request, error="Notifications are not available in Demo mode.", success_target="notifications")
     status = get_notification_status()
     if not status["webhook_enabled"] and not status["telegram_enabled"]:
         logger.warning("Notification test requested, but no notification channel is configured.")
@@ -1852,6 +1886,8 @@ async def notifications_test_action(request: Request) -> HTMLResponse:
 
 @app.get("/backup/{backup_id}", response_class=HTMLResponse)
 async def backup_details(request: Request, backup_id: int) -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/", status_code=303)
     return render_backup_page(request, backup_id)
 
 
@@ -1860,8 +1896,10 @@ async def auto_backup_runs(request: Request) -> HTMLResponse:
     return render_scheduled_runs_page(request)
 
 
-@app.get("/backup/{backup_id}/download")
-async def download_backup(backup_id: int) -> FileResponse:
+@app.get("/backup/{backup_id}/download", response_model=None)
+async def download_backup(backup_id: int) -> FileResponse | RedirectResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/", status_code=303)
     backup = get_backup(backup_id)
     file_path = BACKUP_DIR / backup.filename
     if not file_path.exists():
@@ -1878,6 +1916,8 @@ async def restore_backup(
     tunnel_id: str = Form(...),
     api_token: str = Form(default=""),
 ) -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/", status_code=303)
     try:
         account_id = resolve_account_id(account_id)
         api_token = resolve_api_token(request, api_token)
