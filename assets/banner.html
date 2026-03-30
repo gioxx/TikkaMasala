@@ -1,0 +1,351 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1280px;
+    height: 640px;
+    overflow: hidden;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .banner {
+    width: 1280px;
+    height: 640px;
+    position: relative;
+    background: #09070f;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 96px;
+    overflow: hidden;
+  }
+
+  /* Deep purple-to-near-black gradient bg */
+  .bg-gradient {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 70% 80% at 100% 50%, rgba(109, 60, 220, 0.28) 0%, transparent 65%),
+      radial-gradient(ellipse 60% 70% at 0% 20%, rgba(246, 130, 31, 0.14) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 50% at 50% 100%, rgba(80, 40, 160, 0.20) 0%, transparent 60%),
+      linear-gradient(135deg, #0f0c1e 0%, #09070f 40%, #110d22 100%);
+  }
+
+  /* Subtle grid pattern */
+  .bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  /* Glowing orb behind right content */
+  .orb {
+    position: absolute;
+    right: 200px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 480px;
+    height: 480px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, transparent 70%);
+    filter: blur(40px);
+    pointer-events: none;
+  }
+  .orb-orange {
+    position: absolute;
+    left: 80px;
+    bottom: -60px;
+    width: 360px;
+    height: 360px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(246, 130, 31, 0.12) 0%, transparent 70%);
+    filter: blur(50px);
+    pointer-events: none;
+  }
+
+  /* Left content */
+  .left {
+    position: relative;
+    z-index: 10;
+    flex: 0 0 auto;
+    max-width: 660px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 14px 5px 10px;
+    border: 1px solid rgba(246, 130, 31, 0.35);
+    border-radius: 9999px;
+    background: rgba(246, 130, 31, 0.10);
+    color: #fdba74;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 26px;
+  }
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #f6821f;
+    box-shadow: 0 0 6px rgba(246, 130, 31, 0.8);
+  }
+
+  .title {
+    font-size: 76px;
+    font-weight: 900;
+    letter-spacing: -0.035em;
+    line-height: 1;
+    color: #ffffff;
+    margin-bottom: 20px;
+  }
+  .title span {
+    background: linear-gradient(120deg, #f6821f 10%, #fb923c 40%, #c084fc 80%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    font-size: 20px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.5);
+    line-height: 1.5;
+    max-width: 520px;
+    margin-bottom: 40px;
+  }
+  .subtitle strong {
+    color: rgba(255,255,255,0.8);
+    font-weight: 600;
+  }
+
+  .pills {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .pill-primary {
+    background: rgba(246, 130, 31, 0.15);
+    border: 1px solid rgba(246, 130, 31, 0.30);
+    color: #fdba74;
+  }
+  .pill-secondary {
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.30);
+    color: #c4b5fd;
+  }
+  .pill-muted {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.55);
+  }
+
+  /* Right: decorative card mockup */
+  .right {
+    position: relative;
+    z-index: 10;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-end;
+  }
+
+  .mock-card {
+    width: 310px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 12px;
+    padding: 18px 20px;
+    backdrop-filter: blur(10px);
+  }
+  .mock-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .mock-card-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.45);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+  .mock-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 9999px;
+  }
+  .mock-badge-green {
+    background: rgba(34, 197, 94, 0.15);
+    border: 1px solid rgba(34, 197, 94, 0.30);
+    color: #86efac;
+  }
+  .mock-badge-orange {
+    background: rgba(246, 130, 31, 0.15);
+    border: 1px solid rgba(246, 130, 31, 0.30);
+    color: #fdba74;
+  }
+  .mock-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 12.5px;
+  }
+  .mock-row:last-child { border-bottom: 0; padding-bottom: 0; }
+  .mock-row-label { color: rgba(255,255,255,0.35); font-size: 11.5px; }
+  .mock-row-value { color: rgba(255,255,255,0.75); font-weight: 600; font-family: ui-monospace, monospace; font-size: 11px; }
+  .mock-row-value.accent { color: #fbbf24; }
+
+  .mock-card-sm {
+    width: 310px;
+    background: rgba(246, 130, 31, 0.08);
+    border: 1px solid rgba(246, 130, 31, 0.18);
+    border-radius: 12px;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .mock-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    background: rgba(246, 130, 31, 0.18);
+    border: 1px solid rgba(246, 130, 31, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 18px;
+  }
+  .mock-icon-purple {
+    background: rgba(139, 92, 246, 0.18);
+    border-color: rgba(139, 92, 246, 0.25);
+  }
+  .mock-card-sm-text { flex: 1; }
+  .mock-card-sm-label { font-size: 11px; color: rgba(255,255,255,0.35); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+  .mock-card-sm-value { font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -0.02em; margin-top: 1px; }
+
+  /* Bottom tag */
+  .corner-tag {
+    position: absolute;
+    bottom: 28px;
+    right: 32px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.18);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+
+  /* Separator line */
+  .separator {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent 0%, #f6821f 30%, #8b5cf6 70%, transparent 100%);
+    opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+<div class="banner">
+  <div class="bg-gradient"></div>
+  <div class="bg-grid"></div>
+  <div class="orb"></div>
+  <div class="orb-orange"></div>
+
+  <div class="left">
+    <div class="badge">
+      <div class="badge-dot"></div>
+      Cloudflare Tunnel Utility
+    </div>
+    <h1 class="title">Tikka<br><span>Masala</span></h1>
+    <p class="subtitle">
+      Backup, restore and manage your <strong>Cloudflare Tunnel</strong> configurations.<br>
+      JSON snapshots stored locally, restored on demand.
+    </p>
+    <div class="pills">
+      <div class="pill pill-primary">⚡ Auto-backup</div>
+      <div class="pill pill-secondary">🔔 Notifications</div>
+      <div class="pill pill-muted">🐳 Docker-ready</div>
+      <div class="pill pill-muted">🌙 Dark mode</div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="mock-card">
+      <div class="mock-card-header">
+        <span class="mock-card-title">Saved Backups</span>
+        <span class="mock-badge mock-badge-green">12 backups</span>
+      </div>
+      <div class="mock-row">
+        <span class="mock-row-label">my-prod-tunnel</span>
+        <span class="mock-row-value accent">#12 · 2025-03-28</span>
+      </div>
+      <div class="mock-row">
+        <span class="mock-row-label">staging-tunnel</span>
+        <span class="mock-row-value">#11 · 2025-03-27</span>
+      </div>
+      <div class="mock-row">
+        <span class="mock-row-label">dev-tunnel</span>
+        <span class="mock-row-value">#10 · 2025-03-25</span>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:12px;">
+      <div class="mock-card-sm" style="width:149px;">
+        <div class="mock-icon">☁️</div>
+        <div class="mock-card-sm-text">
+          <div class="mock-card-sm-label">Tunnels</div>
+          <div class="mock-card-sm-value">5</div>
+        </div>
+      </div>
+      <div class="mock-card-sm" style="width:149px; background: rgba(139, 92, 246, 0.08); border-color: rgba(139, 92, 246, 0.18);">
+        <div class="mock-icon mock-icon-purple">🔄</div>
+        <div class="mock-card-sm-text">
+          <div class="mock-card-sm-label">Restores</div>
+          <div class="mock-card-sm-value">3</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mock-card" style="padding: 12px 20px;">
+      <div class="mock-card-header" style="margin-bottom:0;">
+        <span class="mock-card-title">Auto-backup scheduler</span>
+        <span class="mock-badge mock-badge-orange">Daily 03:00</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="corner-tag">github.com/gioxx/TikkaMasala</div>
+  <div class="separator"></div>
+</div>
+</body>
+</html>
