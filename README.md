@@ -16,6 +16,7 @@ Tikka Masala is a small FastAPI web app for backing up and restoring Cloudflare 
 - Switch between system, dark, and light theme
 - Schedule automatic backups for all tunnels in the account
 - Send notifications through a generic webhook and/or Telegram
+- Run in demo mode without persisting authentication data, scheduler state, or notifications
 
 ## Requirements
 
@@ -50,6 +51,7 @@ You can configure the app through environment variables, whether you use Docker 
 | `REQUEST_TIMEOUT` | No | Outbound Cloudflare API timeout in seconds. Default: `20`. |
 | `LOG_LEVEL` | No | Application log level written to container stdout. Default: `INFO`. |
 | `CLOUDFLARE_API_BASE` | No | Override for the Cloudflare API base URL. Default: `https://api.cloudflare.com/client/v4`. |
+| `DEMO` | No | Enable demo mode. Defaults to `false`. Demo mode disables persistence, automatic backups, notifications, and the backup archive. |
 
 Start from [`.env.sample`](.env.sample):
 
@@ -91,6 +93,7 @@ TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 TELEGRAM_NOTIFICATION_EVENTS=auto_backup_success,auto_backup_partial,auto_backup_failed,restore_failed,retention_cleanup
 LOG_LEVEL=INFO
+DEMO=false
 ```
 
 ## Run with Docker Only
@@ -220,6 +223,7 @@ Set:
 
 Supported events:
 
+- `notification_test`
 - `manual_backup_success`
 - `manual_backup_failed`
 - `auto_backup_success`
@@ -252,7 +256,21 @@ When notifications are configured:
 - container logs show the active channels and event counts at startup
 - the home page shows a dedicated `Notifications` box with channel and event counts
 - you can use `Send test notification` from the UI to verify webhook and/or Telegram delivery immediately
+- the test notification uses the `notification_test` event
 - notification results are shown directly inside the section that triggered them instead of at the top of the page
+
+## Demo Mode
+
+Set `DEMO=true` when you want to exercise the UI without persisting auth data or enabling server-side automation.
+
+In demo mode:
+
+- authentication data is not stored in SQLite or the browser cookie
+- automatic backups are disabled
+- notifications are disabled
+- the backup archive is disabled
+
+Manual tunnel listing and manual backup downloads still work.
 
 ## Security Notes
 
