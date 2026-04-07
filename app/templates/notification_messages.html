@@ -64,8 +64,8 @@
             Customize the text sent with each notification event.
             Leave a field empty to use the built-in default message.
             Use <code>{placeholder}</code> tokens to include dynamic values — click a token to insert it at the cursor.
-            <a href="/#notifications-section">← Back to notifications</a>
           </p>
+          <a href="/#notifications-section" class="secondary-button">← Back to notifications</a>
         </div>
 
         {% set saved_flag = request.query_params.get("saved") %}
@@ -101,7 +101,6 @@
               placeholder="{{ default_msg }}"
               class="notification-msg-textarea"
             >{{ current }}</textarea>
-            {% if tokens or global_placeholders %}
             <div class="token-list" aria-label="Available placeholders for {{ event }}">
               {% for token in global_placeholders %}
               <button type="button" class="token-chip" data-target="msg_{{ event }}" data-token="{{ '{' + token + '}' }}">{{'{'}}{{ token }}{{'}'}}</button>
@@ -109,8 +108,8 @@
               {% for token in tokens %}
               <button type="button" class="token-chip" data-target="msg_{{ event }}" data-token="{{ '{' + token + '}' }}">{{'{'}}{{ token }}{{'}'}}</button>
               {% endfor %}
+              <button type="button" class="token-chip use-default-btn" data-target="msg_{{ event }}" data-default="{{ default_msg }}">↩ Use default</button>
             </div>
-            {% endif %}
             {% if current %}
             <p class="hint notification-msg-preview">
               <strong>Default:</strong> {{ default_msg }}
@@ -119,18 +118,17 @@
           </div>
           {% endfor %}
 
-          <div class="form-actions top-gap">
-            <button type="submit" class="auto-backup-primary">Save messages</button>
-            <a href="/#notifications-section" class="secondary-button">Cancel</a>
-          </div>
         </form>
 
-        <form method="post" action="/notifications/messages/reset" class="top-gap">
-          <button type="submit" class="secondary-button"
-            onclick="return confirm('Reset all notification messages to their built-in defaults?')">
-            Reset all to defaults
-          </button>
-        </form>
+        <div class="form-actions top-gap">
+          <button type="submit" form="notification-messages-form" class="auto-backup-primary">Save messages</button>
+          <form method="post" action="/notifications/messages/reset" style="display:contents">
+            <button type="submit" class="secondary-button"
+              onclick="return confirm('Reset all notification messages to their built-in defaults?')">
+              Reset all to defaults
+            </button>
+          </form>
+        </div>
       </section>
 
       <footer class="site-footer footer-panel">
@@ -168,8 +166,18 @@
       ↑
     </button>
     <script>
+      // "Use default" chip → replace textarea content with the default message
+      document.querySelectorAll(".use-default-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const textarea = document.getElementById(btn.dataset.target);
+          if (!textarea) return;
+          textarea.value = btn.dataset.default;
+          textarea.focus();
+        });
+      });
+
       // Token chip → insert at cursor
-      document.querySelectorAll(".token-chip").forEach((chip) => {
+      document.querySelectorAll(".token-chip:not(.use-default-btn)").forEach((chip) => {
         chip.addEventListener("click", () => {
           const targetId = chip.dataset.target;
           const token = chip.dataset.token;
