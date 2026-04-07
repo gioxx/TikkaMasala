@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Tikka Masala · Backup #{{ backup.id }}</title>
+    <title>Tikka Masala · Notification Messages</title>
     <link rel="icon" href="/static/favicon.ico" sizes="any">
     <script>
       (() => {
@@ -43,164 +43,94 @@
             <a href="/">Dashboard</a>
             <a href="/#auto-backup-section">Automatic backups</a>
             <a href="/#notifications-section">Notifications</a>
-            <a href="/auto-backup/runs">Automatic backup archive</a>
-            <a href="#restore-form">Restore</a>
-            <a href="#restore-history">Restore history</a>
+            <a href="/#saved-backups-section">Saved backups</a>
           </nav>
         </div>
       </header>
 
-      {% if demo_mode %}
-      <section class="demo-banner">
-        <p>Demo mode is active.</p>
-        <p>Authentication data is not saved. You can still restore backups during this session.</p>
-      </section>
-      {% endif %}
+      <section class="card" id="notification-messages-section">
+        <div class="section-heading">
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon" aria-hidden="true">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M10 14l11 -11" />
+              <path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" />
+            </svg>
+            <span>Notification messages</span>
+          </h2>
+          <p class="hint">
+            Customize the text sent with each notification event.
+            Leave a field empty to use the built-in default message.
+            Use <code>{placeholder}</code> tokens to include dynamic values — click a token to insert it at the cursor.
+            <a href="/#notifications-section">← Back to notifications</a>
+          </p>
+        </div>
 
-      <section class="card" id="restore-form">
-        <h1 class="heading-with-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="icon icon-tabler icons-tabler-outline icon-tabler-cloud-download">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-            <path d="M19 18a3.5 3.5 0 0 0 0 -7h-1a5 4.5 0 0 0 -11 -2a4.6 4.4 0 0 0 -2.1 8.4" />
-            <path d="M12 13l0 9" />
-            <path d="M9 19l3 3l3 -3" />
-          </svg>
-          <span>Backup #{{ backup.id }}</span>
-        </h1>
-        <dl class="meta-grid">
-          <div>
-            <dt>Created</dt>
-            <dd class="meta-value">{{ backup.created_at }}</dd>
-          </div>
-          <div>
-            <dt>Tunnel</dt>
-            <dd class="meta-value">{{ backup.tunnel_name or 'Unknown tunnel' }}</dd>
-          </div>
-          <div>
-            <dt>Tunnel ID</dt>
-            <dd class="meta-value wrap-anywhere"><code>{{ backup.tunnel_id }}</code></dd>
-          </div>
-          <div>
-            <dt>Account ID</dt>
-            <dd class="meta-value wrap-anywhere"><code>{{ backup.account_id }}</code></dd>
-          </div>
-          <div>
-            <dt>Routes</dt>
-            <dd class="meta-value">{{ backup.route_count }}</dd>
-          </div>
-          <div>
-            <dt>File</dt>
-            <dd class="meta-value wrap-anywhere"><code>{{ backup.filename }}</code></dd>
-          </div>
-        </dl>
-        {% if backup.notes %}
-        <p><strong>Notes:</strong> {{ backup.notes }}</p>
+        {% set saved_flag = request.query_params.get("saved") %}
+        {% set reset_flag = request.query_params.get("reset") %}
+        {% set error_flag = request.query_params.get("error") %}
+        {% if saved_flag %}
+        <section class="notice success top-gap">Notification messages saved.</section>
+        {% elif reset_flag %}
+        <section class="notice success top-gap">Notification messages reset to defaults.</section>
+        {% elif error_flag %}
+        <section class="notice error top-gap">An error occurred while saving. Please try again.</section>
         {% endif %}
-      </section>
 
-      <section class="card" id="restore-form">
-        <h2 class="heading-with-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="icon icon-tabler icons-tabler-outline icon-tabler-database-import">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-            <path d="M4 6c0 1.657 3.582 3 8 3s8 -1.343 8 -3s-3.582 -3 -8 -3s-8 1.343 -8 3" />
-            <path d="M4 6v6c0 1.657 3.582 3 8 3c.856 0 1.68 -.05 2.454 -.144m5.546 -2.856v-6" />
-            <path d="M4 12v6c0 1.657 3.582 3 8 3c.171 0 .341 -.002 .51 -.006" />
-            <path d="M19 22v-6" />
-            <path d="M22 19l-3 -3l-3 3" />
-          </svg>
-          <span>Restore this backup</span>
-        </h2>
-        <p>
-          Restoring will replace the current remote tunnel configuration with the configuration stored
-          in this snapshot.
-        </p>
-        {% if message %}
-        <section class="notice success top-gap" id="restore-notice">{{ message }}</section>
-        {% endif %}
-        {% if error %}
-        <section class="notice error top-gap" id="restore-notice">{{ error }}</section>
-        {% endif %}
-        <form method="post" action="/backup/{{ backup.id }}/restore" class="grid form-grid">
-          <label>
-            <span>Account ID</span>
-            <input type="text" name="account_id" value="{{ prefill_account_id or backup.account_id }}" required>
-          </label>
-          <label>
-            <span>Tunnel ID</span>
-            <input type="text" name="tunnel_id" value="{{ backup.tunnel_id }}" required>
-          </label>
-          <label class="full-row">
-            <span>API token</span>
-            <input type="password" name="api_token" value="{{ prefill_api_token or '' }}" placeholder="Token with tunnel edit permission" required>
-          </label>
-          <div class="full-row actions">
-            <button type="submit" class="danger">Restore backup</button>
+        <form method="post" action="/notifications/messages" class="stack top-gap" id="notification-messages-form">
+
+          {% for event in events %}
+          {% set current = saved.get(event, "") %}
+          {% set default_msg = defaults[event] %}
+          {% set tokens = placeholders.get(event, []) %}
+          <div class="notification-msg-block">
+            <label for="msg_{{ event }}">
+              <span class="notification-event-label">{{ event }}</span>
+              {% if current %}
+              <span class="status-pill status-alt status-pill-compact">custom</span>
+              {% else %}
+              <span class="status-pill status-match status-pill-compact">default</span>
+              {% endif %}
+            </label>
+            <textarea
+              name="msg_{{ event }}"
+              id="msg_{{ event }}"
+              rows="2"
+              placeholder="{{ default_msg }}"
+              class="notification-msg-textarea"
+            >{{ current }}</textarea>
+            {% if tokens or global_placeholders %}
+            <div class="token-list" aria-label="Available placeholders for {{ event }}">
+              {% for token in global_placeholders %}
+              <button type="button" class="token-chip" data-target="msg_{{ event }}" data-token="{{ '{' + token + '}' }}">{{'{'}}{{ token }}{{'}'}}</button>
+              {% endfor %}
+              {% for token in tokens %}
+              <button type="button" class="token-chip" data-target="msg_{{ event }}" data-token="{{ '{' + token + '}' }}">{{'{'}}{{ token }}{{'}'}}</button>
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% if current %}
+            <p class="hint notification-msg-preview">
+              <strong>Default:</strong> {{ default_msg }}
+            </p>
+            {% endif %}
+          </div>
+          {% endfor %}
+
+          <div class="form-actions top-gap">
+            <button type="submit" class="auto-backup-primary">Save messages</button>
+            <a href="/#notifications-section" class="secondary-button">Cancel</a>
           </div>
         </form>
-      </section>
 
-      <section class="card code-card">
-        <h2 class="heading-with-icon">
-          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-            <path d="M7 8l-4 4l4 4"/>
-            <path d="M17 8l4 4l-4 4"/>
-            <path d="M14 4l-4 16"/>
-          </svg>
-          <span>Snapshot JSON</span>
-        </h2>
-        <pre class="json-view"><code>{{ content }}</code></pre>
-      </section>
-
-      <section class="card" id="restore-history">
-        <h2 class="heading-with-icon">
-          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-            <path d="M12 8l0 4l2 2"/>
-            <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
-          </svg>
-          <span>Restore history</span>
-        </h2>
-        {% if restores %}
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Restored</th>
-                <th>Target</th>
-                <th>Account ID</th>
-                <th>Tunnel ID</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for restore in restores %}
-              <tr>
-                <td>#{{ restore.id }}</td>
-                <td>{{ restore.restored_at }}</td>
-                <td>
-                  {% if restore.account_id == backup.account_id and restore.tunnel_id == backup.tunnel_id %}
-                  <span class="status-pill status-match">Original tunnel</span>
-                  {% elif restore.account_id == backup.account_id %}
-                  <span class="status-pill status-alt">Different tunnel</span>
-                  {% else %}
-                  <span class="status-pill status-warn">Different account</span>
-                  {% endif %}
-                </td>
-                <td><code>{{ restore.account_id }}</code></td>
-                <td><code>{{ restore.tunnel_id }}</code></td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <p>No restores yet for this backup.</p>
-        {% endif %}
+        <form method="post" action="/notifications/messages/reset" class="top-gap">
+          <button type="submit" class="secondary-button"
+            onclick="return confirm('Reset all notification messages to their built-in defaults?')">
+            Reset all to defaults
+          </button>
+        </form>
       </section>
 
       <footer class="site-footer footer-panel">
@@ -238,24 +168,34 @@
       ↑
     </button>
     <script>
+      // Token chip → insert at cursor
+      document.querySelectorAll(".token-chip").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          const targetId = chip.dataset.target;
+          const token = chip.dataset.token;
+          const textarea = document.getElementById(targetId);
+          if (!textarea) return;
+          const start = textarea.selectionStart ?? textarea.value.length;
+          const end = textarea.selectionEnd ?? textarea.value.length;
+          textarea.value = textarea.value.slice(0, start) + token + textarea.value.slice(end);
+          textarea.selectionStart = textarea.selectionEnd = start + token.length;
+          textarea.focus();
+        });
+      });
+
       const smoothScrollToY = (targetY, duration = 560) => {
         const startY = window.scrollY;
         const distance = targetY - startY;
         if (Math.abs(distance) < 2) return;
-
         const startTime = performance.now();
         const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2);
-
         const step = (currentTime) => {
           const elapsed = currentTime - startTime;
           const progress = Math.min(elapsed / duration, 1);
           const eased = easeInOutCubic(progress);
           window.scrollTo(0, startY + distance * eased);
-          if (progress < 1) {
-            window.requestAnimationFrame(step);
-          }
+          if (progress < 1) window.requestAnimationFrame(step);
         };
-
         window.requestAnimationFrame(step);
       };
 
@@ -273,11 +213,7 @@
         const toggleBackToTop = () => {
           backToTopButton.classList.toggle("is-visible", window.scrollY > 240);
         };
-
-        backToTopButton.addEventListener("click", () => {
-          smoothScrollToY(0, 620);
-        });
-
+        backToTopButton.addEventListener("click", () => smoothScrollToY(0, 620));
         window.addEventListener("scroll", toggleBackToTop, { passive: true });
         toggleBackToTop();
       }
@@ -289,20 +225,10 @@
           isFloating = shouldFloat;
           floatingNav.classList.toggle("is-floating", shouldFloat);
           document.body.classList.toggle("has-floating-nav", shouldFloat);
-          if (floatingNavLabel) {
-            floatingNavLabel.classList.toggle("is-hidden", shouldFloat);
-          }
+          if (floatingNavLabel) floatingNavLabel.classList.toggle("is-hidden", shouldFloat);
         };
-
         window.addEventListener("scroll", toggleFloatingNav, { passive: true });
         toggleFloatingNav();
-      }
-
-      const restoreNotice = document.getElementById("restore-notice");
-      if (restoreNotice) {
-        window.requestAnimationFrame(() => {
-          smoothScrollToElement(restoreNotice, 68);
-        });
       }
 
       document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
@@ -328,9 +254,7 @@
         } else {
           root.removeAttribute("data-theme");
         }
-
         root.dataset.themePreference = value;
-
         themeButtons.forEach((button) => {
           button.classList.toggle("is-active", button.dataset.themeValue === value);
           button.setAttribute("aria-pressed", button.dataset.themeValue === value ? "true" : "false");
@@ -347,9 +271,7 @@
 
       const syncSystemTheme = () => {
         const savedTheme = window.localStorage.getItem(themeStorageKey) || "system";
-        if (savedTheme === "system") {
-          applyThemePreference(savedTheme);
-        }
+        if (savedTheme === "system") applyThemePreference(savedTheme);
       };
 
       if (typeof systemThemeQuery.addEventListener === "function") {

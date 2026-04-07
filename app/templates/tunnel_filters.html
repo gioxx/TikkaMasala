@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Tikka Masala · Backup #{{ backup.id }}</title>
+    <title>Tikka Masala · Advanced Backup Schedule</title>
     <link rel="icon" href="/static/favicon.ico" sizes="any">
     <script>
       (() => {
@@ -43,163 +43,124 @@
             <a href="/">Dashboard</a>
             <a href="/#auto-backup-section">Automatic backups</a>
             <a href="/#notifications-section">Notifications</a>
-            <a href="/auto-backup/runs">Automatic backup archive</a>
-            <a href="#restore-form">Restore</a>
-            <a href="#restore-history">Restore history</a>
+            <a href="/#saved-backups-section">Saved backups</a>
           </nav>
         </div>
       </header>
 
-      {% if demo_mode %}
-      <section class="demo-banner">
-        <p>Demo mode is active.</p>
-        <p>Authentication data is not saved. You can still restore backups during this session.</p>
-      </section>
-      {% endif %}
+      <section class="card" id="tunnel-filters-section">
+        <div class="section-heading">
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon" aria-hidden="true">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227z" />
+            </svg>
+            <span>Advanced backup schedule</span>
+          </h2>
+          <p class="hint">
+            Control which tunnels are included in automatic backups and how often each tunnel is backed up.
+            <a href="/#auto-backup-section">← Back to automatic backups</a>
+          </p>
+        </div>
 
-      <section class="card" id="restore-form">
-        <h1 class="heading-with-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="icon icon-tabler icons-tabler-outline icon-tabler-cloud-download">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-            <path d="M19 18a3.5 3.5 0 0 0 0 -7h-1a5 4.5 0 0 0 -11 -2a4.6 4.4 0 0 0 -2.1 8.4" />
-            <path d="M12 13l0 9" />
-            <path d="M9 19l3 3l3 -3" />
-          </svg>
-          <span>Backup #{{ backup.id }}</span>
-        </h1>
-        <dl class="meta-grid">
-          <div>
-            <dt>Created</dt>
-            <dd class="meta-value">{{ backup.created_at }}</dd>
-          </div>
-          <div>
-            <dt>Tunnel</dt>
-            <dd class="meta-value">{{ backup.tunnel_name or 'Unknown tunnel' }}</dd>
-          </div>
-          <div>
-            <dt>Tunnel ID</dt>
-            <dd class="meta-value wrap-anywhere"><code>{{ backup.tunnel_id }}</code></dd>
-          </div>
-          <div>
-            <dt>Account ID</dt>
-            <dd class="meta-value wrap-anywhere"><code>{{ backup.account_id }}</code></dd>
-          </div>
-          <div>
-            <dt>Routes</dt>
-            <dd class="meta-value">{{ backup.route_count }}</dd>
-          </div>
-          <div>
-            <dt>File</dt>
-            <dd class="meta-value wrap-anywhere"><code>{{ backup.filename }}</code></dd>
-          </div>
-        </dl>
-        {% if backup.notes %}
-        <p><strong>Notes:</strong> {{ backup.notes }}</p>
+        {% if not prereqs.ready %}
+        <section class="notice error top-gap">
+          Server-side credentials are required to load the tunnel list.
+          Missing: {{ prereqs.missing_items | join(', ') }}.
+          Add them through the app and save them, or provide them from the environment.
+        </section>
+        {% elif load_error %}
+        <section class="notice error top-gap">{{ load_error }}</section>
         {% endif %}
-      </section>
 
-      <section class="card" id="restore-form">
-        <h2 class="heading-with-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="icon icon-tabler icons-tabler-outline icon-tabler-database-import">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-            <path d="M4 6c0 1.657 3.582 3 8 3s8 -1.343 8 -3s-3.582 -3 -8 -3s-8 1.343 -8 3" />
-            <path d="M4 6v6c0 1.657 3.582 3 8 3c.856 0 1.68 -.05 2.454 -.144m5.546 -2.856v-6" />
-            <path d="M4 12v6c0 1.657 3.582 3 8 3c.171 0 .341 -.002 .51 -.006" />
-            <path d="M19 22v-6" />
-            <path d="M22 19l-3 -3l-3 3" />
-          </svg>
-          <span>Restore this backup</span>
-        </h2>
-        <p>
-          Restoring will replace the current remote tunnel configuration with the configuration stored
-          in this snapshot.
-        </p>
-        {% if message %}
-        <section class="notice success top-gap" id="restore-notice">{{ message }}</section>
-        {% endif %}
-        {% if error %}
-        <section class="notice error top-gap" id="restore-notice">{{ error }}</section>
-        {% endif %}
-        <form method="post" action="/backup/{{ backup.id }}/restore" class="grid form-grid">
-          <label>
-            <span>Account ID</span>
-            <input type="text" name="account_id" value="{{ prefill_account_id or backup.account_id }}" required>
-          </label>
-          <label>
-            <span>Tunnel ID</span>
-            <input type="text" name="tunnel_id" value="{{ backup.tunnel_id }}" required>
-          </label>
-          <label class="full-row">
-            <span>API token</span>
-            <input type="password" name="api_token" value="{{ prefill_api_token or '' }}" placeholder="Token with tunnel edit permission" required>
-          </label>
-          <div class="full-row actions">
-            <button type="submit" class="danger">Restore backup</button>
+        {% if not prereqs.ready or load_error %}
+        <p class="hint top-gap"><a href="/#auto-backup-section">← Back to automatic backups</a></p>
+        {% else %}
+
+        <form method="post" action="/auto-backup/tunnel-filters" class="stack top-gap" id="tunnel-filters-form">
+
+          <fieldset class="inline-fieldset">
+            <legend>Backup mode</legend>
+            <label class="radio-row">
+              <input type="radio" name="mode" value="all" id="mode-all"
+                {% if schedule.mode != "selected" %}checked{% endif %}>
+              <span>
+                <strong>All tunnels</strong> — back up every tunnel in the account.
+                You can still throttle individual tunnels with a frequency override below.
+              </span>
+            </label>
+            <label class="radio-row">
+              <input type="radio" name="mode" value="selected" id="mode-selected"
+                {% if schedule.mode == "selected" %}checked{% endif %}>
+              <span>
+                <strong>Selected tunnels only</strong> — back up only the tunnels you check below.
+              </span>
+            </label>
+          </fieldset>
+
+          {% if tunnels %}
+          <div class="table-wrap top-gap">
+            <table id="tunnel-filters-table">
+              <thead>
+                <tr>
+                  <th class="col-include" id="col-include-header">Include</th>
+                  <th>Tunnel name</th>
+                  <th>Tunnel ID</th>
+                  <th>Frequency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for tunnel in tunnels %}
+                {% set tid = tunnel.id | string %}
+                {% set tcfg = schedule.tunnels.get(tid, {}) %}
+                <tr>
+                  <td class="col-include">
+                    <input
+                      type="checkbox"
+                      name="include_{{ tid }}"
+                      id="include_{{ tid }}"
+                      value="1"
+                      class="tunnel-include-checkbox"
+                      {% if schedule.mode != "selected" or tid in schedule.tunnels %}checked{% endif %}
+                    >
+                  </td>
+                  <td>
+                    <label for="include_{{ tid }}">{{ tunnel.name or tid }}</label>
+                  </td>
+                  <td><code>{{ tid }}</code></td>
+                  <td>
+                    <select name="freq_{{ tid }}" id="freq_{{ tid }}" class="compact-select">
+                      <option value="always" {% if tcfg.get("frequency", "always") == "always" %}selected{% endif %}>Every run</option>
+                      <option value="weekly"  {% if tcfg.get("frequency") == "weekly"  %}selected{% endif %}>Once per week</option>
+                      <option value="monthly" {% if tcfg.get("frequency") == "monthly" %}selected{% endif %}>Once per month</option>
+                    </select>
+                    <input type="hidden" name="tunnel_ids" value="{{ tid }}">
+                    <input type="hidden" name="name_{{ tid }}" value="{{ tunnel.name or '' }}">
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <p class="hint">
+            <strong>Every run</strong>: backed up on every scheduled or manual run.<br>
+            <strong>Once per week</strong>: skipped if a backup already exists for this tunnel within the last 7 days.<br>
+            <strong>Once per month</strong>: skipped if a backup already exists for this tunnel within the last 30 days.
+          </p>
+
+          {% else %}
+          <p class="hint top-gap">No tunnels found in the configured account.</p>
+          {% endif %}
+
+          <div class="form-actions top-gap">
+            <button type="submit" class="auto-backup-primary">Save advanced schedule</button>
+            <a href="/#auto-backup-section" class="secondary-button">Cancel</a>
           </div>
         </form>
-      </section>
 
-      <section class="card code-card">
-        <h2 class="heading-with-icon">
-          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-            <path d="M7 8l-4 4l4 4"/>
-            <path d="M17 8l4 4l-4 4"/>
-            <path d="M14 4l-4 16"/>
-          </svg>
-          <span>Snapshot JSON</span>
-        </h2>
-        <pre class="json-view"><code>{{ content }}</code></pre>
-      </section>
-
-      <section class="card" id="restore-history">
-        <h2 class="heading-with-icon">
-          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-            <path d="M12 8l0 4l2 2"/>
-            <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
-          </svg>
-          <span>Restore history</span>
-        </h2>
-        {% if restores %}
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Restored</th>
-                <th>Target</th>
-                <th>Account ID</th>
-                <th>Tunnel ID</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for restore in restores %}
-              <tr>
-                <td>#{{ restore.id }}</td>
-                <td>{{ restore.restored_at }}</td>
-                <td>
-                  {% if restore.account_id == backup.account_id and restore.tunnel_id == backup.tunnel_id %}
-                  <span class="status-pill status-match">Original tunnel</span>
-                  {% elif restore.account_id == backup.account_id %}
-                  <span class="status-pill status-alt">Different tunnel</span>
-                  {% else %}
-                  <span class="status-pill status-warn">Different account</span>
-                  {% endif %}
-                </td>
-                <td><code>{{ restore.account_id }}</code></td>
-                <td><code>{{ restore.tunnel_id }}</code></td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        {% else %}
-        <p>No restores yet for this backup.</p>
         {% endif %}
       </section>
 
@@ -298,13 +259,6 @@
         toggleFloatingNav();
       }
 
-      const restoreNotice = document.getElementById("restore-notice");
-      if (restoreNotice) {
-        window.requestAnimationFrame(() => {
-          smoothScrollToElement(restoreNotice, 68);
-        });
-      }
-
       document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
         anchor.addEventListener("click", (event) => {
           const href = anchor.getAttribute("href") || "";
@@ -316,6 +270,32 @@
           history.replaceState(null, "", href);
         });
       });
+
+      // Toggle Include column visibility based on selected mode
+      const modeRadios = document.querySelectorAll('input[name="mode"]');
+      const filtersTable = document.getElementById("tunnel-filters-table");
+      const colIncludeHeader = document.getElementById("col-include-header");
+
+      const updateIncludeColumnVisibility = () => {
+        const selectedMode = document.querySelector('input[name="mode"]:checked');
+        const isSelected = selectedMode && selectedMode.value === "selected";
+        if (filtersTable) {
+          filtersTable.classList.toggle("hide-include-col", !isSelected);
+        }
+        if (colIncludeHeader) {
+          colIncludeHeader.style.display = isSelected ? "" : "none";
+        }
+        filtersTable && filtersTable.querySelectorAll(".col-include").forEach((cell) => {
+          if (cell !== colIncludeHeader) {
+            cell.style.display = isSelected ? "" : "none";
+          }
+        });
+      };
+
+      modeRadios.forEach((radio) => {
+        radio.addEventListener("change", updateIncludeColumnVisibility);
+      });
+      updateIncludeColumnVisibility();
 
       const root = document.documentElement;
       const themeButtons = document.querySelectorAll("[data-theme-value]");

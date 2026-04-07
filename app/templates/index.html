@@ -37,7 +37,7 @@
             <div class="floating-nav-meta" aria-hidden="true">
               <img src="/static/favicon.ico" alt="" class="floating-nav-icon">
               <span class="floating-nav-title">Tikka Masala</span>
-              <span class="floating-nav-version">v1.1.3</span>
+              <span class="floating-nav-version">v1.3.0</span>
             </div>
             <a href="#page-top" class="floating-only-nav-item">↑ Go to Top</a>
             <a href="#guide-section">Guide</a>
@@ -349,7 +349,18 @@
             </svg>
             <span>Automatic backups</span>
           </h2>
-          <p class="hint">Schedule recurring backups for all tunnels in the configured account.</p>
+          <p class="hint">
+            Schedule recurring backups for tunnels in the configured account.
+            {% if not demo_mode %}
+            <a href="/auto-backup/tunnel-filters">Advanced schedule</a>
+            —
+            {% if auto_backup.tunnel_schedule_mode == "selected" %}
+            backing up <strong>{{ auto_backup.tunnel_schedule_count }} selected tunnel(s)</strong>.
+            {% else %}
+            backing up <strong>all tunnels</strong>{% if auto_backup.tunnel_schedule_count %} ({{ auto_backup.tunnel_schedule_count }} with frequency override){% endif %}.
+            {% endif %}
+            {% endif %}
+          </p>
         </div>
         {% if message and success_target == "auto-backup" %}
         <section class="notice success top-gap" id="auto-backup-notice">{{ message }}</section>
@@ -722,7 +733,10 @@
               {% endif %}
             </div>
           </div>
-          <p class="hint">Review the configured notification channels and send a live test message to the currently enabled destinations.</p>
+          <p class="hint">
+            Review the configured notification channels and send a live test message to the currently enabled destinations.
+            <a href="/notifications/messages">Customize notification messages</a>.
+          </p>
         </div>
         {% if message and success_target == "notifications" %}
         <section class="notice success top-gap" id="notifications-notice">{{ message }}</section>
@@ -771,7 +785,7 @@
               <button type="button" class="theme-button" data-theme-value="dark">Dark</button>
               <button type="button" class="theme-button" data-theme-value="light">Light</button>
             </div>
-            <div class="footer-pill">Version 1.1.3</div>
+            <div class="footer-pill">Version 1.3.0</div>
             <a
               class="footer-pill footer-icon-button"
               href="https://github.com/gioxx/TikkaMasala"
