@@ -335,32 +335,32 @@
       {% if not demo_mode %}
       <section class="card" id="auto-backup-section">
         <div class="section-heading">
-          <h2 class="heading-with-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="icon icon-tabler icons-tabler-outline icon-tabler-calendar-clock">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-              <path d="M10.5 21h-4.5a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v3" />
-              <path d="M16 3v4" />
-              <path d="M8 3v4" />
-              <path d="M4 11h10" />
-              <path d="M14 18a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
-              <path d="M18 16.5v1.5l.5 .5" />
-            </svg>
-            <span>Automatic backups</span>
-          </h2>
-          <p class="hint">
-            Schedule recurring backups for tunnels in the configured account.
+          <div class="panel-heading-inline">
+            <h2 class="heading-with-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="icon icon-tabler icons-tabler-outline icon-tabler-calendar-clock">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                <path d="M10.5 21h-4.5a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v3" />
+                <path d="M16 3v4" />
+                <path d="M8 3v4" />
+                <path d="M4 11h10" />
+                <path d="M14 18a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
+                <path d="M18 16.5v1.5l.5 .5" />
+              </svg>
+              <span>Automatic backups</span>
+            </h2>
             {% if not demo_mode %}
-            <a href="/auto-backup/tunnel-filters">Advanced schedule</a>
-            —
-            {% if auto_backup.tunnel_schedule_mode == "selected" %}
-            backing up <strong>{{ auto_backup.tunnel_schedule_count }} selected tunnel(s)</strong>.
-            {% else %}
-            backing up <strong>all tunnels</strong>{% if auto_backup.tunnel_schedule_count %} ({{ auto_backup.tunnel_schedule_count }} with frequency override){% endif %}.
+            <div class="panel-heading-badges">
+              {% if auto_backup.tunnel_schedule_mode == "selected" %}
+              <a href="/auto-backup/tunnel-filters" class="status-pill status-alt status-pill-compact">{{ auto_backup.tunnel_schedule_count }} selected tunnel(s)</a>
+              {% else %}
+              <a href="/auto-backup/tunnel-filters" class="status-pill status-match status-pill-compact">All tunnels{% if auto_backup.tunnel_schedule_count %} · {{ auto_backup.tunnel_schedule_count }} override(s){% endif %}</a>
+              {% endif %}
+            </div>
             {% endif %}
-            {% endif %}
-          </p>
+          </div>
+          <p class="hint">Schedule recurring backups for all tunnels in the configured account.</p>
         </div>
         {% if message and success_target == "auto-backup" %}
         <section class="notice success top-gap" id="auto-backup-notice">{{ message }}</section>
@@ -731,12 +731,12 @@
               {% else %}
               <span class="status-pill status-muted status-pill-compact">Disabled</span>
               {% endif %}
+              {% if not demo_mode %}
+              <a href="/notifications/messages" class="status-pill status-alt status-pill-compact">Customize messages</a>
+              {% endif %}
             </div>
           </div>
-          <p class="hint">
-            Review the configured notification channels and send a live test message to the currently enabled destinations.
-            <a href="/notifications/messages">Customize notification messages</a>.
-          </p>
+          <p class="hint">Review the configured notification channels and send a live test message to the currently enabled destinations.</p>
         </div>
         {% if message and success_target == "notifications" %}
         <section class="notice success top-gap" id="notifications-notice">{{ message }}</section>
