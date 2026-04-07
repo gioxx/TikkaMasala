@@ -59,10 +59,8 @@
             </svg>
             <span>Advanced backup schedule</span>
           </h2>
-          <p class="hint">
-            Control which tunnels are included in automatic backups and how often each tunnel is backed up.
-            <a href="/#auto-backup-section">← Back to automatic backups</a>
-          </p>
+          <p class="hint">Control which tunnels are included in automatic backups and how often each tunnel is backed up.</p>
+          <a href="/#auto-backup-section" class="secondary-button">← Back to automatic backups</a>
         </div>
 
         {% if not prereqs.ready %}
@@ -76,7 +74,6 @@
         {% endif %}
 
         {% if not prereqs.ready or load_error %}
-        <p class="hint top-gap"><a href="/#auto-backup-section">← Back to automatic backups</a></p>
         {% else %}
 
         <form method="post" action="/auto-backup/tunnel-filters" class="stack top-gap" id="tunnel-filters-form">
@@ -157,7 +154,6 @@
 
           <div class="form-actions top-gap">
             <button type="submit" class="auto-backup-primary">Save advanced schedule</button>
-            <a href="/#auto-backup-section" class="secondary-button">Cancel</a>
           </div>
         </form>
 
