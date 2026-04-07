@@ -120,14 +120,10 @@
 
         </form>
 
+        <form id="notification-messages-reset-form" method="post" action="/notifications/messages/reset" style="display:none"></form>
         <div class="form-actions top-gap">
           <button type="submit" form="notification-messages-form" class="auto-backup-primary">Save messages</button>
-          <form method="post" action="/notifications/messages/reset" style="display:contents">
-            <button type="submit" class="secondary-button"
-              onclick="return confirm('Reset all notification messages to their built-in defaults?')">
-              Reset all to defaults
-            </button>
-          </form>
+          <button type="button" class="secondary-button" id="reset-messages-btn">Reset all to defaults</button>
         </div>
       </section>
 
@@ -166,6 +162,13 @@
       ↑
     </button>
     <script>
+      // Reset all to defaults
+      document.getElementById("reset-messages-btn")?.addEventListener("click", () => {
+        if (confirm("Reset all notification messages to their built-in defaults?")) {
+          document.getElementById("notification-messages-reset-form").submit();
+        }
+      });
+
       // "Use default" chip → replace textarea content with the default message
       document.querySelectorAll(".use-default-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
