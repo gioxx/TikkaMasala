@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Tikka Masala · Automatic Backup Archive</title>
+    <title>Tikka Masala · Advanced Backup Schedule</title>
     <link rel="icon" href="/static/favicon.ico" sizes="any">
     <script>
       (() => {
@@ -42,123 +42,118 @@
             <a href="#page-top" class="floating-only-nav-item">↑ Go to Top</a>
             <a href="/">Dashboard</a>
             <a href="/#auto-backup-section">Automatic backups</a>
-            <a href="/#notifications-section">Notifications</a>
-            <a href="/#saved-backups-section">Saved backups</a>
           </nav>
         </div>
       </header>
 
-
-      {% if demo_mode %}
-      <section class="demo-banner">
-        <p>Demo mode is active.</p>
-        <p>The automatic backup scheduler is disabled. This archive shows runs from previous non-demo sessions only.</p>
-      </section>
-      {% endif %}
-
-      <section class="card" id="runs-archive">
-        <div class="section-header-row">
-          <div>
-            <h2 class="heading-with-icon">
-              <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                <path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v3h-18z" />
-                <path d="M4 10v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-8" />
-                <path d="M10 12l4 0" />
-              </svg>
-              <span>Automatic backup archive</span>
-            </h2>
-            <p class="hint">Full execution history for scheduled and manual automatic backup runs.</p>
-            <p class="hint">
-              Total recorded runs: {{ scheduled_runs_stats.run_count }}.
-              Total backups created by automatic runs: {{ scheduled_runs_stats.total_backup_count }}.
-            </p>
-          </div>
+      <section class="card" id="tunnel-filters-section">
+        <div class="section-heading">
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon" aria-hidden="true">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227z" />
+            </svg>
+            <span>Advanced backup schedule</span>
+          </h2>
+          <p class="hint">Control which tunnels are included in automatic backups and how often each tunnel is backed up.</p>
         </div>
 
-        {% if runs %}
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Started</th>
-                <th>Finished</th>
-                <th>Status</th>
-                <th>Account ID</th>
-                <th>Tunnels</th>
-                <th>Backups</th>
-                <th>Errors</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for item in runs %}
-              {% set run = item.record %}
-              <tr>
-                <td>#{{ run.id }}</td>
-                <td>{{ run.started_at }}</td>
-                <td>{{ run.finished_at or 'Running' }}</td>
-                <td>
-                  {% if run.status == "success" %}
-                  <span class="status-pill status-match">Success</span>
-                  {% elif run.status == "partial" %}
-                  <span class="status-pill status-alt">Partial</span>
-                  {% elif run.status == "skipped" %}
-                  <span class="status-pill status-muted">Skipped</span>
-                  {% elif run.status == "running" %}
-                  <span class="status-pill status-info">Running</span>
-                  {% else %}
-                  <span class="status-pill status-warn">Failed</span>
-                  {% endif %}
-                </td>
-                <td><code>{{ run.account_id }}</code></td>
-                <td>{{ run.tunnel_count }}</td>
-                <td>{{ run.backup_count }}</td>
-                <td>{{ run.error_count }}</td>
-                <td class="wrap-anywhere">{{ item.details_summary or '—' }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        <div class="pagination-bar">
-          <div class="pagination-summary">
-            Showing {{ scheduled_runs_pagination.start_index }}-{{ scheduled_runs_pagination.end_index }} of {{ scheduled_runs_pagination.total_count }} run(s)
-          </div>
-          <form method="get" action="/auto-backup/runs" class="page-size-form">
-            <input type="hidden" name="page" value="1">
-            <label class="page-size-label">
-              <span>Per page</span>
-              <select name="page_size" onchange="this.form.submit()">
-                {% for option in scheduled_runs_page_size_options %}
-                <option value="{{ option }}" {% if not scheduled_runs_pagination.is_all and scheduled_runs_pagination.page_size == option %}selected{% endif %}>{{ option }}</option>
-                {% endfor %}
-                <option value="all" {% if scheduled_runs_pagination.is_all %}selected{% endif %}>All</option>
-              </select>
-            </label>
-          </form>
-          {% if scheduled_runs_pagination.total_pages > 1 %}
-          <div class="pagination-actions">
-            {% if scheduled_runs_pagination.has_previous %}
-            <a href="/auto-backup/runs?page={{ scheduled_runs_pagination.previous_page }}&page_size={{ scheduled_runs_pagination.page_size_param }}#runs-archive" class="secondary-link-button">Previous</a>
-            {% else %}
-            <span class="secondary-link-button is-disabled" aria-disabled="true">Previous</span>
-            {% endif %}
+        {% if not prereqs.ready %}
+        <section class="notice error top-gap">
+          Server-side credentials are required to load the tunnel list.
+          Missing: {{ prereqs.missing_items | join(', ') }}.
+          Add them through the app and save them, or provide them from the environment.
+        </section>
+        {% elif load_error %}
+        <section class="notice error top-gap">{{ load_error }}</section>
+        {% endif %}
 
-            <span class="pagination-current">Page {{ scheduled_runs_pagination.current_page }} of {{ scheduled_runs_pagination.total_pages }}</span>
-
-            {% if scheduled_runs_pagination.has_next %}
-            <a href="/auto-backup/runs?page={{ scheduled_runs_pagination.next_page }}&page_size={{ scheduled_runs_pagination.page_size_param }}#runs-archive" class="secondary-link-button">Next</a>
-            {% else %}
-            <span class="secondary-link-button is-disabled" aria-disabled="true">Next</span>
-            {% endif %}
-          </div>
-          {% endif %}
-        </div>
+        {% if not prereqs.ready or load_error %}
         {% else %}
-        <p>No automatic backup runs recorded yet.</p>
+
+        <form method="post" action="/auto-backup/tunnel-filters" class="stack top-gap" id="tunnel-filters-form">
+
+          <fieldset class="inline-fieldset">
+            <legend>Backup mode</legend>
+            <label class="radio-row">
+              <input type="radio" name="mode" value="all" id="mode-all"
+                {% if schedule.mode != "selected" %}checked{% endif %}>
+              <span>
+                <strong>All tunnels</strong> — back up every tunnel in the account.
+                You can still throttle individual tunnels with a frequency override below.
+              </span>
+            </label>
+            <label class="radio-row">
+              <input type="radio" name="mode" value="selected" id="mode-selected"
+                {% if schedule.mode == "selected" %}checked{% endif %}>
+              <span>
+                <strong>Selected tunnels only</strong> — back up only the tunnels you check below.
+              </span>
+            </label>
+          </fieldset>
+
+          {% if tunnels %}
+          <div class="table-wrap top-gap">
+            <table id="tunnel-filters-table">
+              <thead>
+                <tr>
+                  <th class="col-include" id="col-include-header">Include</th>
+                  <th>Tunnel name</th>
+                  <th>Tunnel ID</th>
+                  <th>Frequency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for tunnel in tunnels %}
+                {% set tid = tunnel.id | string %}
+                {% set tcfg = schedule.tunnels.get(tid, {}) %}
+                <tr>
+                  <td class="col-include">
+                    <input
+                      type="checkbox"
+                      name="include_{{ tid }}"
+                      id="include_{{ tid }}"
+                      value="1"
+                      class="tunnel-include-checkbox"
+                      {% if schedule.mode != "selected" or tid in schedule.tunnels %}checked{% endif %}
+                    >
+                  </td>
+                  <td>
+                    <label for="include_{{ tid }}">{{ tunnel.name or tid }}</label>
+                  </td>
+                  <td><code>{{ tid }}</code></td>
+                  <td>
+                    <select name="freq_{{ tid }}" id="freq_{{ tid }}" class="compact-select">
+                      <option value="always" {% if tcfg.get("frequency", "always") == "always" %}selected{% endif %}>Every run</option>
+                      <option value="weekly"  {% if tcfg.get("frequency") == "weekly"  %}selected{% endif %}>Once per week</option>
+                      <option value="monthly" {% if tcfg.get("frequency") == "monthly" %}selected{% endif %}>Once per month</option>
+                    </select>
+                    <input type="hidden" name="tunnel_ids" value="{{ tid }}">
+                    <input type="hidden" name="name_{{ tid }}" value="{{ tunnel.name or '' }}">
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <p class="hint">
+            <strong>Every run</strong>: backed up on every scheduled or manual run.<br>
+            <strong>Once per week</strong>: skipped if a backup already exists for this tunnel within the last 7 days.<br>
+            <strong>Once per month</strong>: skipped if a backup already exists for this tunnel within the last 30 days.
+          </p>
+
+          {% else %}
+          <p class="hint top-gap">No tunnels found in the configured account.</p>
+          {% endif %}
+
+          <div class="form-actions top-gap">
+            <button type="submit" class="auto-backup-primary">Save advanced schedule</button>
+          </div>
+        </form>
+
         {% endif %}
       </section>
 
@@ -268,6 +263,32 @@
           history.replaceState(null, "", href);
         });
       });
+
+      // Toggle Include column visibility based on selected mode
+      const modeRadios = document.querySelectorAll('input[name="mode"]');
+      const filtersTable = document.getElementById("tunnel-filters-table");
+      const colIncludeHeader = document.getElementById("col-include-header");
+
+      const updateIncludeColumnVisibility = () => {
+        const selectedMode = document.querySelector('input[name="mode"]:checked');
+        const isSelected = selectedMode && selectedMode.value === "selected";
+        if (filtersTable) {
+          filtersTable.classList.toggle("hide-include-col", !isSelected);
+        }
+        if (colIncludeHeader) {
+          colIncludeHeader.style.display = isSelected ? "" : "none";
+        }
+        filtersTable && filtersTable.querySelectorAll(".col-include").forEach((cell) => {
+          if (cell !== colIncludeHeader) {
+            cell.style.display = isSelected ? "" : "none";
+          }
+        });
+      };
+
+      modeRadios.forEach((radio) => {
+        radio.addEventListener("change", updateIncludeColumnVisibility);
+      });
+      updateIncludeColumnVisibility();
 
       const root = document.documentElement;
       const themeButtons = document.querySelectorAll("[data-theme-value]");

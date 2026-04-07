@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Tikka Masala · Automatic Backup Archive</title>
+    <title>Tikka Masala · Notification Messages</title>
     <link rel="icon" href="/static/favicon.ico" sizes="any">
     <script>
       (() => {
@@ -41,125 +41,87 @@
             </div>
             <a href="#page-top" class="floating-only-nav-item">↑ Go to Top</a>
             <a href="/">Dashboard</a>
-            <a href="/#auto-backup-section">Automatic backups</a>
             <a href="/#notifications-section">Notifications</a>
-            <a href="/#saved-backups-section">Saved backups</a>
           </nav>
         </div>
       </header>
 
-
-      {% if demo_mode %}
-      <section class="demo-banner">
-        <p>Demo mode is active.</p>
-        <p>The automatic backup scheduler is disabled. This archive shows runs from previous non-demo sessions only.</p>
-      </section>
-      {% endif %}
-
-      <section class="card" id="runs-archive">
-        <div class="section-header-row">
-          <div>
-            <h2 class="heading-with-icon">
-              <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                <path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v3h-18z" />
-                <path d="M4 10v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-8" />
-                <path d="M10 12l4 0" />
-              </svg>
-              <span>Automatic backup archive</span>
-            </h2>
-            <p class="hint">Full execution history for scheduled and manual automatic backup runs.</p>
-            <p class="hint">
-              Total recorded runs: {{ scheduled_runs_stats.run_count }}.
-              Total backups created by automatic runs: {{ scheduled_runs_stats.total_backup_count }}.
-            </p>
-          </div>
+      <section class="card" id="notification-messages-section">
+        <div class="section-heading">
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon" aria-hidden="true">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M10 14l11 -11" />
+              <path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" />
+            </svg>
+            <span>Notification messages</span>
+          </h2>
+          <p class="hint">
+            Customize the text sent with each notification event.
+            Leave a field empty to use the built-in default message.
+            Use <code>{placeholder}</code> tokens to include dynamic values — click a token to insert it at the cursor.
+          </p>
         </div>
 
-        {% if runs %}
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Started</th>
-                <th>Finished</th>
-                <th>Status</th>
-                <th>Account ID</th>
-                <th>Tunnels</th>
-                <th>Backups</th>
-                <th>Errors</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for item in runs %}
-              {% set run = item.record %}
-              <tr>
-                <td>#{{ run.id }}</td>
-                <td>{{ run.started_at }}</td>
-                <td>{{ run.finished_at or 'Running' }}</td>
-                <td>
-                  {% if run.status == "success" %}
-                  <span class="status-pill status-match">Success</span>
-                  {% elif run.status == "partial" %}
-                  <span class="status-pill status-alt">Partial</span>
-                  {% elif run.status == "skipped" %}
-                  <span class="status-pill status-muted">Skipped</span>
-                  {% elif run.status == "running" %}
-                  <span class="status-pill status-info">Running</span>
-                  {% else %}
-                  <span class="status-pill status-warn">Failed</span>
-                  {% endif %}
-                </td>
-                <td><code>{{ run.account_id }}</code></td>
-                <td>{{ run.tunnel_count }}</td>
-                <td>{{ run.backup_count }}</td>
-                <td>{{ run.error_count }}</td>
-                <td class="wrap-anywhere">{{ item.details_summary or '—' }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        <div class="pagination-bar">
-          <div class="pagination-summary">
-            Showing {{ scheduled_runs_pagination.start_index }}-{{ scheduled_runs_pagination.end_index }} of {{ scheduled_runs_pagination.total_count }} run(s)
-          </div>
-          <form method="get" action="/auto-backup/runs" class="page-size-form">
-            <input type="hidden" name="page" value="1">
-            <label class="page-size-label">
-              <span>Per page</span>
-              <select name="page_size" onchange="this.form.submit()">
-                {% for option in scheduled_runs_page_size_options %}
-                <option value="{{ option }}" {% if not scheduled_runs_pagination.is_all and scheduled_runs_pagination.page_size == option %}selected{% endif %}>{{ option }}</option>
-                {% endfor %}
-                <option value="all" {% if scheduled_runs_pagination.is_all %}selected{% endif %}>All</option>
-              </select>
-            </label>
-          </form>
-          {% if scheduled_runs_pagination.total_pages > 1 %}
-          <div class="pagination-actions">
-            {% if scheduled_runs_pagination.has_previous %}
-            <a href="/auto-backup/runs?page={{ scheduled_runs_pagination.previous_page }}&page_size={{ scheduled_runs_pagination.page_size_param }}#runs-archive" class="secondary-link-button">Previous</a>
-            {% else %}
-            <span class="secondary-link-button is-disabled" aria-disabled="true">Previous</span>
-            {% endif %}
-
-            <span class="pagination-current">Page {{ scheduled_runs_pagination.current_page }} of {{ scheduled_runs_pagination.total_pages }}</span>
-
-            {% if scheduled_runs_pagination.has_next %}
-            <a href="/auto-backup/runs?page={{ scheduled_runs_pagination.next_page }}&page_size={{ scheduled_runs_pagination.page_size_param }}#runs-archive" class="secondary-link-button">Next</a>
-            {% else %}
-            <span class="secondary-link-button is-disabled" aria-disabled="true">Next</span>
-            {% endif %}
-          </div>
-          {% endif %}
-        </div>
-        {% else %}
-        <p>No automatic backup runs recorded yet.</p>
+        {% set saved_flag = request.query_params.get("saved") %}
+        {% set reset_flag = request.query_params.get("reset") %}
+        {% set error_flag = request.query_params.get("error") %}
+        {% if saved_flag %}
+        <section class="notice success top-gap">Notification messages saved.</section>
+        {% elif reset_flag %}
+        <section class="notice success top-gap">Notification messages reset to defaults.</section>
+        {% elif error_flag %}
+        <section class="notice error top-gap">An error occurred while saving. Please try again.</section>
         {% endif %}
+
+        <form method="post" action="/notifications/messages" class="stack top-gap" id="notification-messages-form">
+
+          {% for event in events %}
+          {% set current = saved.get(event, "") %}
+          {% set default_msg = defaults[event] %}
+          {% set tokens = placeholders.get(event, []) %}
+          <div class="notification-msg-block">
+            <label for="msg_{{ event }}">
+              <span class="notification-event-label">{{ event }}</span>
+              {% if current %}
+              <span class="status-pill status-alt status-pill-compact">custom</span>
+              {% else %}
+              <span class="status-pill status-match status-pill-compact">default</span>
+              {% endif %}
+            </label>
+            <textarea
+              name="msg_{{ event }}"
+              id="msg_{{ event }}"
+              rows="2"
+              placeholder="{{ default_msg }}"
+              class="notification-msg-textarea"
+            >{{ current }}</textarea>
+            <div class="token-list" aria-label="Available placeholders for {{ event }}">
+              <button type="button" class="token-chip preset-button secondary-button use-default-btn" data-target="msg_{{ event }}" data-default="{{ default_msg }}" style="border-color: var(--accent); color: var(--accent);">↩ Use default</button>
+              {% for token in global_placeholders %}
+              <button type="button" class="token-chip preset-button secondary-button" data-target="msg_{{ event }}" data-token="{{ '{' + token + '}' }}">{{'{'}}{{ token }}{{'}'}}</button>
+              {% endfor %}
+              {% for token in tokens %}
+              <button type="button" class="token-chip preset-button secondary-button" data-target="msg_{{ event }}" data-token="{{ '{' + token + '}' }}">{{'{'}}{{ token }}{{'}'}}</button>
+              {% endfor %}
+            </div>
+            {% if current %}
+            <p class="hint notification-msg-preview">
+              <strong>Default:</strong> {{ default_msg }}
+            </p>
+            {% endif %}
+          </div>
+          {% endfor %}
+
+        </form>
+
+        <form id="notification-messages-reset-form" method="post" action="/notifications/messages/reset" style="display:none"></form>
+        <div class="form-actions" style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 2.5rem;">
+          <button type="submit" form="notification-messages-form" class="auto-backup-primary" style="width: auto; flex: 1;">Save messages</button>
+          <button type="button" class="secondary-button" id="reset-messages-btn">Reset all to defaults</button>
+        </div>
       </section>
 
       <footer class="site-footer footer-panel">
@@ -197,24 +159,51 @@
       ↑
     </button>
     <script>
+      // Reset all to defaults
+      document.getElementById("reset-messages-btn")?.addEventListener("click", () => {
+        if (confirm("Reset all notification messages to their built-in defaults?")) {
+          document.getElementById("notification-messages-reset-form").submit();
+        }
+      });
+
+      // "Use default" chip → replace textarea content with the default message
+      document.querySelectorAll(".use-default-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const textarea = document.getElementById(btn.dataset.target);
+          if (!textarea) return;
+          textarea.value = btn.dataset.default;
+          textarea.focus();
+        });
+      });
+
+      // Token chip → insert at cursor
+      document.querySelectorAll(".token-chip:not(.use-default-btn)").forEach((chip) => {
+        chip.addEventListener("click", () => {
+          const targetId = chip.dataset.target;
+          const token = chip.dataset.token;
+          const textarea = document.getElementById(targetId);
+          if (!textarea) return;
+          const start = textarea.selectionStart ?? textarea.value.length;
+          const end = textarea.selectionEnd ?? textarea.value.length;
+          textarea.value = textarea.value.slice(0, start) + token + textarea.value.slice(end);
+          textarea.selectionStart = textarea.selectionEnd = start + token.length;
+          textarea.focus();
+        });
+      });
+
       const smoothScrollToY = (targetY, duration = 560) => {
         const startY = window.scrollY;
         const distance = targetY - startY;
         if (Math.abs(distance) < 2) return;
-
         const startTime = performance.now();
         const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2);
-
         const step = (currentTime) => {
           const elapsed = currentTime - startTime;
           const progress = Math.min(elapsed / duration, 1);
           const eased = easeInOutCubic(progress);
           window.scrollTo(0, startY + distance * eased);
-          if (progress < 1) {
-            window.requestAnimationFrame(step);
-          }
+          if (progress < 1) window.requestAnimationFrame(step);
         };
-
         window.requestAnimationFrame(step);
       };
 
@@ -232,11 +221,7 @@
         const toggleBackToTop = () => {
           backToTopButton.classList.toggle("is-visible", window.scrollY > 240);
         };
-
-        backToTopButton.addEventListener("click", () => {
-          smoothScrollToY(0, 620);
-        });
-
+        backToTopButton.addEventListener("click", () => smoothScrollToY(0, 620));
         window.addEventListener("scroll", toggleBackToTop, { passive: true });
         toggleBackToTop();
       }
@@ -248,11 +233,8 @@
           isFloating = shouldFloat;
           floatingNav.classList.toggle("is-floating", shouldFloat);
           document.body.classList.toggle("has-floating-nav", shouldFloat);
-          if (floatingNavLabel) {
-            floatingNavLabel.classList.toggle("is-hidden", shouldFloat);
-          }
+          if (floatingNavLabel) floatingNavLabel.classList.toggle("is-hidden", shouldFloat);
         };
-
         window.addEventListener("scroll", toggleFloatingNav, { passive: true });
         toggleFloatingNav();
       }
@@ -280,9 +262,7 @@
         } else {
           root.removeAttribute("data-theme");
         }
-
         root.dataset.themePreference = value;
-
         themeButtons.forEach((button) => {
           button.classList.toggle("is-active", button.dataset.themeValue === value);
           button.setAttribute("aria-pressed", button.dataset.themeValue === value ? "true" : "false");
@@ -299,9 +279,7 @@
 
       const syncSystemTheme = () => {
         const savedTheme = window.localStorage.getItem(themeStorageKey) || "system";
-        if (savedTheme === "system") {
-          applyThemePreference(savedTheme);
-        }
+        if (savedTheme === "system") applyThemePreference(savedTheme);
       };
 
       if (typeof systemThemeQuery.addEventListener === "function") {

@@ -50,7 +50,7 @@ BACKUPS_PAGE_SIZE = 5
 BACKUPS_PAGE_SIZE_OPTIONS = {5, 10, 25, 50, 75, 100}
 SCHEDULED_RUNS_PAGE_SIZE = 15
 SCHEDULED_RUNS_PAGE_SIZE_OPTIONS = (15, 30, 60, 90)
-APP_VERSION = "1.1.3"
+APP_VERSION = "1.3.0"
 SUPPORTED_NOTIFICATION_EVENTS = frozenset(
     {
         "notification_test",
@@ -718,6 +718,100 @@ def get_auto_backup_timezone_source() -> str:
     return "default"
 
 
+DEFAULT_NOTIFICATION_MESSAGES: dict[str, str] = {
+    "notification_test": "This is a test notification from Tikka Masala {version}.",
+    "manual_backup_success": "Created backup #{backup_id} for tunnel {tunnel_name}.",
+    "manual_backup_failed": "Failed to create a manual backup for tunnel {tunnel_id}.",
+    "auto_backup_success": "Created {backup_count} backup(s) from {tunnel_count} tunnel(s).",
+    "auto_backup_partial": "Created {backup_count} backup(s) from {tunnel_count} tunnel(s), with {error_count} error(s).",
+    "auto_backup_failed": "No backups were created successfully. Encountered {error_count} error(s) while processing {tunnel_count} tunnel(s).",
+    "restore_success": "Backup #{backup_id} was restored to tunnel {tunnel_id}.",
+    "restore_failed": "Failed to restore backup #{backup_id} to tunnel {tunnel_id}.",
+    "retention_cleanup": "Retention cleanup deleted {deleted_count} backup(s).",
+}
+NOTIFICATION_MESSAGE_PLACEHOLDERS: dict[str, list[str]] = {
+    "notification_test": [],
+    "manual_backup_success": ["backup_id", "account_id", "tunnel_id", "tunnel_name", "route_count"],
+    "manual_backup_failed": ["account_id", "tunnel_id", "error"],
+    "auto_backup_success": ["trigger", "account_id", "tunnel_count", "backup_count", "error_count"],
+    "auto_backup_partial": ["trigger", "account_id", "tunnel_count", "backup_count", "error_count"],
+    "auto_backup_failed": ["trigger", "account_id", "tunnel_count", "backup_count", "error_count"],
+    "restore_success": ["backup_id", "account_id", "tunnel_id"],
+    "restore_failed": ["backup_id", "account_id", "tunnel_id", "error"],
+    "retention_cleanup": ["deleted_count", "retention_days", "cutoff"],
+}
+NOTIFICATION_MESSAGE_GLOBAL_PLACEHOLDERS = ["version", "timestamp"]
+
+
+class _SafeFormatDict(dict):  # type: ignore[type-arg]
+    def __missing__(self, key: str) -> str:
+        return f"{{{key}}}"
+
+
+def get_notification_message_templates() -> dict[str, str]:
+    raw = (get_setting("notification_message_templates") or "").strip()
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def set_notification_message_templates(templates: dict[str, str]) -> None:
+    set_setting("notification_message_templates", json.dumps(templates, ensure_ascii=False))
+
+
+def render_notification_message(event: str, details: dict[str, Any] | None = None) -> str:
+    templates = get_notification_message_templates()
+    template = templates.get(event, "").strip()
+    if not template:
+        template = DEFAULT_NOTIFICATION_MESSAGES.get(event, event)
+    ctx = _SafeFormatDict(details or {})
+    ctx.setdefault("version", APP_VERSION)
+    ctx.setdefault("timestamp", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
+    try:
+        return template.format_map(ctx)
+    except (ValueError, KeyError):
+        return template
+
+
+DEFAULT_TUNNEL_SCHEDULE: dict[str, Any] = {"mode": "all", "tunnels": {}}
+TUNNEL_FREQUENCY_OPTIONS = ("always", "weekly", "monthly")
+
+
+def get_auto_backup_tunnel_schedule() -> dict[str, Any]:
+    raw = (get_setting("auto_backup_tunnel_schedule") or "").strip()
+    if not raw:
+        return dict(DEFAULT_TUNNEL_SCHEDULE)
+    try:
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            return dict(DEFAULT_TUNNEL_SCHEDULE)
+        return parsed
+    except json.JSONDecodeError:
+        return dict(DEFAULT_TUNNEL_SCHEDULE)
+
+
+def set_auto_backup_tunnel_schedule(config: dict[str, Any]) -> None:
+    set_setting("auto_backup_tunnel_schedule", json.dumps(config, ensure_ascii=False))
+
+
+def get_last_backup_time_for_tunnel(tunnel_id: str) -> datetime | None:
+    with closing(db()) as conn:
+        row = conn.execute(
+            "SELECT MAX(created_at) AS last_at FROM backups WHERE tunnel_id = ?",
+            (tunnel_id,),
+        ).fetchone()
+    if row and row["last_at"]:
+        try:
+            return datetime.fromisoformat(str(row["last_at"])).replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
 def validate_cron_expression(cron_expression: str) -> str:
     normalized = cron_expression.strip()
     if not normalized:
@@ -935,6 +1029,9 @@ def build_auto_backup_status() -> dict[str, Any]:
     cron_expression = get_auto_backup_cron()
     timezone_name = get_auto_backup_timezone_name()
     timezone_source = get_auto_backup_timezone_source()
+    tunnel_schedule = get_auto_backup_tunnel_schedule()
+    tunnel_schedule_mode = tunnel_schedule.get("mode", "all")
+    tunnel_schedule_count = len(tunnel_schedule.get("tunnels", {}))
     return {
         "enabled": enabled,
         "cron": cron_expression,
@@ -947,6 +1044,8 @@ def build_auto_backup_status() -> dict[str, Any]:
         "recent_runs": get_recent_scheduled_runs(),
         "prereqs": prereqs,
         "notifications": get_notification_status(),
+        "tunnel_schedule_mode": tunnel_schedule_mode,
+        "tunnel_schedule_count": tunnel_schedule_count,
     }
 
 
@@ -1160,14 +1259,15 @@ def purge_expired_backups(reference_time: datetime | None = None) -> int:
             deleted_count,
             retention_days,
         )
+        _rc_details = {
+            "deleted_count": deleted_count,
+            "retention_days": retention_days,
+            "cutoff": cutoff_iso,
+        }
         queue_notification(
             "retention_cleanup",
-            f"Retention cleanup deleted {deleted_count} backup(s).",
-            {
-                "deleted_count": deleted_count,
-                "retention_days": retention_days,
-                "cutoff": cutoff_iso,
-            },
+            render_notification_message("retention_cleanup", _rc_details),
+            _rc_details,
             level="info",
         )
 
@@ -1433,12 +1533,33 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
             tunnel_count = len(tunnels)
             note = f"Automatic backup triggered by {trigger}."
 
+            tunnel_schedule = get_auto_backup_tunnel_schedule()
+            schedule_mode = tunnel_schedule.get("mode", "all")
+            tunnel_overrides: dict[str, Any] = tunnel_schedule.get("tunnels", {})
+            now = datetime.now(timezone.utc)
+
             for tunnel in tunnels:
                 tunnel_id = str(tunnel.get("id") or "").strip()
                 tunnel_name = str(tunnel.get("name") or "Unknown tunnel").strip()
                 if not tunnel_id:
                     errors.append({"tunnel": tunnel_name, "message": "Tunnel ID missing in API response."})
                     continue
+
+                if schedule_mode == "selected" and tunnel_id not in tunnel_overrides:
+                    logger.debug("Skipping tunnel %s (%s): not in selected-tunnel list.", tunnel_id, tunnel_name)
+                    continue
+
+                tunnel_cfg = tunnel_overrides.get(tunnel_id, {})
+                frequency = tunnel_cfg.get("frequency", "always")
+                if frequency in ("weekly", "monthly"):
+                    days_threshold = 7 if frequency == "weekly" else 30
+                    last_backup = get_last_backup_time_for_tunnel(tunnel_id)
+                    if last_backup and (now - last_backup).days < days_threshold:
+                        logger.debug(
+                            "Skipping tunnel %s (%s): last backup was %s day(s) ago (threshold: %s).",
+                            tunnel_id, tunnel_name, (now - last_backup).days, days_threshold,
+                        )
+                        continue
 
                 try:
                     await create_backup(account_id, tunnel_id, api_token, note)
@@ -1475,22 +1596,18 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
             len(errors),
         )
         if status in {"success", "partial", "failed"}:
-            auto_backup_messages = {
-                "success": f"Created {backup_count} backup(s) from {tunnel_count} tunnel(s).",
-                "partial": f"Created {backup_count} backup(s) from {tunnel_count} tunnel(s), with {len(errors)} error(s).",
-                "failed": f"No backups were created successfully. Encountered {len(errors)} error(s) while processing {tunnel_count} tunnel(s).",
+            _ab_details = {
+                "trigger": trigger,
+                "account_id": account_id,
+                "tunnel_count": tunnel_count,
+                "backup_count": backup_count,
+                "error_count": len(errors),
+                "errors": errors,
             }
             queue_notification(
                 f"auto_backup_{status}",
-                auto_backup_messages[status],
-                {
-                    "trigger": trigger,
-                    "account_id": account_id,
-                    "tunnel_count": tunnel_count,
-                    "backup_count": backup_count,
-                    "error_count": len(errors),
-                    "errors": errors,
-                },
+                render_notification_message(f"auto_backup_{status}", _ab_details),
+                _ab_details,
                 level="warning" if status in {"partial", "failed"} else "info",
             )
         return {
@@ -1685,16 +1802,17 @@ async def backup_action(
             tunnel_id,
             backup.tunnel_name,
         )
+        _mbs_details = {
+            "backup_id": backup.id,
+            "account_id": account_id,
+            "tunnel_id": tunnel_id,
+            "tunnel_name": backup.tunnel_name,
+            "route_count": backup.route_count,
+        }
         queue_notification(
             "manual_backup_success",
-            f"Created backup #{backup.id} for tunnel {backup.tunnel_name}.",
-            {
-                "backup_id": backup.id,
-                "account_id": account_id,
-                "tunnel_id": tunnel_id,
-                "tunnel_name": backup.tunnel_name,
-                "route_count": backup.route_count,
-            },
+            render_notification_message("manual_backup_success", _mbs_details),
+            _mbs_details,
             level="info",
         )
         remember_account_id(account_id)
@@ -1714,14 +1832,15 @@ async def backup_action(
         return response
     except HTTPException as exc:
         logger.warning("Manual backup failed (tunnel_id=%s): %s", tunnel_id, exc.detail)
+        _mbf_details = {
+            "account_id": account_id.strip() or None,
+            "tunnel_id": tunnel_id.strip() or None,
+            "error": str(exc.detail),
+        }
         queue_notification(
             "manual_backup_failed",
-            f"Failed to create a manual backup for tunnel {tunnel_id.strip() or 'unknown'}.",
-            {
-                "account_id": account_id.strip() or None,
-                "tunnel_id": tunnel_id.strip() or None,
-                "error": str(exc.detail),
-            },
+            render_notification_message("manual_backup_failed", _mbf_details),
+            _mbf_details,
             level="warning",
         )
         return await index(request, error=exc.detail, success_target="backup")
@@ -1836,6 +1955,125 @@ async def auto_backup_run_action(request: Request) -> HTMLResponse:
         return render_index_page(request, error=exc.detail, success_target="auto-backup")
 
 
+@app.get("/auto-backup/tunnel-filters", response_class=HTMLResponse)
+async def auto_backup_tunnel_filters_page(request: Request) -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/#auto-backup-section", status_code=303)
+    prereqs = get_auto_backup_prerequisites()
+    tunnels: list[dict[str, Any]] = []
+    load_error: str | None = None
+    if prereqs["ready"]:
+        account_id = get_saved_account_id()
+        api_token = get_server_api_token()
+        try:
+            tunnels = await list_tunnels(account_id, api_token)  # type: ignore[arg-type]
+        except HTTPException as exc:
+            load_error = f"Could not load tunnels: {exc.detail}"
+        except Exception:
+            logger.exception("Unexpected error loading tunnels for tunnel-filters page.")
+            load_error = "Unexpected error loading tunnels from Cloudflare API."
+    current_schedule = get_auto_backup_tunnel_schedule()
+    return templates.TemplateResponse(
+        request,
+        "tunnel_filters.html",
+        {
+            "tunnels": tunnels,
+            "load_error": load_error,
+            "prereqs": prereqs,
+            "schedule": current_schedule,
+            "frequency_options": TUNNEL_FREQUENCY_OPTIONS,
+            "demo_mode": DEMO_MODE,
+        },
+    )
+
+
+@app.post("/auto-backup/tunnel-filters", response_class=HTMLResponse)
+async def auto_backup_tunnel_filters_action(request: Request) -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/#auto-backup-section", status_code=303)
+    try:
+        form = await request.form()
+        mode = str(form.get("mode", "all")).strip()
+        if mode not in ("all", "selected"):
+            mode = "all"
+
+        tunnel_ids_raw = form.getlist("tunnel_ids")
+        tunnel_ids = [t.strip() for t in tunnel_ids_raw if t.strip()]
+
+        tunnels_cfg: dict[str, Any] = {}
+        for tid in tunnel_ids:
+            freq = str(form.get(f"freq_{tid}", "always")).strip()
+            if freq not in TUNNEL_FREQUENCY_OPTIONS:
+                freq = "always"
+            name = str(form.get(f"name_{tid}", "")).strip()
+            if mode == "all":
+                if freq != "always":
+                    tunnels_cfg[tid] = {"name": name, "frequency": freq}
+            else:
+                included = form.get(f"include_{tid}")
+                if included:
+                    tunnels_cfg[tid] = {"name": name, "frequency": freq}
+
+        new_schedule: dict[str, Any] = {"mode": mode, "tunnels": tunnels_cfg}
+        set_auto_backup_tunnel_schedule(new_schedule)
+        logger.info(
+            "Tunnel backup schedule updated (mode=%s, tunnel_overrides=%s).",
+            mode,
+            len(tunnels_cfg),
+        )
+        return RedirectResponse(url="/#auto-backup-section", status_code=303)
+    except Exception:
+        logger.exception("Unexpected error saving tunnel backup schedule.")
+        return RedirectResponse(url="/auto-backup/tunnel-filters?error=1", status_code=303)
+
+
+@app.get("/notifications/messages", response_class=HTMLResponse)
+async def notification_messages_page(request: Request) -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/#notifications-section", status_code=303)
+    templates_data = get_notification_message_templates()
+    return templates.TemplateResponse(
+        request,
+        "notification_messages.html",
+        {
+            "events": list(DEFAULT_NOTIFICATION_MESSAGES.keys()),
+            "defaults": DEFAULT_NOTIFICATION_MESSAGES,
+            "placeholders": NOTIFICATION_MESSAGE_PLACEHOLDERS,
+            "global_placeholders": NOTIFICATION_MESSAGE_GLOBAL_PLACEHOLDERS,
+            "saved": templates_data,
+            "demo_mode": DEMO_MODE,
+        },
+    )
+
+
+@app.post("/notifications/messages", response_class=HTMLResponse)
+async def notification_messages_action(request: Request) -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/#notifications-section", status_code=303)
+    try:
+        form = await request.form()
+        new_templates: dict[str, str] = {}
+        for event in DEFAULT_NOTIFICATION_MESSAGES:
+            value = str(form.get(f"msg_{event}", "")).strip()
+            if value and value != DEFAULT_NOTIFICATION_MESSAGES[event]:
+                new_templates[event] = value
+        set_notification_message_templates(new_templates)
+        logger.info("Notification message templates updated (%s custom).", len(new_templates))
+        return RedirectResponse(url="/notifications/messages?saved=1", status_code=303)
+    except Exception:
+        logger.exception("Unexpected error saving notification message templates.")
+        return RedirectResponse(url="/notifications/messages?error=1", status_code=303)
+
+
+@app.post("/notifications/messages/reset", response_class=HTMLResponse)
+async def notification_messages_reset_action() -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/#notifications-section", status_code=303)
+    set_notification_message_templates({})
+    logger.info("Notification message templates reset to defaults.")
+    return RedirectResponse(url="/notifications/messages?reset=1", status_code=303)
+
+
 @app.post("/notifications/test", response_class=HTMLResponse)
 async def notifications_test_action(request: Request) -> HTMLResponse:
     if DEMO_MODE:
@@ -1854,13 +2092,14 @@ async def notifications_test_action(request: Request) -> HTMLResponse:
         status["channel_label"],
         ", ".join(status["events"]) if status["events"] else "none",
     )
+    _nt_details: dict[str, Any] = {
+        "configured_channels": status["channel_label"],
+        "enabled_events": status["events"],
+    }
     result = await deliver_notification(
         "notification_test",
-        "This is a test notification sent from Tikka Masala.",
-        {
-            "configured_channels": status["channel_label"],
-            "enabled_events": status["events"],
-        },
+        render_notification_message("notification_test", _nt_details),
+        _nt_details,
         level="info",
         force=True,
     )
@@ -1938,14 +2177,15 @@ async def restore_backup(
         remember_api_token(api_token)
         record_restore(backup_id, account_id, tunnel_id)
         logger.info("Restore completed successfully (backup_id=%s, account_id=%s, tunnel_id=%s).", backup_id, account_id, tunnel_id)
+        _rs_details = {
+            "backup_id": backup_id,
+            "account_id": account_id,
+            "tunnel_id": tunnel_id,
+        }
         queue_notification(
             "restore_success",
-            f"Backup #{backup_id} was restored to tunnel {tunnel_id}.",
-            {
-                "backup_id": backup_id,
-                "account_id": account_id,
-                "tunnel_id": tunnel_id,
-            },
+            render_notification_message("restore_success", _rs_details),
+            _rs_details,
             level="info",
         )
         response = render_backup_page(request, backup_id, message="Backup restored successfully.")
@@ -1953,15 +2193,16 @@ async def restore_backup(
         return response
     except HTTPException as exc:
         logger.warning("Restore failed (backup_id=%s): %s", backup_id, exc.detail)
+        _rf_details = {
+            "backup_id": backup_id,
+            "account_id": account_id.strip() or None,
+            "tunnel_id": tunnel_id.strip() or None,
+            "error": str(exc.detail),
+        }
         queue_notification(
             "restore_failed",
-            f"Failed to restore backup #{backup_id} to tunnel {tunnel_id.strip() or 'unknown'}.",
-            {
-                "backup_id": backup_id,
-                "account_id": account_id.strip() or None,
-                "tunnel_id": tunnel_id.strip() or None,
-                "error": str(exc.detail),
-            },
+            render_notification_message("restore_failed", _rf_details),
+            _rf_details,
             level="warning",
         )
         return render_backup_page(request, backup_id, error=exc.detail)

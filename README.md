@@ -14,8 +14,10 @@ Tikka Masala is a small FastAPI web app for backing up and restoring Cloudflare 
 - Prefill `Account ID` and `API token` from environment, browser, or database
 - Clear saved authentication data without deleting backups
 - Switch between system, dark, and light theme
-- Schedule automatic backups for all tunnels in the account
+- Schedule automatic backups for all tunnels or a selected subset of tunnels in the account
+- Set per-tunnel backup frequency (every run, once per week, once per month)
 - Send notifications through a generic webhook and/or Telegram
+- Customize the notification message for each event with plain text and dynamic placeholders
 - Run in demo mode without persisting authentication data, scheduler state, or notifications
 
 ## Requirements
@@ -184,7 +186,7 @@ The backup detail page keeps a restore history so you can see:
 
 ## Automatic Backups
 
-Tikka Masala can schedule recurring backups for all tunnels visible in the configured account.
+Tikka Masala can schedule recurring backups for tunnels visible in the configured account.
 
 The scheduler is built into the app and stores its configuration in the local SQLite database. From the home page you can:
 
@@ -192,8 +194,26 @@ The scheduler is built into the app and stores its configuration in the local SQ
 - set a cron expression
 - run the job immediately with `Run now`
 - see the last run, next run, and recent execution history
+- open the **Advanced schedule** page to control which tunnels are backed up and how often
 
 By default, automatic backups use the timezone detected from the browser when you save the schedule. If you want a fixed server-side timezone for all users, set `AUTO_BACKUP_TIMEZONE`.
+
+### Advanced schedule
+
+The **Advanced schedule** page (`/auto-backup/tunnel-filters`) lets you control backup scope and per-tunnel frequency:
+
+**Backup mode:**
+
+- **All tunnels** (default): every tunnel in the account is backed up on each run. You can still throttle individual tunnels with a frequency override.
+- **Selected tunnels only**: only the tunnels you explicitly check are included in each run.
+
+**Frequency overrides (per tunnel):**
+
+- **Every run**: backed up on every scheduled or manual run (default).
+- **Once per week**: skipped if a backup for that tunnel already exists within the last 7 days.
+- **Once per month**: skipped if a backup for that tunnel already exists within the last 30 days.
+
+This lets you, for example, run the scheduler daily but back up low-priority tunnels only once a week.
 
 Important notes:
 
@@ -259,6 +279,31 @@ When notifications are configured:
 - the test notification uses the `notification_test` event
 - notification results are shown directly inside the section that triggered them instead of at the top of the page
 
+### Customizing notification messages
+
+Each event has a built-in default message. You can override it from the **Customize notification messages** page (`/notifications/messages`).
+
+Messages support `{placeholder}` tokens that are replaced at runtime with event-specific values. Two tokens are always available regardless of the event:
+
+- `{version}` — current app version
+- `{timestamp}` — ISO 8601 UTC timestamp of the notification
+
+Available tokens per event:
+
+| Event | Available tokens |
+|---|---|
+| `notification_test` | _(none specific)_ |
+| `manual_backup_success` | `{backup_id}`, `{account_id}`, `{tunnel_id}`, `{tunnel_name}`, `{route_count}` |
+| `manual_backup_failed` | `{account_id}`, `{tunnel_id}`, `{error}` |
+| `auto_backup_success` | `{trigger}`, `{account_id}`, `{tunnel_count}`, `{backup_count}`, `{error_count}` |
+| `auto_backup_partial` | `{trigger}`, `{account_id}`, `{tunnel_count}`, `{backup_count}`, `{error_count}` |
+| `auto_backup_failed` | `{trigger}`, `{account_id}`, `{tunnel_count}`, `{backup_count}`, `{error_count}` |
+| `restore_success` | `{backup_id}`, `{account_id}`, `{tunnel_id}` |
+| `restore_failed` | `{backup_id}`, `{account_id}`, `{tunnel_id}`, `{error}` |
+| `retention_cleanup` | `{deleted_count}`, `{retention_days}`, `{cutoff}` |
+
+Leaving a field empty restores the built-in default for that event. Unknown tokens are left as-is in the output.
+
 ## Demo Mode
 
 Set `DEMO=true` when you want to exercise the UI without persisting auth data or enabling server-side automation.
@@ -285,6 +330,8 @@ Manual tunnel listing and manual backup downloads still work.
 - Main UI template: [`app/templates/index.html`](app/templates/index.html)
 - Backup detail template: [`app/templates/backup.html`](app/templates/backup.html)
 - Automatic backup archive template: [`app/templates/scheduled_runs.html`](app/templates/scheduled_runs.html)
+- Advanced schedule template: [`app/templates/tunnel_filters.html`](app/templates/tunnel_filters.html)
+- Notification messages template: [`app/templates/notification_messages.html`](app/templates/notification_messages.html)
 
 ## Credits
 
