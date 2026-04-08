@@ -857,6 +857,13 @@ label span {
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+.radio-row span {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+}
 input, textarea, button { font: inherit; }
 input, textarea {
   width: 100%;
