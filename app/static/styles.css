@@ -885,7 +885,7 @@ label span {
   padding: 0.75rem 1rem;
   cursor: pointer;
 }
-.radio-row input[type="radio"] { margin-top: 0.15rem; flex: 0 0 auto; }
+.radio-row input[type="radio"] { width: auto; margin-top: 0.15rem; flex: 0 0 auto; }
 .radio-row:has(input[type="radio"]:checked) {
   border-color: var(--accent, #f6821f);
   background: color-mix(in srgb, var(--accent, #f6821f) 8%, transparent);
