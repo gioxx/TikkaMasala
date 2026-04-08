@@ -857,6 +857,38 @@ label span {
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+.inline-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.inline-fieldset legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.radio-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  min-width: 220px;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+}
+.radio-row input[type="radio"] { margin-top: 0.15rem; flex-shrink: 0; }
+.radio-row:has(input[type="radio"]:checked) {
+  border-color: var(--accent, #f6821f);
+  background: color-mix(in srgb, var(--accent, #f6821f) 8%, transparent);
+}
 .radio-row span {
   font-size: 0.9rem;
   font-weight: 400;
