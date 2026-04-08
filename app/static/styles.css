@@ -874,11 +874,12 @@ label span {
   color: var(--muted);
 }
 .radio-row {
-  display: flex;
+  display: flex !important;
   align-items: flex-start;
   gap: 0.5rem;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 220px;
+  max-width: 100%;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   padding: 0.75rem 1rem;
