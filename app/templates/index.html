@@ -231,6 +231,20 @@
           </label>
           <button type="submit">Load tunnels</button>
         </form>
+        {% if prefill_account_id %}
+        <div class="inline-actions top-gap">
+          <a
+            href="https://dash.cloudflare.com/{{ prefill_account_id }}/one/access-controls/apps"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Access Controls: Applications</a>
+          <a
+            href="https://dash.cloudflare.com/{{ prefill_account_id }}/one/access-controls/policies"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Access Controls: Policies</a>
+        </div>
+        {% endif %}
         {% if tunnels %}
         <div class="table-wrap top-gap" id="tunnels-results">
           <table>
