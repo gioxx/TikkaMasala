@@ -6,6 +6,7 @@ Tikka Masala is a small FastAPI web app for backing up and restoring Cloudflare 
 
 - Verify a Cloudflare API token before using it
 - Load the tunnels visible to a Cloudflare account
+- Quick-access links to Cloudflare Access Controls (Applications and Policies) from the tunnels section
 - Create JSON backups of a tunnel configuration
 - Download saved snapshots
 - Restore a snapshot to the original tunnel or to another tunnel
