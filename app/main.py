@@ -50,7 +50,7 @@ BACKUPS_PAGE_SIZE = 5
 BACKUPS_PAGE_SIZE_OPTIONS = {5, 10, 25, 50, 75, 100}
 SCHEDULED_RUNS_PAGE_SIZE = 15
 SCHEDULED_RUNS_PAGE_SIZE_OPTIONS = (15, 30, 60, 90)
-APP_VERSION = "1.3.2"
+APP_VERSION = os.getenv("APP_VERSION", "dev")
 SUPPORTED_NOTIFICATION_EVENTS = frozenset(
     {
         "notification_test",
@@ -85,6 +85,7 @@ logging.basicConfig(
 app = FastAPI(title="Tikka Masala")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+templates.env.globals["app_version"] = APP_VERSION
 logger = logging.getLogger(__name__)
 auto_backup_scheduler = AsyncIOScheduler(timezone="UTC")
 auto_backup_lock = asyncio.Lock()
@@ -722,9 +723,9 @@ DEFAULT_NOTIFICATION_MESSAGES: dict[str, str] = {
     "notification_test": "This is a test notification from Tikka Masala {version}.",
     "manual_backup_success": "Created backup #{backup_id} for tunnel {tunnel_name}.",
     "manual_backup_failed": "Failed to create a manual backup for tunnel {tunnel_id}.",
-    "auto_backup_success": "Created {backup_count} backup(s) from {tunnel_count} tunnel(s).",
-    "auto_backup_partial": "Created {backup_count} backup(s) from {tunnel_count} tunnel(s), with {error_count} error(s).",
-    "auto_backup_failed": "No backups were created successfully. Encountered {error_count} error(s) while processing {tunnel_count} tunnel(s).",
+    "auto_backup_success": "Backed up {backup_count} tunnel(s): {backed_up_tunnels}\nSkipped: {skipped_count} • Discovered: {tunnel_count}",
+    "auto_backup_partial": "Backed up {backup_count} tunnel(s): {backed_up_tunnels}\nErrors: {error_count} • Skipped: {skipped_count} • Discovered: {tunnel_count}",
+    "auto_backup_failed": "Automatic backup failed. Errors: {error_count} • Attempted: {processed_count} • Discovered: {tunnel_count}",
     "restore_success": "Backup #{backup_id} was restored to tunnel {tunnel_id}.",
     "restore_failed": "Failed to restore backup #{backup_id} to tunnel {tunnel_id}.",
     "retention_cleanup": "Retention cleanup deleted {deleted_count} backup(s).",
@@ -733,9 +734,9 @@ NOTIFICATION_MESSAGE_PLACEHOLDERS: dict[str, list[str]] = {
     "notification_test": [],
     "manual_backup_success": ["backup_id", "account_id", "tunnel_id", "tunnel_name", "route_count"],
     "manual_backup_failed": ["account_id", "tunnel_id", "error"],
-    "auto_backup_success": ["trigger", "account_id", "tunnel_count", "backup_count", "error_count"],
-    "auto_backup_partial": ["trigger", "account_id", "tunnel_count", "backup_count", "error_count"],
-    "auto_backup_failed": ["trigger", "account_id", "tunnel_count", "backup_count", "error_count"],
+    "auto_backup_success": ["trigger", "account_id", "tunnel_count", "backup_count", "error_count", "skipped_count", "processed_count", "backed_up_tunnels", "skipped_tunnels"],
+    "auto_backup_partial": ["trigger", "account_id", "tunnel_count", "backup_count", "error_count", "skipped_count", "processed_count", "backed_up_tunnels", "skipped_tunnels"],
+    "auto_backup_failed": ["trigger", "account_id", "tunnel_count", "backup_count", "error_count", "skipped_count", "processed_count", "backed_up_tunnels", "skipped_tunnels"],
     "restore_success": ["backup_id", "account_id", "tunnel_id"],
     "restore_failed": ["backup_id", "account_id", "tunnel_id", "error"],
     "retention_cleanup": ["deleted_count", "retention_days", "cutoff"],
@@ -1525,6 +1526,8 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
         tunnel_count = 0
         backup_count = 0
         errors: list[dict[str, str]] = []
+        backed_up_names: list[str] = []
+        skipped_items: list[dict[str, str]] = []
         details: str | None = None
         status = "failed"
 
@@ -1547,6 +1550,7 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
 
                 if schedule_mode == "selected" and tunnel_id not in tunnel_overrides:
                     logger.debug("Skipping tunnel %s (%s): not in selected-tunnel list.", tunnel_id, tunnel_name)
+                    skipped_items.append({"tunnel": tunnel_name, "reason": "not selected"})
                     continue
 
                 tunnel_cfg = tunnel_overrides.get(tunnel_id, {})
@@ -1559,11 +1563,13 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
                             "Skipping tunnel %s (%s): last backup was %s day(s) ago (threshold: %s).",
                             tunnel_id, tunnel_name, (now - last_backup).days, days_threshold,
                         )
+                        skipped_items.append({"tunnel": tunnel_name, "reason": f"{frequency} cooldown"})
                         continue
 
                 try:
                     await create_backup(account_id, tunnel_id, api_token, note)
                     backup_count += 1
+                    backed_up_names.append(tunnel_name)
                 except HTTPException as exc:
                     errors.append({"tunnel": tunnel_name, "tunnel_id": tunnel_id, "message": str(exc.detail)})
 
@@ -1602,6 +1608,10 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
                 "tunnel_count": tunnel_count,
                 "backup_count": backup_count,
                 "error_count": len(errors),
+                "skipped_count": len(skipped_items),
+                "processed_count": backup_count + len(errors),
+                "backed_up_tunnels": ", ".join(backed_up_names) if backed_up_names else "—",
+                "skipped_tunnels": ", ".join(f"{s['tunnel']} ({s['reason']})" for s in skipped_items) if skipped_items else "—",
                 "errors": errors,
             }
             queue_notification(

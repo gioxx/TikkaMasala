@@ -296,14 +296,24 @@ Available tokens per event:
 | `notification_test` | _(none specific)_ |
 | `manual_backup_success` | `{backup_id}`, `{account_id}`, `{tunnel_id}`, `{tunnel_name}`, `{route_count}` |
 | `manual_backup_failed` | `{account_id}`, `{tunnel_id}`, `{error}` |
-| `auto_backup_success` | `{trigger}`, `{account_id}`, `{tunnel_count}`, `{backup_count}`, `{error_count}` |
-| `auto_backup_partial` | `{trigger}`, `{account_id}`, `{tunnel_count}`, `{backup_count}`, `{error_count}` |
-| `auto_backup_failed` | `{trigger}`, `{account_id}`, `{tunnel_count}`, `{backup_count}`, `{error_count}` |
+| `auto_backup_success` | `{trigger}`, `{account_id}`, `{tunnel_count}`, `{backup_count}`, `{error_count}`, `{skipped_count}`, `{processed_count}`, `{backed_up_tunnels}`, `{skipped_tunnels}` |
+| `auto_backup_partial` | `{trigger}`, `{account_id}`, `{tunnel_count}`, `{backup_count}`, `{error_count}`, `{skipped_count}`, `{processed_count}`, `{backed_up_tunnels}`, `{skipped_tunnels}` |
+| `auto_backup_failed` | `{trigger}`, `{account_id}`, `{tunnel_count}`, `{backup_count}`, `{error_count}`, `{skipped_count}`, `{processed_count}`, `{backed_up_tunnels}`, `{skipped_tunnels}` |
 | `restore_success` | `{backup_id}`, `{account_id}`, `{tunnel_id}` |
 | `restore_failed` | `{backup_id}`, `{account_id}`, `{tunnel_id}`, `{error}` |
 | `retention_cleanup` | `{deleted_count}`, `{retention_days}`, `{cutoff}` |
 
+For `auto_backup_*` events:
+
+- `{tunnel_count}` — total tunnels discovered on the account
+- `{processed_count}` — tunnels the run actually attempted (`backup_count` + `error_count`)
+- `{skipped_count}` — tunnels skipped by per-tunnel scheduling rules (not selected, weekly/monthly cooldown)
+- `{backed_up_tunnels}` — comma-separated list of tunnel names that were backed up (or `—` if none)
+- `{skipped_tunnels}` — comma-separated list of skipped tunnel names with the reason in parentheses (or `—` if none)
+
 Leaving a field empty restores the built-in default for that event. Unknown tokens are left as-is in the output.
+
+> **Note:** as of 1.3.4, the default `auto_backup_*` messages include the new tokens above. If you had already saved a custom message, clear the field (or click *Use default*) on the notification customization page to pick up the new format.
 
 ## Demo Mode
 

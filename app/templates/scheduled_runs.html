@@ -24,7 +24,7 @@
         <div class="hero-main">
           <div class="hero-copy">
             <p class="eyebrow">Cloudflare Tunnel backup and restore utility</p>
-            <h1><a href="/" class="stealth-link">Tikka Masala</a> <sub>v1.3.2</sub></h1>
+            <h1><a href="/" class="stealth-link">Tikka Masala</a> <sub>v{{ app_version }}</sub></h1>
             <p class="lead">
               This small web app fetches a tunnel configuration through the Cloudflare API,
               stores JSON snapshots locally, and can restore a saved configuration later.
@@ -37,7 +37,7 @@
             <div class="floating-nav-meta" aria-hidden="true">
               <img src="/static/favicon.ico" alt="" class="floating-nav-icon">
               <span class="floating-nav-title">Tikka Masala</span>
-              <span class="floating-nav-version">v1.3.2</span>
+              <span class="floating-nav-version">v{{ app_version }}</span>
             </div>
             <a href="#page-top" class="floating-only-nav-item">↑ Go to Top</a>
             <a href="/">Dashboard</a>
@@ -176,7 +176,7 @@
               <button type="button" class="theme-button" data-theme-value="dark">Dark</button>
               <button type="button" class="theme-button" data-theme-value="light">Light</button>
             </div>
-            <div class="footer-pill">Version 1.3.2</div>
+            <div class="footer-pill">Version {{ app_version }}</div>
             <a
               class="footer-pill footer-icon-button"
               href="https://github.com/gioxx/TikkaMasala"
