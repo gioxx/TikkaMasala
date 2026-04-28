@@ -85,7 +85,7 @@
 
         <form method="post" action="/notifications/messages" class="stack top-gap" id="notification-messages-form">
 
-          <div class="notification-msg-block">
+          <section class="notice">
             <label class="checkbox-row">
               <input
                 type="checkbox"
@@ -94,13 +94,13 @@
               >
               <span>Compact Telegram notifications</span>
             </label>
-            <p class="hint">
-              When enabled (default), Telegram messages contain only the title and the rendered message.
-              Disable to also append the structured <code>key: value</code> details block (trigger,
-              account_id, tunnel counts, skipped tunnels, etc.). The webhook channel is unaffected and
-              always receives the full payload.
+            <p class="hint" style="margin: 0.6rem 0 0;">
+              When enabled (default), Telegram messages contain only the title and the rendered
+              message. Disable to also append the structured <code>key: value</code> details block
+              (trigger, account_id, tunnel counts, skipped tunnels, etc.). The webhook channel is
+              unaffected and always receives the full payload.
             </p>
-          </div>
+          </section>
 
           {% for event in events %}
           {% set current = saved.get(event, "") %}
