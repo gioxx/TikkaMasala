@@ -510,7 +510,7 @@ async def send_telegram_notification(event: str, payload: dict[str, Any], force:
         event_title,
         message,
     ]
-    if details:
+    if details and not get_telegram_compact_notifications():
         lines.append("")
         for key, value in details.items():
             rendered = format_notification_detail_value(value)
@@ -762,6 +762,17 @@ def get_notification_message_templates() -> dict[str, str]:
 
 def set_notification_message_templates(templates: dict[str, str]) -> None:
     set_setting("notification_message_templates", json.dumps(templates, ensure_ascii=False))
+
+
+def get_telegram_compact_notifications() -> bool:
+    raw = (get_setting("telegram_compact_notifications") or "").strip().lower()
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    return True
+
+
+def set_telegram_compact_notifications(enabled: bool) -> None:
+    set_setting("telegram_compact_notifications", "true" if enabled else "false")
 
 
 def render_notification_message(event: str, details: dict[str, Any] | None = None) -> str:
@@ -2051,6 +2062,7 @@ async def notification_messages_page(request: Request) -> HTMLResponse:
             "placeholders": NOTIFICATION_MESSAGE_PLACEHOLDERS,
             "global_placeholders": NOTIFICATION_MESSAGE_GLOBAL_PLACEHOLDERS,
             "saved": templates_data,
+            "telegram_compact": get_telegram_compact_notifications(),
             "demo_mode": DEMO_MODE,
         },
     )
@@ -2068,7 +2080,13 @@ async def notification_messages_action(request: Request) -> HTMLResponse:
             if value and value != DEFAULT_NOTIFICATION_MESSAGES[event]:
                 new_templates[event] = value
         set_notification_message_templates(new_templates)
-        logger.info("Notification message templates updated (%s custom).", len(new_templates))
+        compact_flag = form.get("telegram_compact") == "on"
+        set_telegram_compact_notifications(compact_flag)
+        logger.info(
+            "Notification message templates updated (%s custom, telegram_compact=%s).",
+            len(new_templates),
+            compact_flag,
+        )
         return RedirectResponse(url="/notifications/messages?saved=1", status_code=303)
     except Exception:
         logger.exception("Unexpected error saving notification message templates.")
