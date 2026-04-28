@@ -86,18 +86,15 @@
         <form method="post" action="/notifications/messages" class="stack top-gap" id="notification-messages-form">
 
           <div class="notification-msg-block">
-            <div style="display: flex; align-items: center; gap: 0.6rem;">
+            <label class="checkbox-row">
               <input
                 type="checkbox"
                 name="telegram_compact"
-                id="telegram_compact"
                 {% if telegram_compact %}checked{% endif %}
               >
-              <label for="telegram_compact" style="display: inline; margin: 0; cursor: pointer; font-weight: 600;">
-                Compact Telegram notifications
-              </label>
-            </div>
-            <p class="hint" style="margin-top: 0.4rem;">
+              <span>Compact Telegram notifications</span>
+            </label>
+            <p class="hint">
               When enabled (default), Telegram messages contain only the title and the rendered message.
               Disable to also append the structured <code>key: value</code> details block (trigger,
               account_id, tunnel counts, skipped tunnels, etc.). The webhook channel is unaffected and
