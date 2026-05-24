@@ -6,8 +6,8 @@ Tikka Masala is a small FastAPI web app for backing up and restoring Cloudflare 
 [![](https://img.shields.io/github/issues-pr-raw/gioxx/TikkaMasala.svg)](https://github.com/gioxx/TikkaMasala/pulls)
 ![MIT License](https://img.shields.io/github/license/gioxx/TikkaMasala)
 ![Docker](https://img.shields.io/badge/Docker-ready-blue?logo=docker)
-[![](https://img.shields.io/docker/pulls/gfsolone/TikkaMasala.svg)](https://hub.docker.com/r/gfsolone/TikkaMasala)
-[![](https://img.shields.io/docker/image-size/gfsolone/TikkaMasala/latest.svg)](https://hub.docker.com/r/gfsolone/TikkaMasala)
+[![](https://img.shields.io/docker/pulls/gfsolone/tikkamasala.svg)](https://hub.docker.com/r/gfsolone/tikkamasala)
+[![](https://img.shields.io/docker/image-size/gfsolone/tikkamasala/latest.svg)](https://hub.docker.com/r/gfsolone/tikkamasala)
 
 ## Features
 
