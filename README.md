@@ -2,6 +2,13 @@
 
 Tikka Masala is a small FastAPI web app for backing up and restoring Cloudflare Tunnel configurations. It gives you a simple UI to verify a token, list available tunnels, save JSON snapshots locally, and restore a saved configuration later.
 
+[![](https://img.shields.io/github/issues/gioxx/TikkaMasala.svg)](https://github.com/gioxx/TikkaMasala/issues)
+[![](https://img.shields.io/github/issues-pr-raw/gioxx/TikkaMasala.svg)](https://github.com/gioxx/TikkaMasala/pulls)
+![MIT License](https://img.shields.io/github/license/gioxx/TikkaMasala)
+![Docker](https://img.shields.io/badge/Docker-ready-blue?logo=docker)
+[![](https://img.shields.io/docker/pulls/gfsolone/TikkaMasala.svg)](https://hub.docker.com/r/gfsolone/TikkaMasala)
+[![](https://img.shields.io/docker/image-size/gfsolone/TikkaMasala/latest.svg)](https://hub.docker.com/r/gfsolone/TikkaMasala)
+
 ## Features
 
 - Verify a Cloudflare API token before using it
