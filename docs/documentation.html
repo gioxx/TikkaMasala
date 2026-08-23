@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation · Tikka Masala</title>
+<meta name="description" content="Full documentation for Tikka Masala: setup, environment variables, backups, restore, scheduling, notifications, demo mode, and security notes.">
+<link rel="icon" href="assets/favicon.ico">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <img src="assets/cloudflare-logo.png" alt="">
+      Tikka Masala
+    </a>
+    <button class="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+    </button>
+    <ul>
+      <li><a href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5L12 4l8 6.5"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-6h4v6"/></svg>Home</a></li>
+      <li><a href="documentation.html" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15Z"/></svg>Docs</a></li>
+      <li><a href="faq.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.9.8c0 1.7-2.4 1.8-2.4 3.4"/><path d="M12 17h.01"/></svg>FAQ</a></li>
+      <li><a href="https://github.com/gioxx/TikkaMasala"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>GitHub</a></li>
+    </ul>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="page-title">
+      <h1>Documentation</h1>
+      <p>Everything you need to install, configure, and run Tikka Masala: from environment variables to automatic backups and notifications.</p>
+    </div>
+  </div>
+  <div class="wrap doc-layout">
+    <nav class="toc">
+      <strong>On this page</strong>
+      <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#requirements">Requirements</a></li>
+        <li><a href="#env-vars">Environment variables</a></li>
+        <li><a href="#running">Running the app</a></li>
+        <li><a href="#prefill">Prefill &amp; persistence</a></li>
+        <li><a href="#storage">Storage layout</a></li>
+        <li><a href="#backups">What gets backed up</a></li>
+        <li><a href="#restore">Restore behavior</a></li>
+        <li><a href="#scheduling">Automatic backups</a></li>
+        <li><a href="#notifications">Notifications</a></li>
+        <li><a href="#demo">Demo mode</a></li>
+        <li><a href="#security">Security notes</a></li>
+      </ul>
+    </nav>
+
+    <div class="doc-content">
+
+      <section id="overview">
+        <h2>Overview</h2>
+        <p>Cloudflare Tunnel configurations live only in the Cloudflare dashboard; there's no built-in way to snapshot one before a risky change, or to recover it if it gets misconfigured or deleted. Tikka Masala was built to close that gap: a small, self-hosted tool that talks to the Cloudflare API on your behalf, keeps JSON snapshots of tunnel configurations on disk, and can push a saved snapshot back to a tunnel when you need to roll back.</p>
+        <p>Day to day, its job is to sit quietly in the background: verify your API token, list the tunnels in an account, take manual or scheduled backups, and notify you over webhook or Telegram when something needs attention. Everything is kept local: SQLite for metadata and history, JSON files for the actual snapshots, so you stay in control of where your tunnel configurations are stored.</p>
+      </section>
+
+      <section id="requirements">
+        <h2>Requirements</h2>
+        <ul>
+          <li>Docker and Docker Compose, or Python 3.12 to run the app directly</li>
+          <li>A Cloudflare API token with permissions suitable for Cloudflare Tunnel configuration changes</li>
+        </ul>
+        <p>Recommended token permissions:</p>
+        <ul>
+          <li><code>Account: Cloudflare Tunnel -&gt; Edit</code></li>
+          <li><code>Zone: DNS -&gt; Edit</code></li>
+        </ul>
+        <p>For backup-only usage, the token can later be reduced to read-only permissions if your workflow allows it.</p>
+      </section>
+
+      <section id="env-vars">
+        <h2>Environment variables</h2>
+        <p>Configure the app through environment variables, whether you use Docker Compose, <code>docker run</code>, Portainer, or a direct shell session. Start from <a href="https://github.com/gioxx/TikkaMasala/blob/main/.env.sample"><code>.env.sample</code></a>.</p>
+        <table>
+          <thead><tr><th>Variable</th><th>Required</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>CLOUDFLARE_ACCOUNT_ID</code></td><td>No</td><td>Prefills the Cloudflare account ID in the UI.</td></tr>
+            <tr><td><code>CLOUDFLARE_API_TOKEN</code></td><td>No</td><td>Prefills the API token in the UI.</td></tr>
+            <tr><td><code>TOKEN_ENCRYPTION_KEY</code></td><td>Recommended</td><td>Fernet key used to encrypt the API token before saving it in SQLite.</td></tr>
+            <tr><td><code>AUTO_BACKUP_TIMEZONE</code></td><td>No</td><td>Force automatic backups to use a specific IANA timezone such as <code>Europe/Rome</code>.</td></tr>
+            <tr><td><code>BACKUP_RETENTION_DAYS</code></td><td>No</td><td>Automatically delete backups older than this many days after new backups are created.</td></tr>
+            <tr><td><code>NOTIFICATION_WEBHOOK_URL</code></td><td>No</td><td>Send JSON notifications to a generic webhook endpoint.</td></tr>
+            <tr><td><code>NOTIFICATION_WEBHOOK_EVENTS</code></td><td>No</td><td>Comma-separated list of notification events to emit to the webhook.</td></tr>
+            <tr><td><code>TELEGRAM_BOT_TOKEN</code></td><td>No</td><td>Telegram bot token used to send notifications through the Bot API.</td></tr>
+            <tr><td><code>TELEGRAM_CHAT_ID</code></td><td>No</td><td>Telegram chat, group, or channel ID where notifications should be sent.</td></tr>
+            <tr><td><code>TELEGRAM_NOTIFICATION_EVENTS</code></td><td>No</td><td>Comma-separated list of notification events to emit to Telegram.</td></tr>
+            <tr><td><code>DATA_DIR</code></td><td>No</td><td>Storage path for the SQLite database and JSON backups. Default: <code>/data</code>.</td></tr>
+            <tr><td><code>REQUEST_TIMEOUT</code></td><td>No</td><td>Outbound Cloudflare API timeout in seconds. Default: <code>20</code>.</td></tr>
+            <tr><td><code>LOG_LEVEL</code></td><td>No</td><td>Application log level written to container stdout. Default: <code>INFO</code>.</td></tr>
+            <tr><td><code>CLOUDFLARE_API_BASE</code></td><td>No</td><td>Override for the Cloudflare API base URL. Default: <code>https://api.cloudflare.com/client/v4</code>.</td></tr>
+            <tr><td><code>DEMO</code></td><td>No</td><td>Enable demo mode. Defaults to <code>false</code>. Disables persistence, automatic backups, notifications, and the backup archive.</td></tr>
+          </tbody>
+        </table>
+        <p>Generate a Fernet key for <code>TOKEN_ENCRYPTION_KEY</code>:</p>
+        <pre><code>python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</code></pre>
+      </section>
+
+      <section id="running">
+        <h2>Running the app</h2>
+
+        <div class="note">
+          Prebuilt images are published on every release, so building locally is optional. Pull whichever registry you prefer:
+          <ul>
+            <li><code>docker pull gfsolone/tikkamasala:latest</code> from <a href="https://hub.docker.com/r/gfsolone/tikkamasala">Docker Hub</a></li>
+            <li><code>docker pull ghcr.io/gioxx/tikkamasala:latest</code> from <a href="https://github.com/gioxx/TikkaMasala/pkgs/container/tikkamasala">GitHub Container Registry</a></li>
+          </ul>
+        </div>
+
+        <h3>Docker Compose</h3>
+        <p>The included <code>docker-compose.yml</code> builds the image locally and mounts <code>./data</code> into the container so backups and settings survive restarts.</p>
+        <pre><code>docker compose up -d --build</code></pre>
+        <p>Then open <code>http://localhost:8080</code>.</p>
+
+        <h3>Docker only</h3>
+        <pre><code>docker build -t tikkamasala .
+docker run -d \
+  --name tikkamasala \
+  --restart unless-stopped \
+  --env-file .env \
+  -p 8080:8080 \
+  -v "$(pwd)/data:/data" \
+  tikkamasala</code></pre>
+
+        <h3>Without Docker</h3>
+        <pre><code>python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+set -a
+source .env
+set +a
+uvicorn app.main:app --host 0.0.0.0 --port 8080</code></pre>
+
+        <h3>Portainer</h3>
+        <p>Portainer stacks pull an image rather than building from a local <code>Dockerfile</code>, so swap <code>build: .</code> for one of the prebuilt images above. From <strong>Stacks &gt; Add stack</strong>, paste:</p>
+        <pre><code>services:
+  tikkamasala:
+    image: gfsolone/tikkamasala:latest
+    container_name: tikkamasala
+    restart: unless-stopped
+    environment:
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      AUTO_BACKUP_TIMEZONE: ${AUTO_BACKUP_TIMEZONE:-}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-90}
+      DEMO: ${DEMO:-false}
+    ports:
+      - "8080:8080"
+    volumes:
+      - tikkamasala_data:/data
+
+volumes:
+  tikkamasala_data:</code></pre>
+        <p>Use <code>ghcr.io/gioxx/tikkamasala:latest</code> instead of the Docker Hub image if you prefer GHCR. Set the actual values either in the stack's <strong>Environment variables</strong> panel (Portainer prompts for anything left as <code>${VAR}</code> without a default) or by editing the <code>environment:</code> block directly; add any other variable from the <a href="#env-vars">environment variables table</a> the same way. A named volume (<code>tikkamasala_data</code>) is used here instead of a host path because Portainer-managed hosts don't always expose a predictable working directory; switch it to a bind mount (e.g. <code>/opt/tikkamasala/data:/data</code>) if you'd rather keep backups on a known host path.</p>
+      </section>
+
+      <section id="prefill">
+        <h2>Prefill &amp; persistence</h2>
+        <p>The UI can prefill authentication fields from three sources: environment variables, saved values in the local database, and a browser cookie for the API token.</p>
+        <p>Effective priority:</p>
+        <ul>
+          <li><strong>Account ID</strong>: database, then environment</li>
+          <li><strong>API token</strong>: browser cookie, then database, then environment</li>
+        </ul>
+        <p>Automatic backups use only server-side credentials: database or environment. Browser cookies are never used by the scheduler.</p>
+        <p>After a successful token verification or API action: the <strong>Account ID</strong> is saved in <code>./data/app.db</code>, the <strong>API token</strong> is stored in a browser cookie, and it is also saved in <code>./data/app.db</code> only if <code>TOKEN_ENCRYPTION_KEY</code> is configured.</p>
+        <div class="note">
+          <strong>Clear saved auth data</strong> removes only the saved Account ID and API token from the database and clears the browser cookie. If <code>CLOUDFLARE_ACCOUNT_ID</code> or <code>CLOUDFLARE_API_TOKEN</code> are still present in the environment, the UI keeps showing those values as prefilled.
+        </div>
+      </section>
+
+      <section id="storage">
+        <h2>Storage layout</h2>
+        <p>Everything is stored under <code>DATA_DIR</code>, which defaults to <code>/data</code> in the container and typically maps to <code>./data</code> on the host.</p>
+        <ul>
+          <li><code>app.db</code>: SQLite database for backup metadata, restore history, and saved auth settings</li>
+          <li><code>backups/*.json</code>: exported tunnel configuration snapshots</li>
+        </ul>
+      </section>
+
+      <section id="backups">
+        <h2>What gets backed up</h2>
+        <p>Tikka Masala saves the tunnel configuration returned by the Cloudflare Tunnel configuration endpoints, along with backup metadata: export timestamp, account ID, tunnel ID, tunnel name, and notes. It does not back up arbitrary account-wide Cloudflare settings.</p>
+      </section>
+
+      <section id="restore">
+        <h2>Restore behavior</h2>
+        <p>Restoring a backup replaces the current remote configuration of the selected tunnel with the configuration stored in the snapshot.</p>
+        <p>The backup detail page keeps a restore history so you can see: when a backup was restored, which account and tunnel it was restored to, and whether the restore targeted the original tunnel, a different tunnel, or a different account.</p>
+      </section>
+
+      <section id="scheduling">
+        <h2>Automatic backups</h2>
+        <p>The scheduler is built into the app and stores its configuration in the local SQLite database. From the home page you can enable or disable automatic backups, set a cron expression, run the job immediately with <strong>Run now</strong>, and see the last run, next run, and recent execution history.</p>
+        <p>By default, automatic backups use the timezone detected from the browser when you save the schedule. Set <code>AUTO_BACKUP_TIMEZONE</code> for a fixed server-side timezone for all users.</p>
+
+        <h3>Advanced schedule</h3>
+        <p>The <strong>Advanced schedule</strong> page (<code>/auto-backup/tunnel-filters</code>) controls backup scope and per-tunnel frequency.</p>
+        <p><strong>Backup mode:</strong></p>
+        <ul>
+          <li><strong>All tunnels</strong> (default): every tunnel in the account is backed up on each run, with optional per-tunnel frequency throttling.</li>
+          <li><strong>Selected tunnels only</strong>: only the tunnels you explicitly check are included in each run.</li>
+        </ul>
+        <p><strong>Frequency overrides (per tunnel):</strong></p>
+        <ul>
+          <li><strong>Every run</strong>: backed up on every scheduled or manual run (default).</li>
+          <li><strong>Once per week</strong>: skipped if a backup for that tunnel already exists within the last 7 days.</li>
+          <li><strong>Once per month</strong>: skipped if a backup for that tunnel already exists within the last 30 days.</li>
+        </ul>
+        <p>This lets you run the scheduler daily while backing up low-priority tunnels only once a week.</p>
+        <div class="note">
+          Automatic backups require server-side credentials from the database or environment; browser-only token prefill is not enough for scheduled jobs. Each run creates normal backups, so automatic and manual backups share the same archive. If <code>BACKUP_RETENTION_DAYS</code> is set, old backup files and related database records (including restore history) are deleted automatically after new backups are created.
+        </div>
+      </section>
+
+      <section id="notifications">
+        <h2>Notifications</h2>
+        <p>Tikka Masala can send server-side notifications through a generic webhook and/or Telegram. Set <code>NOTIFICATION_WEBHOOK_URL</code> / <code>NOTIFICATION_WEBHOOK_EVENTS</code> and/or <code>TELEGRAM_BOT_TOKEN</code> / <code>TELEGRAM_CHAT_ID</code> / <code>TELEGRAM_NOTIFICATION_EVENTS</code>.</p>
+        <p>Supported events: <code>notification_test</code>, <code>manual_backup_success</code>, <code>manual_backup_failed</code>, <code>auto_backup_success</code>, <code>auto_backup_partial</code>, <code>auto_backup_failed</code>, <code>restore_success</code>, <code>restore_failed</code>, <code>retention_cleanup</code>.</p>
+        <p>If the events variable is left empty for a channel, Tikka Masala enables the default set: <code>auto_backup_success</code>, <code>auto_backup_partial</code>, <code>auto_backup_failed</code>, <code>restore_failed</code>, <code>retention_cleanup</code>.</p>
+        <p>Webhook notifications send a JSON payload with app name and version, event name, message, timestamp, and event-specific details. Telegram sends the same information as a formatted plain-text message. Use <strong>Send test notification</strong> from the UI to verify delivery.</p>
+
+        <h3>Customizing notification messages</h3>
+        <p>Each event has a built-in default message. Override it from the <strong>Customize notification messages</strong> page (<code>/notifications/messages</code>). Messages support <code>{placeholder}</code> tokens replaced at runtime. <code>{version}</code> and <code>{timestamp}</code> are always available.</p>
+        <table>
+          <thead><tr><th>Event</th><th>Available tokens</th></tr></thead>
+          <tbody>
+            <tr><td><code>notification_test</code></td><td><em>(none specific)</em></td></tr>
+            <tr><td><code>manual_backup_success</code></td><td><code>{backup_id}</code>, <code>{account_id}</code>, <code>{tunnel_id}</code>, <code>{tunnel_name}</code>, <code>{route_count}</code></td></tr>
+            <tr><td><code>manual_backup_failed</code></td><td><code>{account_id}</code>, <code>{tunnel_id}</code>, <code>{error}</code></td></tr>
+            <tr><td><code>auto_backup_success</code> / <code>_partial</code> / <code>_failed</code></td><td><code>{trigger}</code>, <code>{account_id}</code>, <code>{tunnel_count}</code>, <code>{backup_count}</code>, <code>{error_count}</code>, <code>{skipped_count}</code>, <code>{processed_count}</code>, <code>{backed_up_tunnels}</code>, <code>{skipped_tunnels}</code></td></tr>
+            <tr><td><code>restore_success</code></td><td><code>{backup_id}</code>, <code>{account_id}</code>, <code>{tunnel_id}</code></td></tr>
+            <tr><td><code>restore_failed</code></td><td><code>{backup_id}</code>, <code>{account_id}</code>, <code>{tunnel_id}</code>, <code>{error}</code></td></tr>
+            <tr><td><code>retention_cleanup</code></td><td><code>{deleted_count}</code>, <code>{retention_days}</code>, <code>{cutoff}</code></td></tr>
+          </tbody>
+        </table>
+        <p>For <code>auto_backup_*</code> events: <code>{tunnel_count}</code> is every tunnel discovered on the account, <code>{processed_count}</code> is <code>backup_count</code> + <code>error_count</code>, <code>{skipped_count}</code> is tunnels skipped by scheduling rules, and <code>{backed_up_tunnels}</code> / <code>{skipped_tunnels}</code> are comma-separated tunnel name lists (or <code>-</code> if none).</p>
+        <p>Leaving a field empty restores the built-in default for that event. Unknown tokens are left as-is.</p>
+      </section>
+
+      <section id="demo">
+        <h2>Demo mode</h2>
+        <p>Set <code>DEMO=true</code> to exercise the UI without persisting auth data or enabling server-side automation. In demo mode: authentication data is not stored in SQLite or the browser cookie, automatic backups are disabled, notifications are disabled, and the backup archive is disabled. Manual tunnel listing and manual backup downloads still work.</p>
+      </section>
+
+      <section id="security">
+        <h2>Security notes</h2>
+        <ul>
+          <li>The API token is never persisted in plaintext in the database by current versions of the app.</li>
+          <li>If <code>TOKEN_ENCRYPTION_KEY</code> is missing, the token is not written to SQLite.</li>
+          <li>The API token can still be temporarily reused through the browser cookie or environment prefill.</li>
+          <li>Older plaintext tokens already present in the database are upgraded to encrypted form the first time they are read successfully with a valid <code>TOKEN_ENCRYPTION_KEY</code>.</li>
+        </ul>
+      </section>
+
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div class="footer-col">
+      <div class="footer-brand">
+        <img src="assets/cloudflare-logo.png" alt="">
+        Tikka Masala
+      </div>
+      <p>A small self-hosted app to back up and restore Cloudflare Tunnel configurations, with scheduling and notifications built in.</p>
+      <p>Tikka Masala is released under the MIT License. Icons by <a href="https://tabler.io/icons">Tabler Icons</a>.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Site</h4>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="documentation.html">Documentation</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Project</h4>
+      <ul>
+        <li><a href="https://github.com/gioxx/TikkaMasala">GitHub repository</a></li>
+        <li><a href="https://github.com/gioxx/TikkaMasala/issues">Issues</a></li>
+        <li><a href="https://hub.docker.com/r/gfsolone/tikkamasala">Docker Hub</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="wrap">
+      <p class="disclaimer">All trademarks mentioned are the property of their respective owners. Third-party trademarks, product names, trade names, corporate names and companies mentioned may be trademarks of their respective owners or registered trademarks of other companies and have been used for explanatory purposes only and for the benefit of the owner, without any intent to infringe existing copyright.</p>
+    </div>
+  </div>
+</footer>
+
+<button class="back-to-top" type="button" aria-label="Back to top">&uarr;</button>
+<script src="assets/site.js"></script>
+</body>
+</html>

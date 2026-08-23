@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ · Tikka Masala</title>
+<meta name="description" content="Frequently asked questions about Tikka Masala, the Cloudflare Tunnel backup and restore app.">
+<link rel="icon" href="assets/favicon.ico">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <img src="assets/cloudflare-logo.png" alt="">
+      Tikka Masala
+    </a>
+    <button class="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+    </button>
+    <ul>
+      <li><a href="index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5L12 4l8 6.5"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-6h4v6"/></svg>Home</a></li>
+      <li><a href="documentation.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15Z"/></svg>Docs</a></li>
+      <li><a href="faq.html" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.9.8c0 1.7-2.4 1.8-2.4 3.4"/><path d="M12 17h.01"/></svg>FAQ</a></li>
+      <li><a href="https://github.com/gioxx/TikkaMasala"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>GitHub</a></li>
+    </ul>
+  </div>
+</header>
+
+<main>
+  <div class="wrap" style="max-width: 760px;">
+    <div class="page-title">
+      <h1>Frequently asked questions</h1>
+      <p>Common questions about setup, backups, restore, and notifications. See the <a href="documentation.html">full documentation</a> for details.</p>
+    </div>
+
+    <section style="margin-top: 0;">
+      <div class="faq-item">
+        <h3>What Cloudflare API token permissions do I need?</h3>
+        <p><code>Account: Cloudflare Tunnel -&gt; Edit</code> and <code>Zone: DNS -&gt; Edit</code>. If you only plan to take backups and never restore, you can reduce the token to read-only permissions afterwards.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>What happens if I don't set TOKEN_ENCRYPTION_KEY?</h3>
+        <p>The API token is not written to SQLite at all. It's still usable via the browser cookie or environment prefill during your session, but it won't be saved server-side; scheduled automatic backups won't have server-side credentials unless <code>CLOUDFLARE_API_TOKEN</code> is set in the environment.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Can I restore a backup to a different tunnel or account?</h3>
+        <p>Yes. Restoring replaces the current remote configuration of the selected tunnel with the snapshot's configuration: you choose the target tunnel at restore time, which can be the original one or a different one. The restore history on the backup detail page records whether the target matched the original tunnel and account.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>What's the difference between demo mode and normal mode?</h3>
+        <p>In demo mode (<code>DEMO=true</code>), nothing is persisted: no auth data in SQLite or cookies, no automatic backups, no notifications, and the backup archive is disabled. Manual tunnel listing and manual backup downloads still work; it's meant for trying the UI, not for real use.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>How does automatic backup timezone work?</h3>
+        <p>By default, the schedule uses the timezone detected from the browser when you save it. If you want every user and the scheduler itself to agree on a single fixed timezone, set <code>AUTO_BACKUP_TIMEZONE</code> (e.g. <code>Europe/Rome</code>).</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Can I back up only some tunnels, or less frequently for some?</h3>
+        <p>Yes, on the <strong>Advanced schedule</strong> page. Choose between backing up all tunnels or a selected subset, and set a per-tunnel frequency override: every run, once per week, or once per month.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>How does backup retention work?</h3>
+        <p>Set <code>BACKUP_RETENTION_DAYS</code> and Tikka Masala automatically deletes backup files and their database records (including restore history) once they're older than that many days, right after new backups are created.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Do I need Docker?</h3>
+        <p>No, but it's the easiest path. Tikka Masala also runs directly with Python 3.12 and <code>uvicorn</code> if you prefer a bare install: see <a href="documentation.html#running">Running the app</a>.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Where is everything stored?</h3>
+        <p>Under <code>DATA_DIR</code> (default <code>/data</code>, typically mounted from <code>./data</code>): <code>app.db</code> for metadata, history, and saved auth, and <code>backups/*.json</code> for the snapshots themselves.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Can I use both webhook and Telegram notifications together?</h3>
+        <p>Yes, they're independent channels: enable either one on its own or both at the same time, each with its own event list.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Does Tikka Masala back up my whole Cloudflare account?</h3>
+        <p>No. It only backs up the tunnel configuration returned by the Cloudflare Tunnel configuration endpoints for the tunnels you back up, plus metadata like timestamp and tunnel name, not arbitrary account-wide settings.</p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-grid">
+    <div class="footer-col">
+      <div class="footer-brand">
+        <img src="assets/cloudflare-logo.png" alt="">
+        Tikka Masala
+      </div>
+      <p>A small self-hosted app to back up and restore Cloudflare Tunnel configurations, with scheduling and notifications built in.</p>
+      <p>Tikka Masala is released under the MIT License. Icons by <a href="https://tabler.io/icons">Tabler Icons</a>.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Site</h4>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="documentation.html">Documentation</a></li>
+        <li><a href="faq.html">FAQ</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Project</h4>
+      <ul>
+        <li><a href="https://github.com/gioxx/TikkaMasala">GitHub repository</a></li>
+        <li><a href="https://github.com/gioxx/TikkaMasala/issues">Issues</a></li>
+        <li><a href="https://hub.docker.com/r/gfsolone/tikkamasala">Docker Hub</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="wrap">
+      <p class="disclaimer">All trademarks mentioned are the property of their respective owners. Third-party trademarks, product names, trade names, corporate names and companies mentioned may be trademarks of their respective owners or registered trademarks of other companies and have been used for explanatory purposes only and for the benefit of the owner, without any intent to infringe existing copyright.</p>
+    </div>
+  </div>
+</footer>
+
+<button class="back-to-top" type="button" aria-label="Back to top">&uarr;</button>
+<script src="assets/site.js"></script>
+</body>
+</html>
