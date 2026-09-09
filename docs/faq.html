@@ -86,6 +86,11 @@
       </div>
 
       <div class="faq-item">
+        <h3>Why don't my Telegram notifications show the details block anymore?</h3>
+        <p>As of 1.3.5, Telegram messages are compact by default: only the title and message, no <code>key: value</code> details block. Uncheck <strong>Compact Telegram notifications</strong> on the <a href="documentation.html#notifications">notification customization page</a> to bring it back. The webhook channel always receives the full payload regardless of this setting.</p>
+      </div>
+
+      <div class="faq-item">
         <h3>Does Tikka Masala back up my whole Cloudflare account?</h3>
         <p>No. It only backs up the tunnel configuration returned by the Cloudflare Tunnel configuration endpoints for the tunnels you back up, plus metadata like timestamp and tunnel name, not arbitrary account-wide settings.</p>
       </div>

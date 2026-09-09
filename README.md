@@ -279,7 +279,7 @@ Webhook notifications send a JSON payload with:
 - timestamp
 - event-specific details
 
-Telegram notifications send the same information as a formatted plain-text message through the Telegram Bot API.
+Telegram notifications send the same information as a formatted plain-text message through the Telegram Bot API. By default Telegram messages are compact (title and message only); toggle **Compact Telegram notifications** off on the **Customize notification messages** page to also append the structured `key: value` details block (trigger, account_id, tunnel counts, skipped tunnels, etc.). The webhook channel is unaffected either way and always receives the full payload.
 
 When notifications are configured:
 
@@ -323,6 +323,8 @@ For `auto_backup_*` events:
 Leaving a field empty restores the built-in default for that event. Unknown tokens are left as-is in the output.
 
 > **Note:** as of 1.3.4, the default `auto_backup_*` messages include the new tokens above. If you had already saved a custom message, clear the field (or click *Use default*) on the notification customization page to pick up the new format.
+
+> **Note:** as of 1.3.5, Telegram notifications are compact by default (title and message only, no details block). Uncheck **Compact Telegram notifications** on the same page if you relied on the previous, more verbose format.
 
 ## Demo Mode
 
