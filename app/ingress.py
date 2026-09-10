@@ -98,16 +98,35 @@ def fragile_rules(rules: list[IngressRule]) -> list[IngressRule]:
     return [rule for rule in rules if rule.is_fragile]
 
 
+def origin_request_delta(
+    before: dict[str, Any], after: dict[str, Any]
+) -> list[tuple[str, Any, Any]]:
+    """Return ``(key, old, new)`` for every ``originRequest`` key that changed.
+
+    Keys present on only one side report ``None`` for the missing side.
+    """
+
+    before = before if isinstance(before, dict) else {}
+    after = after if isinstance(after, dict) else {}
+    keys = sorted(set(before) | set(after))
+    return [
+        (key, before.get(key), after.get(key))
+        for key in keys
+        if before.get(key) != after.get(key)
+    ]
+
+
 @dataclass
 class IngressDiff:
     added: list[IngressRule] = field(default_factory=list)
     removed: list[IngressRule] = field(default_factory=list)
     changed: list[tuple[IngressRule, IngressRule]] = field(default_factory=list)
     unchanged: list[IngressRule] = field(default_factory=list)
+    reordered: bool = False
 
     @property
     def has_changes(self) -> bool:
-        return bool(self.added or self.removed or self.changed)
+        return bool(self.added or self.removed or self.changed or self.reordered)
 
 
 def _key(rule: IngressRule) -> tuple[str | None, str | None]:
@@ -117,7 +136,12 @@ def _key(rule: IngressRule) -> tuple[str | None, str | None]:
 def diff_ingress(
     current: list[IngressRule], incoming: list[IngressRule]
 ) -> IngressDiff:
-    """Diff the live config (``current``) against the snapshot (``incoming``)."""
+    """Diff the live config (``current``) against the snapshot (``incoming``).
+
+    Cloudflare evaluates ingress rules top to bottom, so a pure reorder of
+    otherwise-identical rules still changes routing: it is reported via
+    ``reordered`` even when nothing was added, removed, or edited.
+    """
 
     current_by_key = {_key(rule): rule for rule in current}
     incoming_by_key = {_key(rule): rule for rule in incoming}
@@ -135,5 +159,9 @@ def diff_ingress(
     for key, cur in current_by_key.items():
         if key not in incoming_by_key:
             diff.removed.append(cur)
+
+    shared_current = [_key(r) for r in current if _key(r) in incoming_by_key]
+    shared_incoming = [_key(r) for r in incoming if _key(r) in current_by_key]
+    diff.reordered = shared_current != shared_incoming
 
     return diff

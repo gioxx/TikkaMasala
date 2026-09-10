@@ -5,6 +5,7 @@ from app.ingress import (
     extract_ingress,
     fragile_rules,
     is_fragile_service,
+    origin_request_delta,
     service_host,
 )
 
@@ -109,3 +110,47 @@ def test_diff_ingress_no_changes():
     diff = diff_ingress(same, list(same))
     assert isinstance(diff, IngressDiff)
     assert diff.has_changes is False
+    assert diff.reordered is False
+
+
+def test_diff_ingress_detects_pure_reorder():
+    current = _rules(
+        ("a.example.com", "http://10.0.0.1:80", None, None),
+        ("b.example.com", "http://10.0.0.2:80", None, None),
+        (None, "http_status:404", None, None),
+    )
+    incoming = _rules(
+        ("b.example.com", "http://10.0.0.2:80", None, None),
+        ("a.example.com", "http://10.0.0.1:80", None, None),
+        (None, "http_status:404", None, None),
+    )
+    diff = diff_ingress(current, incoming)
+    assert diff.added == [] and diff.removed == [] and diff.changed == []
+    assert diff.reordered is True
+    assert diff.has_changes is True
+
+
+def test_diff_ingress_reorder_ignores_added_removed_positions():
+    current = _rules(
+        ("a.example.com", "http://10.0.0.1:80", None, None),
+        ("b.example.com", "http://10.0.0.2:80", None, None),
+    )
+    incoming = _rules(
+        ("c.example.com", "http://10.0.0.3:80", None, None),
+        ("a.example.com", "http://10.0.0.1:80", None, None),
+        ("b.example.com", "http://10.0.0.2:80", None, None),
+    )
+    diff = diff_ingress(current, incoming)
+    assert [r.hostname for r in diff.added] == ["c.example.com"]
+    assert diff.reordered is False
+
+
+def test_origin_request_delta():
+    before = {"noTLSVerify": False, "connectTimeout": 30, "httpHostHeader": "old"}
+    after = {"noTLSVerify": True, "connectTimeout": 30, "originServerName": "x"}
+    assert origin_request_delta(before, after) == [
+        ("httpHostHeader", "old", None),
+        ("noTLSVerify", False, True),
+        ("originServerName", None, "x"),
+    ]
+    assert origin_request_delta({}, {}) == []

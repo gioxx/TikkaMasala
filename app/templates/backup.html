@@ -171,8 +171,29 @@
               <tr><td><span class="status-pill status-warn">remove</span></td><td>{{ rule.hostname or 'catch-all' }}</td><td><code>{{ rule.service }}</code></td></tr>
               {% endfor %}
               {% for current, incoming in ingress_diff.changed %}
-              <tr><td><span class="status-pill status-warn">change</span></td><td>{{ incoming.hostname or 'catch-all' }}</td><td><code>{{ current.service }}</code> &rarr; <code>{{ incoming.service }}</code></td></tr>
+              <tr>
+                <td><span class="status-pill status-warn">change</span></td>
+                <td>{{ incoming.hostname or 'catch-all' }}</td>
+                <td>
+                  {% if current.service != incoming.service %}
+                  <code>{{ current.service }}</code> &rarr; <code>{{ incoming.service }}</code>
+                  {% else %}
+                  <code>{{ incoming.service }}</code>
+                  {% endif %}
+                  {% set deltas = origin_request_delta(current.origin_request, incoming.origin_request) %}
+                  {% if deltas %}
+                  <div class="origin-delta">
+                    {% for key, old, new in deltas %}
+                    <div><code>{{ key }}</code>: {{ old if old is not none else '—' }} &rarr; {{ new if new is not none else '—' }}</div>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                </td>
+              </tr>
               {% endfor %}
+              {% if ingress_diff.reordered %}
+              <tr><td><span class="status-pill status-warn">reorder</span></td><td colspan="2">Rule order differs between the snapshot and the live configuration. Cloudflare matches rules top to bottom, so applying this snapshot can change which origin serves a request.</td></tr>
+              {% endif %}
               {% if not ingress_diff.has_changes %}
               <tr><td colspan="3">No ingress changes &mdash; the snapshot matches the live configuration.</td></tr>
               {% endif %}

@@ -493,6 +493,11 @@ body.has-floating-nav { --floating-nav-offset: 3.2rem; }
   border-color: var(--status-warn-border);
   color: var(--status-warn-text);
 }
+.origin-delta {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
 .inline-notice {
   margin: 0.85rem 0 0;
   padding: 0.9rem 1rem;

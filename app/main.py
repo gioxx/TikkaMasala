@@ -23,7 +23,13 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.ingress import IngressDiff, diff_ingress, extract_ingress, fragile_rules
+from app.ingress import (
+    IngressDiff,
+    diff_ingress,
+    extract_ingress,
+    fragile_rules,
+    origin_request_delta,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
@@ -88,6 +94,7 @@ app = FastAPI(title="Tikka Masala")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
+templates.env.globals["origin_request_delta"] = origin_request_delta
 logger = logging.getLogger(__name__)
 auto_backup_scheduler = AsyncIOScheduler(timezone="UTC")
 auto_backup_lock = asyncio.Lock()
@@ -2243,6 +2250,9 @@ async def restore_backup(
         set_api_token_cookie(response, api_token)
         return response
     except HTTPException as exc:
+        if mode == "preview":
+            logger.warning("Restore preview failed (backup_id=%s): %s", backup_id, exc.detail)
+            return render_backup_page(request, backup_id, error=exc.detail)
         logger.warning("Restore failed (backup_id=%s): %s", backup_id, exc.detail)
         _rf_details = {
             "backup_id": backup_id,
