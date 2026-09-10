@@ -154,8 +154,24 @@ class IngressDiff:
         return bool(self.added or self.removed or self.changed or self.reordered)
 
 
-def _key(rule: IngressRule) -> tuple[str | None, str | None]:
-    return (rule.hostname, rule.path)
+_RuleKey = tuple[str | None, str | None, int]
+
+
+def _keyed(rules: list[IngressRule]) -> list[tuple[_RuleKey, IngressRule]]:
+    """Pair each rule with ``(hostname, path, occurrence)``.
+
+    The occurrence counter keeps duplicate ``(hostname, path)`` rules distinct so
+    the diff does not silently collapse them (Cloudflare routes on first match).
+    """
+
+    seen: dict[tuple[str | None, str | None], int] = {}
+    keyed: list[tuple[_RuleKey, IngressRule]] = []
+    for rule in rules:
+        base = (rule.hostname, rule.path)
+        occurrence = seen.get(base, 0)
+        seen[base] = occurrence + 1
+        keyed.append(((rule.hostname, rule.path, occurrence), rule))
+    return keyed
 
 
 def diff_ingress(
@@ -168,11 +184,13 @@ def diff_ingress(
     ``reordered`` even when nothing was added, removed, or edited.
     """
 
-    current_by_key = {_key(rule): rule for rule in current}
-    incoming_by_key = {_key(rule): rule for rule in incoming}
+    current_keyed = _keyed(current)
+    incoming_keyed = _keyed(incoming)
+    current_by_key = dict(current_keyed)
+    incoming_by_key = dict(incoming_keyed)
     diff = IngressDiff()
 
-    for key, inc in incoming_by_key.items():
+    for key, inc in incoming_keyed:
         cur = current_by_key.get(key)
         if cur is None:
             diff.added.append(inc)
@@ -181,12 +199,12 @@ def diff_ingress(
         else:
             diff.unchanged.append(inc)
 
-    for key, cur in current_by_key.items():
+    for key, cur in current_keyed:
         if key not in incoming_by_key:
             diff.removed.append(cur)
 
-    shared_current = [_key(r) for r in current if _key(r) in incoming_by_key]
-    shared_incoming = [_key(r) for r in incoming if _key(r) in current_by_key]
+    shared_current = [key for key, _ in current_keyed if key in incoming_by_key]
+    shared_incoming = [key for key, _ in incoming_keyed if key in current_by_key]
     diff.reordered = shared_current != shared_incoming
 
     return diff

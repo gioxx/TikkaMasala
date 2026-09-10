@@ -165,15 +165,15 @@
             <thead><tr><th>Change</th><th>Hostname / setting</th><th>Service (origin) / value</th></tr></thead>
             <tbody>
               {% for rule in ingress_diff.added %}
-              <tr><td><span class="status-pill status-alt">add</span></td><td>{{ rule.hostname or 'catch-all' }}</td><td><code>{{ rule.service }}</code></td></tr>
+              <tr><td><span class="status-pill status-alt">add</span></td><td>{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td><td><code>{{ rule.service }}</code></td></tr>
               {% endfor %}
               {% for rule in ingress_diff.removed %}
-              <tr><td><span class="status-pill status-warn">remove</span></td><td>{{ rule.hostname or 'catch-all' }}</td><td><code>{{ rule.service }}</code></td></tr>
+              <tr><td><span class="status-pill status-warn">remove</span></td><td>{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td><td><code>{{ rule.service }}</code></td></tr>
               {% endfor %}
               {% for current, incoming in ingress_diff.changed %}
               <tr>
                 <td><span class="status-pill status-warn">change</span></td>
-                <td>{{ incoming.hostname or 'catch-all' }}</td>
+                <td>{{ incoming.hostname or 'catch-all' }}{% if incoming.path %} <code>{{ incoming.path }}</code>{% endif %}</td>
                 <td>
                   {% if current.service != incoming.service %}
                   <code>{{ current.service }}</code> &rarr; <code>{{ incoming.service }}</code>
@@ -219,7 +219,7 @@
           </label>
           <label class="full-row">
             <span>API token</span>
-            <input type="password" name="api_token" value="{{ prefill_api_token or '' }}" placeholder="Token with tunnel edit permission" required>
+            <input type="password" name="api_token" value="{{ form_api_token or prefill_api_token or '' }}" placeholder="Token with tunnel edit permission" required>
           </label>
           <div class="full-row actions">
             <button type="submit" name="mode" value="preview">Preview changes</button>

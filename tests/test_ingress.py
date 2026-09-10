@@ -146,6 +146,25 @@ def test_diff_ingress_reorder_ignores_added_removed_positions():
     assert diff.reordered is False
 
 
+def test_diff_ingress_keeps_duplicate_hostpath_rules():
+    current = _rules(
+        ("a.example.com", "http://10.0.0.1:80", None, None),
+        ("a.example.com", "http://10.0.0.2:80", None, None),
+        (None, "http_status:404", None, None),
+    )
+    incoming = _rules(
+        ("a.example.com", "http://localhost:80", None, None),  # first dup changed
+        ("a.example.com", "http://10.0.0.2:80", None, None),  # second dup unchanged
+        (None, "http_status:404", None, None),
+    )
+    diff = diff_ingress(current, incoming)
+    assert [(c.service, n.service) for c, n in diff.changed] == [
+        ("http://10.0.0.1:80", "http://localhost:80"),
+    ]
+    assert diff.added == [] and diff.removed == []
+    assert diff.has_changes is True
+
+
 def test_origin_request_delta():
     before = {"noTLSVerify": False, "connectTimeout": 30, "httpHostHeader": "old"}
     after = {"noTLSVerify": True, "connectTimeout": 30, "originServerName": "x"}

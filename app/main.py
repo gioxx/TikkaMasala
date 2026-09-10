@@ -1695,6 +1695,7 @@ def render_backup_page(
     settings_delta: list[tuple[str, Any, Any]] | None = None,
     form_account_id: str | None = None,
     form_tunnel_id: str | None = None,
+    form_api_token: str | None = None,
 ) -> HTMLResponse:
     backup = get_backup(backup_id)
     content = load_backup_json(backup_id)
@@ -1717,6 +1718,7 @@ def render_backup_page(
             "prefill_api_token": get_saved_api_token(request),
             "form_account_id": form_account_id,
             "form_tunnel_id": form_tunnel_id,
+            "form_api_token": form_api_token,
             "demo_mode": DEMO_MODE,
         },
     )
@@ -2239,6 +2241,7 @@ async def restore_backup(
                 settings_delta=settings_delta,
                 form_account_id=account_id,
                 form_tunnel_id=tunnel_id,
+                form_api_token=api_token,
             )
             set_api_token_cookie(response, api_token)
             return response
@@ -2264,6 +2267,7 @@ async def restore_backup(
             message="Backup restored successfully.",
             form_account_id=account_id,
             form_tunnel_id=tunnel_id,
+            form_api_token=api_token,
         )
         set_api_token_cookie(response, api_token)
         return response
@@ -2276,6 +2280,7 @@ async def restore_backup(
                 error=exc.detail,
                 form_account_id=account_id.strip() or None,
                 form_tunnel_id=tunnel_id.strip() or None,
+                form_api_token=api_token.strip() or None,
             )
         logger.warning("Restore failed (backup_id=%s): %s", backup_id, exc.detail)
         _rf_details = {
@@ -2296,6 +2301,7 @@ async def restore_backup(
             error=exc.detail,
             form_account_id=account_id.strip() or None,
             form_tunnel_id=tunnel_id.strip() or None,
+            form_api_token=api_token.strip() or None,
         )
 
 
