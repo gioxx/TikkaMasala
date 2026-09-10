@@ -147,12 +147,26 @@ def config_settings_delta(
 
 
 @dataclass
+class OrderedRow:
+    """One rule in snapshot order, with its 1-based position and status."""
+
+    position: int
+    status: str  # "add" | "change" | "same"
+    incoming: IngressRule
+    current: IngressRule | None = None
+
+
+@dataclass
 class IngressDiff:
     added: list[IngressRule] = field(default_factory=list)
     removed: list[IngressRule] = field(default_factory=list)
     changed: list[tuple[IngressRule, IngressRule]] = field(default_factory=list)
     unchanged: list[IngressRule] = field(default_factory=list)
     reordered: bool = False
+    # Every snapshot rule in order (positions reveal inserts that shadow a later
+    # rule); removed rules with their position in the live list.
+    ordered: list[OrderedRow] = field(default_factory=list)
+    removed_positions: list[tuple[int, IngressRule]] = field(default_factory=list)
 
     @property
     def has_changes(self) -> bool:
@@ -195,18 +209,23 @@ def diff_ingress(
     incoming_by_key = dict(incoming_keyed)
     diff = IngressDiff()
 
-    for key, inc in incoming_keyed:
+    for position, (key, inc) in enumerate(incoming_keyed, start=1):
         cur = current_by_key.get(key)
         if cur is None:
             diff.added.append(inc)
+            status = "add"
         elif (cur.service, cur.origin_request) != (inc.service, inc.origin_request):
             diff.changed.append((cur, inc))
+            status = "change"
         else:
             diff.unchanged.append(inc)
+            status = "same"
+        diff.ordered.append(OrderedRow(position, status, inc, cur))
 
-    for key, cur in current_keyed:
+    for position, (key, cur) in enumerate(current_keyed, start=1):
         if key not in incoming_by_key:
             diff.removed.append(cur)
+            diff.removed_positions.append((position, cur))
 
     shared_current = [key for key, _ in current_keyed if key in incoming_by_key]
     shared_incoming = [key for key, _ in incoming_keyed if key in current_by_key]

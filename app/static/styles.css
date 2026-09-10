@@ -498,6 +498,11 @@ body.has-floating-nav { --floating-nav-offset: 3.2rem; }
   font-size: 0.8rem;
   color: var(--muted);
 }
+.diff-pos {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-right: 0.35rem;
+}
 .inline-notice {
   margin: 0.85rem 0 0;
   padding: 0.9rem 1rem;

@@ -171,55 +171,51 @@
         {% if ingress_diff is not none %}
         <div class="table-wrap top-gap">
           <table>
-            <thead><tr><th>Change</th><th>Hostname / setting</th><th>Service (origin) / value</th></tr></thead>
+            <thead><tr><th>Pos / change</th><th>Hostname / setting</th><th>Service (origin) / value</th></tr></thead>
             <tbody>
-              {% for rule in ingress_diff.added %}
+              {% for row in ingress_diff.ordered %}
               <tr>
-                <td><span class="status-pill status-alt">add</span></td>
-                <td>{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td>
                 <td>
-                  <code>{{ rule.service }}</code>
-                  {% if rule.origin_request %}
-                  <div class="origin-delta">
-                    {% for key, value in rule.origin_request | dictsort %}
-                    <div><code>{{ key }}</code>: {{ value | tojson }}</div>
-                    {% endfor %}
-                  </div>
-                  {% endif %}
+                  <span class="diff-pos">#{{ row.position }}</span>
+                  {% if row.status == 'add' %}<span class="status-pill status-alt">add</span>
+                  {% elif row.status == 'change' %}<span class="status-pill status-warn">change</span>{% endif %}
                 </td>
-              </tr>
-              {% endfor %}
-              {% for rule in ingress_diff.removed %}
-              <tr>
-                <td><span class="status-pill status-warn">remove</span></td>
-                <td>{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td>
+                <td>{{ row.incoming.hostname or 'catch-all' }}{% if row.incoming.path %} <code>{{ row.incoming.path }}</code>{% endif %}</td>
                 <td>
-                  <code>{{ rule.service }}</code>
-                  {% if rule.origin_request %}
-                  <div class="origin-delta">
-                    {% for key, value in rule.origin_request | dictsort %}
-                    <div><code>{{ key }}</code>: {{ value | tojson }}</div>
-                    {% endfor %}
-                  </div>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-              {% for current, incoming in ingress_diff.changed %}
-              <tr>
-                <td><span class="status-pill status-warn">change</span></td>
-                <td>{{ incoming.hostname or 'catch-all' }}{% if incoming.path %} <code>{{ incoming.path }}</code>{% endif %}</td>
-                <td>
-                  {% if current.service != incoming.service %}
-                  <code>{{ current.service }}</code> &rarr; <code>{{ incoming.service }}</code>
+                  {% if row.status == 'change' and row.current.service != row.incoming.service %}
+                  <code>{{ row.current.service }}</code> &rarr; <code>{{ row.incoming.service }}</code>
                   {% else %}
-                  <code>{{ incoming.service }}</code>
+                  <code>{{ row.incoming.service }}</code>
                   {% endif %}
-                  {% set deltas = origin_request_delta(current.origin_request, incoming.origin_request) %}
-                  {% if deltas %}
+                  {% if row.status == 'change' %}
+                    {% set deltas = origin_request_delta(row.current.origin_request, row.incoming.origin_request) %}
+                    {% if deltas %}
+                    <div class="origin-delta">
+                      {% for key, old, new in deltas %}
+                      <div><code>{{ key }}</code>: {{ old if old is not none else '—' }} &rarr; {{ new if new is not none else '—' }}</div>
+                      {% endfor %}
+                    </div>
+                    {% endif %}
+                  {% elif row.incoming.origin_request %}
+                    <div class="origin-delta">
+                      {% for key, value in row.incoming.origin_request | dictsort %}
+                      <div><code>{{ key }}</code>: {{ value | tojson }}</div>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+              {% for position, rule in ingress_diff.removed_positions %}
+              <tr>
+                <td><span class="diff-pos">#{{ position }}</span> <span class="status-pill status-warn">remove</span></td>
+                <td>{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td>
+                <td>
+                  <code>{{ rule.service }}</code>
+                  {% if rule.origin_request %}
                   <div class="origin-delta">
-                    {% for key, old, new in deltas %}
-                    <div><code>{{ key }}</code>: {{ old if old is not none else '—' }} &rarr; {{ new if new is not none else '—' }}</div>
+                    {% for key, value in rule.origin_request | dictsort %}
+                    <div><code>{{ key }}</code>: {{ value | tojson }}</div>
                     {% endfor %}
                   </div>
                   {% endif %}

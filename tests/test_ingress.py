@@ -167,6 +167,38 @@ def test_diff_ingress_keeps_duplicate_hostpath_rules():
     assert diff.has_changes is True
 
 
+def test_diff_ingress_ordered_marks_insertion_position():
+    current = _rules(
+        ("a.com", "http://x:1", "/special", None),
+        ("a.com", "http://y:2", "/other", None),
+    )
+    incoming = _rules(
+        ("a.com", "http://z:3", None, None),  # new host-wide rule, inserted first
+        ("a.com", "http://x:1", "/special", None),
+        ("a.com", "http://y:2", "/other", None),
+    )
+    diff = diff_ingress(current, incoming)
+    assert [(r.position, r.status) for r in diff.ordered] == [
+        (1, "add"),
+        (2, "same"),
+        (3, "same"),
+    ]
+    assert diff.ordered[0].incoming.service == "http://z:3"
+    assert diff.removed_positions == []
+    assert diff.has_changes is True
+
+
+def test_diff_ingress_ordered_positions_and_removed():
+    current = _rules(
+        ("a", "http://x:1", None, None),
+        ("b", "http://y:1", None, None),
+    )
+    incoming = _rules(("b", "http://y:1", None, None))
+    diff = diff_ingress(current, incoming)
+    assert [(r.position, r.status) for r in diff.ordered] == [(1, "same")]
+    assert [(pos, rule.hostname) for pos, rule in diff.removed_positions] == [(1, "a")]
+
+
 def test_origin_request_delta():
     before = {"noTLSVerify": False, "connectTimeout": 30, "httpHostHeader": "old"}
     after = {"noTLSVerify": True, "connectTimeout": 30, "originServerName": "x"}
