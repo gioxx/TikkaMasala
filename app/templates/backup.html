@@ -98,6 +98,41 @@
         {% if backup.notes %}
         <p><strong>Notes:</strong> {{ backup.notes }}</p>
         {% endif %}
+        {% if fragile_rules %}
+        <section class="notice warn top-gap">
+          <strong>Host-local origins detected.</strong>
+          {{ fragile_rules | length }} ingress rule(s) point at
+          <code>localhost</code> / loopback. If you restore this snapshot onto a
+          different host &mdash; or with <code>cloudflared</code> running in a
+          container &mdash; those routes may return <code>502</code>, because the
+          origin is resolved relative to wherever the tunnel runs. Use
+          <code>host.docker.internal</code>, the bridge gateway IP, or a service
+          name instead.
+        </section>
+        {% endif %}
+        {% if ingress_rules %}
+        <div class="table-wrap top-gap">
+          <table>
+            <thead>
+              <tr><th>Hostname</th><th>Path</th><th>Service (origin)</th></tr>
+            </thead>
+            <tbody>
+              {% for rule in ingress_rules %}
+              <tr>
+                <td>{{ rule.hostname or 'catch-all' }}</td>
+                <td>{% if rule.path %}<code>{{ rule.path }}</code>{% else %}&mdash;{% endif %}</td>
+                <td>
+                  <code>{{ rule.service }}</code>
+                  {% if rule.is_fragile %}
+                  <span class="status-pill status-warn">host-local</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
       </section>
 
       <section class="card" id="restore-form">
@@ -124,6 +159,27 @@
         {% if error %}
         <section class="notice error top-gap" id="restore-notice">{{ error }}</section>
         {% endif %}
+        {% if ingress_diff is not none %}
+        <div class="table-wrap top-gap">
+          <table>
+            <thead><tr><th>Change</th><th>Hostname</th><th>Service (origin)</th></tr></thead>
+            <tbody>
+              {% for rule in ingress_diff.added %}
+              <tr><td><span class="status-pill status-alt">add</span></td><td>{{ rule.hostname or 'catch-all' }}</td><td><code>{{ rule.service }}</code></td></tr>
+              {% endfor %}
+              {% for rule in ingress_diff.removed %}
+              <tr><td><span class="status-pill status-warn">remove</span></td><td>{{ rule.hostname or 'catch-all' }}</td><td><code>{{ rule.service }}</code></td></tr>
+              {% endfor %}
+              {% for current, incoming in ingress_diff.changed %}
+              <tr><td><span class="status-pill status-warn">change</span></td><td>{{ incoming.hostname or 'catch-all' }}</td><td><code>{{ current.service }}</code> &rarr; <code>{{ incoming.service }}</code></td></tr>
+              {% endfor %}
+              {% if not ingress_diff.has_changes %}
+              <tr><td colspan="3">No ingress changes &mdash; the snapshot matches the live configuration.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
         <form method="post" action="/backup/{{ backup.id }}/restore" class="grid form-grid">
           <label>
             <span>Account ID</span>
@@ -138,7 +194,8 @@
             <input type="password" name="api_token" value="{{ prefill_api_token or '' }}" placeholder="Token with tunnel edit permission" required>
           </label>
           <div class="full-row actions">
-            <button type="submit" class="danger">Restore backup</button>
+            <button type="submit" name="mode" value="preview">Preview changes</button>
+            <button type="submit" name="mode" value="apply" class="danger">Restore backup</button>
           </div>
         </form>
       </section>

@@ -488,6 +488,11 @@ body.has-floating-nav { --floating-nav-offset: 3.2rem; }
 }
 .notice.success { background: var(--success); border-color: var(--success-border); }
 .notice.error { background: var(--error); border-color: var(--error-border); }
+.notice.warn {
+  background: var(--status-warn-bg);
+  border-color: var(--status-warn-border);
+  color: var(--status-warn-text);
+}
 .inline-notice {
   margin: 0.85rem 0 0;
   padding: 0.9rem 1rem;

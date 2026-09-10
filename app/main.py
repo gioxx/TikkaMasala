@@ -23,6 +23,8 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.ingress import IngressDiff, diff_ingress, extract_ingress, fragile_rules
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 BACKUP_DIR = DATA_DIR / "backups"
@@ -1681,10 +1683,12 @@ def render_backup_page(
     backup_id: int,
     message: str | None = None,
     error: str | None = None,
+    ingress_diff: IngressDiff | None = None,
 ) -> HTMLResponse:
     backup = get_backup(backup_id)
     content = load_backup_json(backup_id)
     restores = get_restore_history(backup_id)
+    ingress_rules = extract_ingress(content)
     return templates.TemplateResponse(
         request,
         "backup.html",
@@ -1692,6 +1696,9 @@ def render_backup_page(
             "backup": backup,
             "restores": restores,
             "content": json.dumps(content, indent=2, ensure_ascii=False),
+            "ingress_rules": ingress_rules,
+            "fragile_rules": fragile_rules(ingress_rules),
+            "ingress_diff": ingress_diff,
             "message": message,
             "error": error,
             "prefill_account_id": get_saved_account_id(),
@@ -2183,6 +2190,7 @@ async def restore_backup(
     account_id: str = Form(default=""),
     tunnel_id: str = Form(...),
     api_token: str = Form(default=""),
+    mode: str = Form(default="apply"),
 ) -> HTMLResponse:
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
@@ -2190,7 +2198,8 @@ async def restore_backup(
         account_id = resolve_account_id(account_id)
         api_token = resolve_api_token(request, api_token)
         logger.info(
-            "Restore requested (backup_id=%s, account_id=%s, tunnel_id=%s).",
+            "Restore %s requested (backup_id=%s, account_id=%s, tunnel_id=%s).",
+            "preview" if mode == "preview" else "apply",
             backup_id,
             account_id,
             tunnel_id,
@@ -2200,6 +2209,20 @@ async def restore_backup(
         config_body = configuration.get("config")
         if not isinstance(config_body, dict):
             raise HTTPException(status_code=400, detail="Backup file does not contain a restorable tunnel configuration")
+        if mode == "preview":
+            _, live_config = await fetch_tunnel_configuration(account_id, tunnel_id, api_token)
+            live_result = live_config.get("result", {})
+            diff = diff_ingress(extract_ingress(live_result), extract_ingress(payload))
+            remember_account_id(account_id)
+            remember_api_token(api_token)
+            response = render_backup_page(
+                request,
+                backup_id,
+                message="Preview only — nothing was applied.",
+                ingress_diff=diff,
+            )
+            set_api_token_cookie(response, api_token)
+            return response
         await cloudflare_put(account_id, f"cfd_tunnel/{tunnel_id}/configurations", api_token, {"config": config_body})
         remember_account_id(account_id)
         remember_api_token(api_token)
