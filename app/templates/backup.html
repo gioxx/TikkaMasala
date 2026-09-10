@@ -165,10 +165,36 @@
             <thead><tr><th>Change</th><th>Hostname / setting</th><th>Service (origin) / value</th></tr></thead>
             <tbody>
               {% for rule in ingress_diff.added %}
-              <tr><td><span class="status-pill status-alt">add</span></td><td>{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td><td><code>{{ rule.service }}</code></td></tr>
+              <tr>
+                <td><span class="status-pill status-alt">add</span></td>
+                <td>{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td>
+                <td>
+                  <code>{{ rule.service }}</code>
+                  {% if rule.origin_request %}
+                  <div class="origin-delta">
+                    {% for key, value in rule.origin_request | dictsort %}
+                    <div><code>{{ key }}</code>: {{ value | tojson }}</div>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                </td>
+              </tr>
               {% endfor %}
               {% for rule in ingress_diff.removed %}
-              <tr><td><span class="status-pill status-warn">remove</span></td><td>{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td><td><code>{{ rule.service }}</code></td></tr>
+              <tr>
+                <td><span class="status-pill status-warn">remove</span></td>
+                <td>{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td>
+                <td>
+                  <code>{{ rule.service }}</code>
+                  {% if rule.origin_request %}
+                  <div class="origin-delta">
+                    {% for key, value in rule.origin_request | dictsort %}
+                    <div><code>{{ key }}</code>: {{ value | tojson }}</div>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                </td>
+              </tr>
               {% endfor %}
               {% for current, incoming in ingress_diff.changed %}
               <tr>
