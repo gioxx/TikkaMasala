@@ -98,22 +98,47 @@ def fragile_rules(rules: list[IngressRule]) -> list[IngressRule]:
     return [rule for rule in rules if rule.is_fragile]
 
 
-def origin_request_delta(
-    before: dict[str, Any], after: dict[str, Any]
+def dict_delta(
+    before: dict[str, Any],
+    after: dict[str, Any],
+    ignore: "set[str] | frozenset[str] | tuple[str, ...]" = (),
 ) -> list[tuple[str, Any, Any]]:
-    """Return ``(key, old, new)`` for every ``originRequest`` key that changed.
+    """Return sorted ``(key, old, new)`` for every key whose value changed.
 
-    Keys present on only one side report ``None`` for the missing side.
+    Keys present on only one side report ``None`` for the missing side. Keys in
+    ``ignore`` are skipped.
     """
 
     before = before if isinstance(before, dict) else {}
     after = after if isinstance(after, dict) else {}
-    keys = sorted(set(before) | set(after))
+    skip = set(ignore)
+    keys = sorted((set(before) | set(after)) - skip)
     return [
         (key, before.get(key), after.get(key))
         for key in keys
         if before.get(key) != after.get(key)
     ]
+
+
+def origin_request_delta(
+    before: dict[str, Any], after: dict[str, Any]
+) -> list[tuple[str, Any, Any]]:
+    """Return ``(key, old, new)`` for every ``originRequest`` key that changed."""
+
+    return dict_delta(before, after)
+
+
+def config_settings_delta(
+    before_config: dict[str, Any], after_config: dict[str, Any]
+) -> list[tuple[str, Any, Any]]:
+    """Return changed top-level tunnel-config keys other than ``ingress``.
+
+    Restore PUTs the whole snapshot ``config`` body, so fields such as
+    ``warp-routing`` or top-level ``originRequest`` defaults are applied even
+    though the ingress diff never mentions them.
+    """
+
+    return dict_delta(before_config, after_config, ignore={"ingress"})
 
 
 @dataclass

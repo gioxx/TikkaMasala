@@ -162,7 +162,7 @@
         {% if ingress_diff is not none %}
         <div class="table-wrap top-gap">
           <table>
-            <thead><tr><th>Change</th><th>Hostname</th><th>Service (origin)</th></tr></thead>
+            <thead><tr><th>Change</th><th>Hostname / setting</th><th>Service (origin) / value</th></tr></thead>
             <tbody>
               {% for rule in ingress_diff.added %}
               <tr><td><span class="status-pill status-alt">add</span></td><td>{{ rule.hostname or 'catch-all' }}</td><td><code>{{ rule.service }}</code></td></tr>
@@ -194,8 +194,15 @@
               {% if ingress_diff.reordered %}
               <tr><td><span class="status-pill status-warn">reorder</span></td><td colspan="2">Rule order differs between the snapshot and the live configuration. Cloudflare matches rules top to bottom, so applying this snapshot can change which origin serves a request.</td></tr>
               {% endif %}
-              {% if not ingress_diff.has_changes %}
-              <tr><td colspan="3">No ingress changes &mdash; the snapshot matches the live configuration.</td></tr>
+              {% for key, old, new in settings_delta or [] %}
+              <tr>
+                <td><span class="status-pill status-warn">config</span></td>
+                <td><code>{{ key }}</code></td>
+                <td><code>{{ old | tojson if old is not none else '—' }}</code> &rarr; <code>{{ new | tojson if new is not none else '—' }}</code></td>
+              </tr>
+              {% endfor %}
+              {% if not ingress_diff.has_changes and not settings_delta %}
+              <tr><td colspan="3">No changes &mdash; the snapshot matches the live configuration.</td></tr>
               {% endif %}
             </tbody>
           </table>
@@ -204,11 +211,11 @@
         <form method="post" action="/backup/{{ backup.id }}/restore" class="grid form-grid">
           <label>
             <span>Account ID</span>
-            <input type="text" name="account_id" value="{{ prefill_account_id or backup.account_id }}" required>
+            <input type="text" name="account_id" value="{{ form_account_id or prefill_account_id or backup.account_id }}" required>
           </label>
           <label>
             <span>Tunnel ID</span>
-            <input type="text" name="tunnel_id" value="{{ backup.tunnel_id }}" required>
+            <input type="text" name="tunnel_id" value="{{ form_tunnel_id or backup.tunnel_id }}" required>
           </label>
           <label class="full-row">
             <span>API token</span>

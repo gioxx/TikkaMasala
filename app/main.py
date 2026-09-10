@@ -25,6 +25,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.ingress import (
     IngressDiff,
+    config_settings_delta,
     diff_ingress,
     extract_ingress,
     fragile_rules,
@@ -1691,6 +1692,9 @@ def render_backup_page(
     message: str | None = None,
     error: str | None = None,
     ingress_diff: IngressDiff | None = None,
+    settings_delta: list[tuple[str, Any, Any]] | None = None,
+    form_account_id: str | None = None,
+    form_tunnel_id: str | None = None,
 ) -> HTMLResponse:
     backup = get_backup(backup_id)
     content = load_backup_json(backup_id)
@@ -1706,10 +1710,13 @@ def render_backup_page(
             "ingress_rules": ingress_rules,
             "fragile_rules": fragile_rules(ingress_rules),
             "ingress_diff": ingress_diff,
+            "settings_delta": settings_delta,
             "message": message,
             "error": error,
             "prefill_account_id": get_saved_account_id(),
             "prefill_api_token": get_saved_api_token(request),
+            "form_account_id": form_account_id,
+            "form_tunnel_id": form_tunnel_id,
             "demo_mode": DEMO_MODE,
         },
     )
@@ -2218,8 +2225,10 @@ async def restore_backup(
             raise HTTPException(status_code=400, detail="Backup file does not contain a restorable tunnel configuration")
         if mode == "preview":
             _, live_config = await fetch_tunnel_configuration(account_id, tunnel_id, api_token)
-            live_result = live_config.get("result", {})
+            live_result = live_config.get("result", {}) if isinstance(live_config, dict) else {}
+            live_config_body = live_result.get("config") if isinstance(live_result, dict) else {}
             diff = diff_ingress(extract_ingress(live_result), extract_ingress(payload))
+            settings_delta = config_settings_delta(live_config_body, config_body)
             remember_account_id(account_id)
             remember_api_token(api_token)
             response = render_backup_page(
@@ -2227,6 +2236,9 @@ async def restore_backup(
                 backup_id,
                 message="Preview only — nothing was applied.",
                 ingress_diff=diff,
+                settings_delta=settings_delta,
+                form_account_id=account_id,
+                form_tunnel_id=tunnel_id,
             )
             set_api_token_cookie(response, api_token)
             return response
@@ -2246,13 +2258,25 @@ async def restore_backup(
             _rs_details,
             level="info",
         )
-        response = render_backup_page(request, backup_id, message="Backup restored successfully.")
+        response = render_backup_page(
+            request,
+            backup_id,
+            message="Backup restored successfully.",
+            form_account_id=account_id,
+            form_tunnel_id=tunnel_id,
+        )
         set_api_token_cookie(response, api_token)
         return response
     except HTTPException as exc:
         if mode == "preview":
             logger.warning("Restore preview failed (backup_id=%s): %s", backup_id, exc.detail)
-            return render_backup_page(request, backup_id, error=exc.detail)
+            return render_backup_page(
+                request,
+                backup_id,
+                error=exc.detail,
+                form_account_id=account_id.strip() or None,
+                form_tunnel_id=tunnel_id.strip() or None,
+            )
         logger.warning("Restore failed (backup_id=%s): %s", backup_id, exc.detail)
         _rf_details = {
             "backup_id": backup_id,
@@ -2266,7 +2290,13 @@ async def restore_backup(
             _rf_details,
             level="warning",
         )
-        return render_backup_page(request, backup_id, error=exc.detail)
+        return render_backup_page(
+            request,
+            backup_id,
+            error=exc.detail,
+            form_account_id=account_id.strip() or None,
+            form_tunnel_id=tunnel_id.strip() or None,
+        )
 
 
 @app.get("/healthz")

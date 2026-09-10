@@ -1,6 +1,7 @@
 from app.ingress import (
     IngressDiff,
     IngressRule,
+    config_settings_delta,
     diff_ingress,
     extract_ingress,
     fragile_rules,
@@ -154,3 +155,22 @@ def test_origin_request_delta():
         ("originServerName", None, "x"),
     ]
     assert origin_request_delta({}, {}) == []
+
+
+def test_config_settings_delta_ignores_ingress_and_reports_rest():
+    before = {
+        "ingress": [{"hostname": "a", "service": "http://x:1"}],
+        "warp-routing": {"enabled": False},
+        "originRequest": {"connectTimeout": 30},
+    }
+    after = {
+        "ingress": [{"hostname": "b", "service": "http://y:2"}],  # ignored
+        "warp-routing": {"enabled": True},  # changed
+        "originRequest": {"connectTimeout": 30},  # unchanged
+        "no-happy-eyeballs": True,  # added
+    }
+    assert config_settings_delta(before, after) == [
+        ("no-happy-eyeballs", None, True),
+        ("warp-routing", {"enabled": False}, {"enabled": True}),
+    ]
+    assert config_settings_delta({"ingress": []}, {"ingress": [1, 2]}) == []
