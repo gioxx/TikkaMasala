@@ -114,7 +114,7 @@
         <div class="table-wrap top-gap">
           <table>
             <thead>
-              <tr><th>Hostname</th><th>Path</th><th>Service (origin)</th></tr>
+              <tr><th>Hostname</th><th>Path</th><th>Service (origin)</th><th>Origin settings</th></tr>
             </thead>
             <tbody>
               {% for rule in ingress_rules %}
@@ -126,6 +126,15 @@
                   {% if rule.is_fragile %}
                   <span class="status-pill status-warn">host-local</span>
                   {% endif %}
+                </td>
+                <td>
+                  {% if rule.origin_request %}
+                  <div class="origin-delta">
+                    {% for key, value in rule.origin_request | dictsort %}
+                    <div><code>{{ key }}</code>: {{ value | tojson }}</div>
+                    {% endfor %}
+                  </div>
+                  {% else %}&mdash;{% endif %}
                 </td>
               </tr>
               {% endfor %}
