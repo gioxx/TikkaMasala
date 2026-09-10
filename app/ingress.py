@@ -6,11 +6,13 @@ isolation.
 
 from __future__ import annotations
 
+import ipaddress
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit
 
-FRAGILE_HOSTS = frozenset({"localhost", "::1"})
+# Non-IP host names that resolve differently depending on where the tunnel runs.
+FRAGILE_HOST_NAMES = frozenset({"localhost"})
 
 # Services whose scheme implies a network origin we can resolve a host from.
 _NETWORK_SCHEMES = frozenset({"http", "https", "tcp", "ssh", "rdp", "smb", "ws", "wss"})
@@ -38,9 +40,12 @@ def is_fragile_service(service: str) -> bool:
     host = service_host(service)
     if host is None:
         return False
-    if host in FRAGILE_HOSTS:
+    if host in FRAGILE_HOST_NAMES:
         return True
-    return host.startswith("127.")
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 @dataclass(frozen=True)

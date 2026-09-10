@@ -49,7 +49,9 @@ def test_is_fragile_service():
     assert is_fragile_service("http://localhost:3000") is True
     assert is_fragile_service("tcp://127.0.0.5:9000") is True
     assert is_fragile_service("http://[::1]:80") is True
+    assert is_fragile_service("http://[0:0:0:0:0:0:0:1]:8080") is True
     assert is_fragile_service("http://172.17.0.1:8080") is False
+    assert is_fragile_service("http://127.example.com:80") is False
     assert is_fragile_service("http_status:404") is False
 
 
