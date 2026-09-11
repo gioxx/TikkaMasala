@@ -11,6 +11,25 @@ Website: <https://tikkamasala.gioxx.org>
 [![](https://img.shields.io/docker/pulls/gfsolone/tikkamasala.svg)](https://hub.docker.com/r/gfsolone/tikkamasala)
 [![](https://img.shields.io/docker/image-size/gfsolone/tikkamasala/latest.svg)](https://hub.docker.com/r/gfsolone/tikkamasala)
 
+## Table of Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Environment Variables](#environment-variables)
+- [Run with Docker Compose](#run-with-docker-compose)
+- [Run with Docker Only](#run-with-docker-only)
+- [Run Without Docker](#run-without-docker)
+- [How Prefill and Persistence Work](#how-prefill-and-persistence-work)
+- [Storage Layout](#storage-layout)
+- [What Gets Backed Up](#what-gets-backed-up)
+- [Restore Behavior](#restore-behavior)
+- [Automatic Backups](#automatic-backups)
+- [Notifications](#notifications)
+- [Demo Mode](#demo-mode)
+- [Security Notes](#security-notes)
+- [Project Notes](#project-notes)
+- [Credits](#credits)
+
 ## Features
 
 - Verify a Cloudflare API token before using it
