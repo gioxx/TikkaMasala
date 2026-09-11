@@ -23,6 +23,15 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.ingress import (
+    IngressDiff,
+    config_settings_delta,
+    diff_ingress,
+    extract_ingress,
+    fragile_rules,
+    origin_request_delta,
+)
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 BACKUP_DIR = DATA_DIR / "backups"
@@ -86,6 +95,7 @@ app = FastAPI(title="Tikka Masala")
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
+templates.env.globals["origin_request_delta"] = origin_request_delta
 logger = logging.getLogger(__name__)
 auto_backup_scheduler = AsyncIOScheduler(timezone="UTC")
 auto_backup_lock = asyncio.Lock()
@@ -1681,10 +1691,16 @@ def render_backup_page(
     backup_id: int,
     message: str | None = None,
     error: str | None = None,
+    ingress_diff: IngressDiff | None = None,
+    settings_delta: list[tuple[str, Any, Any]] | None = None,
+    form_account_id: str | None = None,
+    form_tunnel_id: str | None = None,
+    form_api_token: str | None = None,
 ) -> HTMLResponse:
     backup = get_backup(backup_id)
     content = load_backup_json(backup_id)
     restores = get_restore_history(backup_id)
+    ingress_rules = extract_ingress(content)
     return templates.TemplateResponse(
         request,
         "backup.html",
@@ -1692,10 +1708,17 @@ def render_backup_page(
             "backup": backup,
             "restores": restores,
             "content": json.dumps(content, indent=2, ensure_ascii=False),
+            "ingress_rules": ingress_rules,
+            "fragile_rules": fragile_rules(ingress_rules),
+            "ingress_diff": ingress_diff,
+            "settings_delta": settings_delta,
             "message": message,
             "error": error,
             "prefill_account_id": get_saved_account_id(),
             "prefill_api_token": get_saved_api_token(request),
+            "form_account_id": form_account_id,
+            "form_tunnel_id": form_tunnel_id,
+            "form_api_token": form_api_token,
             "demo_mode": DEMO_MODE,
         },
     )
@@ -2183,6 +2206,7 @@ async def restore_backup(
     account_id: str = Form(default=""),
     tunnel_id: str = Form(...),
     api_token: str = Form(default=""),
+    mode: str = Form(default="apply"),
 ) -> HTMLResponse:
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
@@ -2190,7 +2214,8 @@ async def restore_backup(
         account_id = resolve_account_id(account_id)
         api_token = resolve_api_token(request, api_token)
         logger.info(
-            "Restore requested (backup_id=%s, account_id=%s, tunnel_id=%s).",
+            "Restore %s requested (backup_id=%s, account_id=%s, tunnel_id=%s).",
+            "preview" if mode == "preview" else "apply",
             backup_id,
             account_id,
             tunnel_id,
@@ -2200,6 +2225,26 @@ async def restore_backup(
         config_body = configuration.get("config")
         if not isinstance(config_body, dict):
             raise HTTPException(status_code=400, detail="Backup file does not contain a restorable tunnel configuration")
+        if mode == "preview":
+            _, live_config = await fetch_tunnel_configuration(account_id, tunnel_id, api_token)
+            live_result = live_config.get("result", {}) if isinstance(live_config, dict) else {}
+            live_config_body = live_result.get("config") if isinstance(live_result, dict) else {}
+            diff = diff_ingress(extract_ingress(live_result), extract_ingress(payload))
+            settings_delta = config_settings_delta(live_config_body, config_body)
+            remember_account_id(account_id)
+            remember_api_token(api_token)
+            response = render_backup_page(
+                request,
+                backup_id,
+                message="Preview only — nothing was applied.",
+                ingress_diff=diff,
+                settings_delta=settings_delta,
+                form_account_id=account_id,
+                form_tunnel_id=tunnel_id,
+                form_api_token=api_token,
+            )
+            set_api_token_cookie(response, api_token)
+            return response
         await cloudflare_put(account_id, f"cfd_tunnel/{tunnel_id}/configurations", api_token, {"config": config_body})
         remember_account_id(account_id)
         remember_api_token(api_token)
@@ -2216,10 +2261,27 @@ async def restore_backup(
             _rs_details,
             level="info",
         )
-        response = render_backup_page(request, backup_id, message="Backup restored successfully.")
+        response = render_backup_page(
+            request,
+            backup_id,
+            message="Backup restored successfully.",
+            form_account_id=account_id,
+            form_tunnel_id=tunnel_id,
+            form_api_token=api_token,
+        )
         set_api_token_cookie(response, api_token)
         return response
     except HTTPException as exc:
+        if mode == "preview":
+            logger.warning("Restore preview failed (backup_id=%s): %s", backup_id, exc.detail)
+            return render_backup_page(
+                request,
+                backup_id,
+                error=exc.detail,
+                form_account_id=account_id.strip() or None,
+                form_tunnel_id=tunnel_id.strip() or None,
+                form_api_token=api_token.strip() or None,
+            )
         logger.warning("Restore failed (backup_id=%s): %s", backup_id, exc.detail)
         _rf_details = {
             "backup_id": backup_id,
@@ -2233,7 +2295,14 @@ async def restore_backup(
             _rf_details,
             level="warning",
         )
-        return render_backup_page(request, backup_id, error=exc.detail)
+        return render_backup_page(
+            request,
+            backup_id,
+            error=exc.detail,
+            form_account_id=account_id.strip() or None,
+            form_tunnel_id=tunnel_id.strip() or None,
+            form_api_token=api_token.strip() or None,
+        )
 
 
 @app.get("/healthz")

@@ -98,6 +98,50 @@
         {% if backup.notes %}
         <p><strong>Notes:</strong> {{ backup.notes }}</p>
         {% endif %}
+        {% if fragile_rules %}
+        <section class="notice warn top-gap">
+          <strong>Host-local origins detected.</strong>
+          {{ fragile_rules | length }} ingress rule(s) point at
+          <code>localhost</code> / loopback. If you restore this snapshot onto a
+          different host &mdash; or with <code>cloudflared</code> running in a
+          container &mdash; those routes may return <code>502</code>, because the
+          origin is resolved relative to wherever the tunnel runs. Use
+          <code>host.docker.internal</code>, the bridge gateway IP, or a service
+          name instead.
+        </section>
+        {% endif %}
+        {% if ingress_rules %}
+        <div class="table-wrap top-gap">
+          <table>
+            <thead>
+              <tr><th>Hostname</th><th>Path</th><th>Service (origin)</th><th>Origin settings</th></tr>
+            </thead>
+            <tbody>
+              {% for rule in ingress_rules %}
+              <tr>
+                <td>{{ rule.hostname or 'catch-all' }}</td>
+                <td>{% if rule.path %}<code>{{ rule.path }}</code>{% else %}&mdash;{% endif %}</td>
+                <td>
+                  <code>{{ rule.service }}</code>
+                  {% if rule.is_fragile %}
+                  <span class="status-pill status-warn">host-local</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if rule.origin_request %}
+                  <div class="origin-delta">
+                    {% for key, value in rule.origin_request | dictsort %}
+                    <div><code>{{ key }}</code>: {{ value | tojson }}</div>
+                    {% endfor %}
+                  </div>
+                  {% else %}&mdash;{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
       </section>
 
       <section class="card" id="restore-form">
@@ -124,21 +168,93 @@
         {% if error %}
         <section class="notice error top-gap" id="restore-notice">{{ error }}</section>
         {% endif %}
+        {% if ingress_diff is not none %}
+        <div class="table-wrap top-gap">
+          <table>
+            <thead><tr><th>Pos / change</th><th>Hostname / setting</th><th>Service (origin) / value</th></tr></thead>
+            <tbody>
+              {% for row in ingress_diff.ordered %}
+              <tr>
+                <td>
+                  <span class="diff-pos">#{{ row.position }}</span>
+                  {% if row.status == 'add' %}<span class="status-pill status-alt">add</span>
+                  {% elif row.status == 'change' %}<span class="status-pill status-warn">change</span>{% endif %}
+                </td>
+                <td>{{ row.incoming.hostname or 'catch-all' }}{% if row.incoming.path %} <code>{{ row.incoming.path }}</code>{% endif %}</td>
+                <td>
+                  {% if row.status == 'change' and row.current.service != row.incoming.service %}
+                  <code>{{ row.current.service }}</code> &rarr; <code>{{ row.incoming.service }}</code>
+                  {% else %}
+                  <code>{{ row.incoming.service }}</code>
+                  {% endif %}
+                  {% if row.status == 'change' %}
+                    {% set deltas = origin_request_delta(row.current.origin_request, row.incoming.origin_request) %}
+                    {% if deltas %}
+                    <div class="origin-delta">
+                      {% for key, old, new in deltas %}
+                      <div><code>{{ key }}</code>: {{ old if old is not none else '—' }} &rarr; {{ new if new is not none else '—' }}</div>
+                      {% endfor %}
+                    </div>
+                    {% endif %}
+                  {% elif row.incoming.origin_request %}
+                    <div class="origin-delta">
+                      {% for key, value in row.incoming.origin_request | dictsort %}
+                      <div><code>{{ key }}</code>: {{ value | tojson }}</div>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+              {% for position, rule in ingress_diff.removed_positions %}
+              <tr>
+                <td><span class="diff-pos">#{{ position }}</span> <span class="status-pill status-warn">remove</span></td>
+                <td>{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td>
+                <td>
+                  <code>{{ rule.service }}</code>
+                  {% if rule.origin_request %}
+                  <div class="origin-delta">
+                    {% for key, value in rule.origin_request | dictsort %}
+                    <div><code>{{ key }}</code>: {{ value | tojson }}</div>
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+              {% if ingress_diff.reordered %}
+              <tr><td><span class="status-pill status-warn">reorder</span></td><td colspan="2">Rule order differs between the snapshot and the live configuration. Cloudflare matches rules top to bottom, so applying this snapshot can change which origin serves a request.</td></tr>
+              {% endif %}
+              {% for key, old, new in settings_delta or [] %}
+              <tr>
+                <td><span class="status-pill status-warn">config</span></td>
+                <td><code>{{ key }}</code></td>
+                <td><code>{{ old | tojson if old is not none else '—' }}</code> &rarr; <code>{{ new | tojson if new is not none else '—' }}</code></td>
+              </tr>
+              {% endfor %}
+              {% if not ingress_diff.has_changes and not settings_delta %}
+              <tr><td colspan="3">No changes &mdash; the snapshot matches the live configuration.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
         <form method="post" action="/backup/{{ backup.id }}/restore" class="grid form-grid">
           <label>
             <span>Account ID</span>
-            <input type="text" name="account_id" value="{{ prefill_account_id or backup.account_id }}" required>
+            <input type="text" name="account_id" value="{{ form_account_id or prefill_account_id or backup.account_id }}" required>
           </label>
           <label>
             <span>Tunnel ID</span>
-            <input type="text" name="tunnel_id" value="{{ backup.tunnel_id }}" required>
+            <input type="text" name="tunnel_id" value="{{ form_tunnel_id or backup.tunnel_id }}" required>
           </label>
           <label class="full-row">
             <span>API token</span>
-            <input type="password" name="api_token" value="{{ prefill_api_token or '' }}" placeholder="Token with tunnel edit permission" required>
+            <input type="password" name="api_token" value="{{ form_api_token or prefill_api_token or '' }}" placeholder="Token with tunnel edit permission" required>
           </label>
           <div class="full-row actions">
-            <button type="submit" class="danger">Restore backup</button>
+            <button type="submit" name="mode" value="preview">Preview changes</button>
+            <button type="submit" name="mode" value="apply" class="danger">Restore backup</button>
           </div>
         </form>
       </section>

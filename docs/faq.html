@@ -51,6 +51,16 @@
       </div>
 
       <div class="faq-item">
+        <h3>Why does a restored route return 502 even though the backup worked fine?</h3>
+        <p>Check whether that ingress rule's origin is <code>localhost</code> or a loopback address (<code>127.0.0.1</code>, <code>::1</code>) &mdash; the backup detail page flags these as <strong>host-local</strong>. That address is resolved relative to wherever <code>cloudflared</code> runs, and when it runs in a container, <code>localhost</code> means the container, not the Docker host. Point the rule at <code>host.docker.internal</code>, the bridge gateway IP, or a service/container name instead. Use <strong>Preview changes</strong> on the restore form to see the full ingress diff, including host-local origins, before you apply.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Can I see what a restore will change before applying it?</h3>
+        <p>Yes. Press <strong>Preview changes</strong> on the restore form instead of <strong>Restore backup</strong>. Tikka Masala fetches the target tunnel's live configuration, diffs it against the snapshot, and shows every ingress rule in order (added, changed, or unchanged, with an inserted rule's position visible so you can spot one that would shadow an existing rule), removed rules, a note if only the rule order differs, and any change to non-ingress settings such as <code>warp-routing</code>. Nothing is applied and no restore history is recorded until you press <strong>Restore backup</strong>.</p>
+      </div>
+
+      <div class="faq-item">
         <h3>What's the difference between demo mode and normal mode?</h3>
         <p>In demo mode (<code>DEMO=true</code>), nothing is persisted: no auth data in SQLite or cookies, no automatic backups, no notifications, and the backup archive is disabled. Manual tunnel listing and manual backup downloads still work; it's meant for trying the UI, not for real use.</p>
       </div>

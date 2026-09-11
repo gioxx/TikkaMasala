@@ -188,12 +188,26 @@ volumes:
       <section id="backups">
         <h2>What gets backed up</h2>
         <p>Tikka Masala saves the tunnel configuration returned by the Cloudflare Tunnel configuration endpoints, along with backup metadata: export timestamp, account ID, tunnel ID, tunnel name, and notes. It does not back up arbitrary account-wide Cloudflare settings.</p>
+        <p>The backup detail page lists every ingress rule from the snapshot &mdash; hostname, path, origin <code>service</code>, and any <code>originRequest</code> settings (<code>noTLSVerify</code>, <code>httpHostHeader</code>, <code>connectTimeout</code>, and similar) &mdash; instead of just a route count, so you can see where each route points without downloading the JSON.</p>
+        <div class="note">
+          A rule whose <code>service</code> targets <code>localhost</code> or a loopback address (<code>127.0.0.0/8</code>, <code>::1</code>) is flagged as <strong>host-local</strong>. That address is resolved relative to wherever <code>cloudflared</code> runs: when it runs in a container, <code>localhost</code> is the container, not the Docker host, so the route can return <code>502</code> after a restore even though it worked where the backup was taken. Use <code>host.docker.internal</code>, the bridge gateway IP, or a service/container name instead.
+        </div>
       </section>
 
       <section id="restore">
         <h2>Restore behavior</h2>
         <p>Restoring a backup replaces the current remote configuration of the selected tunnel with the configuration stored in the snapshot.</p>
         <p>The backup detail page keeps a restore history so you can see: when a backup was restored, which account and tunnel it was restored to, and whether the restore targeted the original tunnel, a different tunnel, or a different account.</p>
+        <h3>Preview changes before restoring</h3>
+        <p>The restore form has a <strong>Preview changes</strong> button next to <strong>Restore backup</strong>. It fetches the target tunnel's current live configuration and compares it against the snapshot without applying anything, then shows:</p>
+        <ul>
+          <li>every ingress rule in the snapshot's order, with its position and whether it's unchanged, changed, or newly added &mdash; so an inserted rule that would shadow a later, more specific rule is visible before you apply it</li>
+          <li>removed rules, with the position they currently hold live</li>
+          <li>which <code>originRequest</code> settings changed on an existing rule, or which ones a new/removed rule carries</li>
+          <li>a note when only the rule order differs between the snapshot and the live configuration (Cloudflare matches ingress rules top to bottom, so a pure reorder can still change routing)</li>
+          <li>changes to non-ingress config fields such as <code>warp-routing</code>, since restore replaces the whole tunnel configuration, not just <code>ingress</code></li>
+        </ul>
+        <p>Previewing does not apply anything or record restore history; the account ID, tunnel ID, and API token you entered stay filled in so you can review the diff and then press <strong>Restore backup</strong> immediately.</p>
       </section>
 
       <section id="scheduling">

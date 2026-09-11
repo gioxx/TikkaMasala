@@ -194,6 +194,12 @@ The backup detail page keeps a restore history so you can see:
 - which tunnel it was restored to
 - whether the restore targeted the original tunnel, a different tunnel, or a different account
 
+### Origin addresses and containers
+
+Each ingress rule carries an origin `service` such as `http://localhost:3000`. `localhost` (and `127.0.0.0/8`) is resolved relative to wherever `cloudflared` runs. When `cloudflared` runs in a container, `localhost` is the container, not the Docker host, so a rule pointing there returns `502` while rules that use `host.docker.internal`, the bridge gateway IP, or a service name keep working.
+
+The backup detail page lists every ingress rule with its origin address and highlights host-local origins. Use **Preview changes** on the restore form to see which ingress rules a snapshot would add, remove, or change against the live tunnel configuration before applying it.
+
 ## Automatic Backups
 
 Tikka Masala can schedule recurring backups for tunnels visible in the configured account.
