@@ -1,174 +1,1086 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tikka Masala · Cloudflare Tunnel backup &amp; restore</title>
-<meta name="description" content="Tikka Masala is a small FastAPI web app for backing up and restoring Cloudflare Tunnel configurations.">
-<link rel="icon" href="assets/favicon.ico">
-<link rel="stylesheet" href="assets/site.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tikka Masala — Cloudflare Tunnel backup &amp; restore</title>
+  <meta name="description" content="Self-hosted web app that snapshots Cloudflare Tunnel configurations to JSON, shows every ingress rule and its origin, previews a restore as a diff, and runs scheduled backups with notifications.">
+  <link rel="canonical" href="https://tikkamasala.gioxx.org/">
+  <meta name="theme-color" content="#120d1d">
+
+  <!-- Social previews (Open Graph: Facebook, LinkedIn, Slack, Telegram, WhatsApp, Discord…) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Tikka Masala">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:url" content="https://tikkamasala.gioxx.org/">
+  <meta property="og:title" content="Tikka Masala — Cloudflare Tunnel backup &amp; restore">
+  <meta property="og:description" content="Snapshot Cloudflare Tunnel configurations, see where every ingress rule points, and preview a restore before applying it.">
+  <meta property="og:image" content="https://tikkamasala.gioxx.org/img/og-image.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Tikka Masala: Cloudflare Tunnel backup and restore, with a screenshot of a backup and its ingress rules">
+
+  <!-- X / Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Tikka Masala — Cloudflare Tunnel backup &amp; restore">
+  <meta name="twitter:description" content="Snapshot Cloudflare Tunnel configurations, see where every ingress rule points, and preview a restore before applying it.">
+  <meta name="twitter:image" content="https://tikkamasala.gioxx.org/img/og-image.png">
+  <meta name="twitter:image:alt" content="Tikka Masala: Cloudflare Tunnel backup and restore, with a screenshot of a backup and its ingress rules">
+
+  <link rel="icon" href="favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f4f2f0;
+      --card: #fff;
+      --dark: #120d1d;
+      --dark2: #1c1529;
+      --accent: #f6821f;
+      --accent-hover: #e0700f;
+      --accent-text: #c2410c;
+      --accent-bright: #fbad41;
+      --accent-light: #fff0e2;
+      --text: #1a1a1a;
+      --muted: #6b6470;
+      --border: #e8e3df;
+      --radius: 12px;
+      --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+    }
+
+    html { scroll-behavior: smooth; scroll-padding-top: 56px; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a { color: var(--accent-text); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { max-width: 100%; height: auto; display: block; }
+    code { font-family: var(--mono); font-size: 0.86em; background: #f1ece8; padding: 0.1em 0.35em; border-radius: 4px; overflow-wrap: anywhere; }
+
+    /* NAV */
+    nav {
+      background: var(--dark);
+      padding: 0 2rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    nav .logo { color: #fff; font-weight: 700; font-size: 1.1rem; letter-spacing: -0.01em; }
+    nav .logo span { color: var(--accent-bright); }
+    nav .nav-links { display: flex; gap: 1.5rem; }
+    nav .nav-links a { color: #a8a1b3; font-size: 0.9rem; transition: color 0.15s; }
+    nav .nav-links a:hover { color: #fff; text-decoration: none; }
+    nav .nav-links a { position: relative; }
+    nav .nav-links a.active { color: #fff; }
+    nav .nav-links a.active::after {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; bottom: -6px;
+      height: 2px;
+      border-radius: 2px;
+      background: var(--accent);
+    }
+
+    /* HERO */
+    .hero {
+      background: linear-gradient(135deg, var(--dark) 0%, #2b1b3d 70%, #4a2618 100%);
+      color: #fff;
+      padding: 6rem 2rem 0;
+      text-align: center;
+      overflow: hidden;
+    }
+    .hero h1 {
+      font-size: clamp(2.2rem, 5vw, 3.5rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 1.2rem;
+    }
+    .hero h1 span { color: var(--accent-bright); }
+    .hero p { font-size: 1.15rem; color: #b3abbf; max-width: 620px; margin: 0 auto 2.5rem; }
+    .hero-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 4rem; }
+    .btn-primary {
+      background: var(--accent);
+      color: #1a0f05;
+      padding: 0.75em 1.75em;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: var(--accent-bright); text-decoration: none; }
+    .btn-ghost {
+      background: rgba(255,255,255,0.08);
+      color: #ece8f1;
+      padding: 0.75em 1.75em;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      border: 1px solid rgba(255,255,255,0.15);
+      transition: background 0.15s;
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.14); text-decoration: none; }
+    .hero-shot {
+      max-width: 1000px;
+      margin: 0 auto;
+      border-radius: 12px 12px 0 0;
+      overflow: hidden;
+      box-shadow: 0 -10px 60px rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-bottom: 0;
+      position: relative;
+      max-height: 520px;
+    }
+    .hero-shot::after {
+      content: "";
+      position: absolute;
+      inset: auto 0 0 0;
+      height: 140px;
+      background: linear-gradient(to bottom, rgba(255,255,255,0), var(--card));
+    }
+
+    /* STATS */
+    .stats { background: var(--card); padding: 2.5rem 2rem 0; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.15rem;
+    }
+    .stat .feature-icon { margin: 0; flex: none; width: 40px; height: 40px; }
+    .stat-value { display: block; font-size: 1.25rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; font-variant-numeric: tabular-nums; }
+    .stat-label { font-size: 0.8rem; color: var(--muted); }
+
+    /* SECTIONS */
+    section { padding: 5rem 2rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent-text);
+      margin-bottom: 0.75rem;
+    }
+    .section-title {
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+    .section-sub { color: var(--muted); font-size: 1rem; max-width: 620px; margin-bottom: 3rem; }
+
+    /* FEATURES GRID */
+    .features { background: var(--card); }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+    .feature-card {
+      background: var(--bg);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      border: 1px solid var(--border);
+    }
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--accent-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+    /* Icons: Lucide (https://lucide.dev), ISC license; full notice in third-party-notices.txt */
+    .feature-icon svg {
+      width: 22px;
+      height: 22px;
+      fill: none;
+      stroke: var(--accent-text);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .feature-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .feature-card p { font-size: 0.88rem; color: var(--muted); line-height: 1.5; }
+
+    /* SCREENSHOTS */
+    .shots { background: var(--bg); }
+    .shot {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(18,13,29,0.08);
+    }
+    .shot img { width: 100%; height: auto; }
+    .shot-scroll { max-height: 640px; overflow-y: auto; }
+    .shot-caption { margin-top: 0.9rem; font-size: 0.88rem; color: var(--muted); }
+    .shot-caption strong { color: var(--text); }
+    .shots-grid { display: grid; grid-template-columns: 1fr 300px; gap: 2rem; align-items: start; margin-top: 3rem; }
+    .shot-phone { border-radius: 28px; border: 8px solid var(--dark); box-shadow: 0 10px 30px rgba(18,13,29,0.18); }
+    .shot-phone img { border-radius: 20px; }
+
+    /* HOW IT WORKS */
+    .how { background: var(--card); }
+    .steps { display: flex; flex-direction: column; gap: 0; max-width: 720px; }
+    .step { display: flex; gap: 1.5rem; padding-bottom: 2.5rem; position: relative; }
+    .step:not(:last-child)::before {
+      content: "";
+      position: absolute;
+      left: 19px;
+      top: 40px;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--dark);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+      position: relative;
+      z-index: 1;
+    }
+    .step-body h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.3rem; padding-top: 0.5rem; }
+    .step-body p { font-size: 0.9rem; color: var(--muted); }
+
+    /* INSTALL */
+    .install { background: var(--dark); color: #fff; }
+    .install .section-title { color: #fff; }
+    .install .section-sub { color: #a8a1b3; }
+    .install .section-label { color: var(--accent-bright); }
+    .install-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem; }
+    .install-grid > div { min-width: 0; }
+    .install h3 { font-size: 1rem; margin-bottom: 0.75rem; color: #ece8f1; }
+    .install p.note { color: #a8a1b3; font-size: 0.88rem; margin-top: 0.9rem; }
+    .install p.note strong, .install p.note code { color: #ece8f1; }
+    .install code { background: #2a2238; }
+    .images { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 2.5rem; }
+    .image-pill {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      background: #0b0812;
+      border: 1px solid #3a2a45;
+      border-radius: 8px;
+      padding: 0.5em 0.9em;
+      color: #ece8f1;
+    }
+    .image-pill span { color: var(--accent-bright); }
+    pre {
+      background: #0b0812;
+      border: 1px solid #3a2a45;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 0.84rem;
+      line-height: 1.7;
+      color: #ece8f1;
+    }
+    pre .comment { color: #7d7389; }
+    pre .key { color: var(--accent-bright); }
+    pre .str { color: #86efac; }
+
+    /* DOCS */
+    .docs { background: var(--bg); }
+    .docs-layout { display: grid; grid-template-columns: 220px 1fr; gap: 3rem; align-items: start; }
+    .toc { position: sticky; top: 80px; font-size: 0.88rem; }
+    .toc p { font-weight: 700; font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.6rem; }
+    .toc a { display: block; color: var(--text); padding: 0.3rem 0 0.3rem 0.8rem; border-left: 2px solid var(--border); }
+    .toc a:hover { color: var(--accent-text); border-left-color: var(--accent); text-decoration: none; }
+    .doc { min-width: 0; }
+    .doc h3 { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.01em; margin: 3rem 0 0.75rem; }
+    .doc h3:first-child { margin-top: 0; }
+    .doc [id] { scroll-margin-top: 24px; }
+    .doc h4 { font-size: 1rem; font-weight: 700; margin: 1.75rem 0 0.5rem; }
+    .doc p, .doc li { font-size: 0.95rem; color: #3b3640; }
+    .doc p { margin-bottom: 0.9rem; }
+    .doc ul, .doc ol { padding-left: 1.3rem; margin-bottom: 0.9rem; }
+    .doc li { margin-bottom: 0.4rem; }
+    .doc pre { margin: 0.5rem 0 1.25rem; }
+    .table-wrap { overflow-x: auto; margin: 0.5rem 0 1.25rem; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 0.65rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: #faf8f6; white-space: nowrap; }
+    tr:last-child td { border-bottom: 0; }
+    td:first-child { white-space: nowrap; }
+    td code { overflow-wrap: normal; white-space: nowrap; }
+    .callout {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      padding: 0.9rem 1.1rem;
+      font-size: 0.9rem;
+      color: #6b2c0b;
+      margin: 0.5rem 0 1.25rem;
+    }
+    .callout code { background: rgba(255,255,255,0.6); }
+
+    /* FOOTER */
+    footer {
+      background: var(--dark2);
+      color: #a8a1b3;
+      text-align: center;
+      padding: 2rem;
+      font-size: 0.82rem;
+    }
+    footer a { color: var(--accent-bright); }
+
+    /* Scroll reveal: only when JS runs and motion is welcome */
+    .js .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .js .reveal.visible { opacity: 1; transform: none; }
+
+    /* Copy buttons */
+    .code { position: relative; }
+    .code pre { padding-right: 3.5rem; }
+    .doc .code pre { margin: 0; }
+    .doc .code { margin: 0.5rem 0 1.25rem; }
+    .copy-btn {
+      position: absolute;
+      top: 0.6rem;
+      right: 0.6rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      height: 30px;
+      padding: 0 0.55rem;
+      border: 1px solid #3a2a45;
+      border-radius: 6px;
+      background: #2a2238;
+      color: #a8a1b3;
+      font: 600 0.75rem system-ui, -apple-system, sans-serif;
+      cursor: pointer;
+      opacity: 0.75;
+      transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .code:hover .copy-btn, .copy-btn:focus-visible { opacity: 1; }
+    .copy-btn:hover { color: #ece8f1; border-color: var(--accent); }
+    .copy-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .copy-btn.copied { color: #86efac; border-color: #22c55e; opacity: 1; }
+    .copy-btn svg, .image-pill svg {
+      width: 15px;
+      height: 15px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex: none;
+    }
+    .copy-btn .label { display: none; }
+    .copy-btn.copied .label { display: inline; }
+    button.image-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.15s;
+    }
+    button.image-pill .ref { color: #ece8f1; }
+    button.image-pill .ref span { color: var(--accent-bright); }
+    button.image-pill svg { color: #7d7389; }
+    button.image-pill:hover { border-color: var(--accent); }
+    button.image-pill:hover svg { color: #ece8f1; }
+    button.image-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    button.image-pill.copied { border-color: #22c55e; }
+    button.image-pill.copied svg { color: #86efac; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* Back to top */
+    .to-top {
+      position: fixed;
+      right: 1.25rem;
+      bottom: 1.25rem;
+      z-index: 90;
+      width: 44px;
+      height: 44px;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 50%;
+      background: var(--dark);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(18,13,29,0.3);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(10px);
+      transition: opacity 0.2s ease, transform 0.2s ease, visibility 0.2s, background 0.15s;
+    }
+    .to-top.show { opacity: 1; visibility: visible; transform: none; }
+    .to-top:hover { background: var(--accent-text); }
+    .to-top:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .to-top svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .js .reveal { opacity: 1; transform: none; transition: none; }
+      .to-top { transition: none; }
+    }
+
+    @media (max-width: 900px) {
+      .docs-layout { grid-template-columns: 1fr; }
+      .toc { position: static; display: none; }
+      .shots-grid { grid-template-columns: 1fr; }
+      .shot-phone { max-width: 300px; margin: 0 auto; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 640px) {
+      nav { padding: 0 1rem; }
+      nav .nav-links { display: none; }
+      .hero { padding: 4rem 1rem 0; }
+      .hero-actions { margin-bottom: 2.5rem; }
+      section { padding: 3.5rem 1rem; }
+      .stats { padding: 2rem 1rem 0; }
+      .stats-grid { grid-template-columns: 1fr; }
+      pre { padding: 1rem; font-size: 0.8rem; }
+      .install-grid { grid-template-columns: 1fr; }
+      table, tbody, tr, td { display: block; }
+      thead { display: none; }
+      tr { padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--border); }
+      tr:last-child { border-bottom: 0; }
+      td { padding: 0.15rem 0; border: 0; }
+      td:first-child { font-weight: 600; }
+      .kv td:nth-child(2)::before { content: "Required: "; color: var(--muted); }
+      td code { white-space: normal; overflow-wrap: anywhere; }
+    }
+  </style>
 </head>
 <body>
-<header class="site-header">
-  <div class="wrap nav">
-    <a class="brand" href="index.html">
-      <img src="assets/cloudflare-logo.png" alt="">
-      Tikka Masala
-    </a>
-    <button class="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
-    </button>
-    <ul>
-      <li><a href="index.html" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5L12 4l8 6.5"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-6h4v6"/></svg>Home</a></li>
-      <li><a href="documentation.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15Z"/></svg>Docs</a></li>
-      <li><a href="faq.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.9.8c0 1.7-2.4 1.8-2.4 3.4"/><path d="M12 17h.01"/></svg>FAQ</a></li>
-      <li><a href="https://github.com/gioxx/TikkaMasala"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>GitHub</a></li>
-    </ul>
+
+<nav>
+  <div class="logo">Tikka<span>Masala</span></div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#screenshots">Screenshots</a>
+    <a href="#how-it-works">How it works</a>
+    <a href="#install">Install</a>
+    <a href="#docs">Docs</a>
+    <a href="https://github.com/gioxx/TikkaMasala" target="_blank" rel="noopener">GitHub</a>
   </div>
-</header>
+</nav>
 
-<main>
-  <div class="wrap">
-    <section class="hero">
-      <img class="hero-glow" src="assets/cloudflare-logo.png" alt="">
-      <h1>Backup and restore Cloudflare Tunnels, without the spreadsheet</h1>
-      <p class="tagline">
-        Tikka Masala is a small self-hosted FastAPI app that verifies a Cloudflare API token,
-        lists your tunnels, and lets you snapshot and restore tunnel configurations on your own schedule.
-      </p>
-      <div class="cta-row">
-        <a class="btn btn-primary" href="documentation.html">Read the docs</a>
-        <a class="btn btn-secondary" href="https://github.com/gioxx/TikkaMasala">View on GitHub</a>
-        <a class="btn btn-secondary" href="https://hub.docker.com/r/gfsolone/tikkamasala">Docker Hub</a>
-      </div>
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8 8a2 2 0 0 0 2.828 0l7.172-7.172a2 2 0 0 0 0-2.828z"/><path d="M7 7h.01"/></svg></div>
-          <span class="stat-value" data-stat="latest-release">-</span>
-          <div class="stat-label">Latest release</div>
-        </div>
-        <div class="stat-card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.185.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.185.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.185.186.186m5.893 2.715h2.118a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.185V9.006a.185.185 0 00-.184-.186h-2.12a.186.186 0 00-.186.186v1.887c0 .102.084.185.186.185m-2.92 0h2.12a.185.185 0 00.184-.185V9.006a.185.185 0 00-.184-.186h-2.12a.185.185 0 00-.184.185v1.888c0 .102.082.185.185.185M23.763 9.89c-.065-.051-.672-.51-1.954-.51-.338.001-.676.03-1.01.087-.248-1.7-1.653-2.53-1.716-2.566l-.344-.199-.226.327c-.284.438-.49.922-.612 1.43-.23.97-.09 1.882.403 2.661-.595.332-1.55.413-1.744.42H.751a.751.751 0 00-.75.748 11.376 11.376 0 00.692 4.062c.545 1.428 1.355 2.48 2.41 3.124 1.18.723 3.1 1.137 5.275 1.137.983.003 1.963-.086 2.93-.266a12.248 12.248 0 003.823-1.389c.98-.567 1.86-1.288 2.61-2.136 1.252-1.418 1.998-2.997 2.553-4.4h.221c1.372 0 2.215-.549 2.68-1.009.309-.293.55-.65.707-1.046l.098-.288Z"/></svg></div>
-          <span class="stat-value" data-stat="docker-pulls">0</span>
-          <div class="stat-label">Docker pulls</div>
-        </div>
-        <div class="stat-card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.657 3.582 3 8 3s8-1.343 8-3V6"/><path d="M4 12v6c0 1.657 3.582 3 8 3s8-1.343 8-3v-6"/></svg></div>
-          <span class="stat-value" data-stat="image-size">-</span>
-          <div class="stat-label">Docker image size</div>
-        </div>
-        <div class="stat-card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17.75l-6.16 3.24 1.18-6.88L2 9.24l6.92-1.01L12 2l3.08 6.23L22 9.24l-5.02 4.87 1.18 6.88z"/></svg></div>
-          <span class="stat-value" data-stat="stars">0</span>
-          <div class="stat-label">GitHub stars</div>
-        </div>
-      </div>
-    </section>
-
-    <section id="features">
-      <h2>What it does</h2>
-      <p class="section-lead">Everything you need to keep Cloudflare Tunnel configurations safe, without touching the Cloudflare dashboard for routine work.</p>
-      <div class="grid">
-        <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3l7 4v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V7l7-4z"/></svg></div>
-          <h3>Verify &amp; browse</h3>
-          <p>Verify a Cloudflare API token, list every tunnel visible to the account, open any of them in the Cloudflare dashboard, and jump straight to Access Applications and Policies.</p>
-        </div>
-        <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/></svg></div>
-          <h3>JSON backups</h3>
-          <p>Create and download JSON snapshots of a tunnel configuration, with metadata like timestamp, account, tunnel name, and notes kept in SQLite.</p>
-        </div>
-        <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg></div>
-          <h3>Restore anywhere</h3>
-          <p>Restore a snapshot to the original tunnel or to a different one. Preview the ingress diff against the live configuration first, get warned about host-local origins like <code>localhost</code>, and keep a full restore history.</p>
-        </div>
-        <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
-          <h3>Scheduled backups</h3>
-          <p>Run automatic backups for all tunnels or a chosen subset, with per-tunnel frequency (every run, weekly, monthly) and retention cleanup.</p>
-        </div>
-        <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
-          <h3>Notifications</h3>
-          <p>Get notified over a generic webhook and/or Telegram, with fully customizable messages and per-event placeholders.</p>
-        </div>
-        <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></div>
-          <h3>Demo mode</h3>
-          <p>Try the UI without persisting auth data, scheduler state, or notifications; good for a quick look before rolling it out.</p>
-        </div>
-      </div>
-    </section>
-
-    <section id="quickstart">
-      <h2>Quick start</h2>
-      <p class="section-lead">Docker Compose is the fastest way to run Tikka Masala. Full setup, environment variables, and configuration in the <a href="documentation.html">documentation</a>.</p>
-      <pre><code>cp .env.sample .env
-docker compose up -d --build</code></pre>
-      <p>Then open <code>http://localhost:8080</code>.</p>
-
-      <div class="screenshot-gallery">
-        <figure>
-          <a href="assets/shot-home.png" target="_blank" rel="noopener">
-            <img src="assets/shot-home.png" alt="Tikka Masala home screen with token verification and demo mode notice" loading="lazy">
-          </a>
-          <figcaption>Home screen</figcaption>
-        </figure>
-        <figure>
-          <a href="assets/shot-loadtunnels.png" target="_blank" rel="noopener">
-            <img src="assets/shot-loadtunnels.png" alt="Load tunnels panel with account ID and API token fields" loading="lazy">
-          </a>
-          <figcaption>Loading tunnels</figcaption>
-        </figure>
-        <figure>
-          <a href="assets/shot-backup.png" target="_blank" rel="noopener">
-            <img src="assets/shot-backup.png" alt="Create a single backup form with account, tunnel, and notes fields" loading="lazy">
-          </a>
-          <figcaption>Creating a backup</figcaption>
-        </figure>
-      </div>
-    </section>
+<div class="hero">
+  <h1>Backup and restore<br><span>Cloudflare Tunnels</span></h1>
+  <p>Tikka Masala snapshots your tunnel configurations to JSON, shows where every ingress rule points, and previews a restore as a diff before it touches anything. Self-hosted, with scheduled backups and notifications.</p>
+  <div class="hero-actions">
+    <a class="btn-primary" href="#install">Get started</a>
+    <a class="btn-ghost" href="#docs">Read the docs</a>
+    <a class="btn-ghost" href="https://github.com/gioxx/TikkaMasala" target="_blank" rel="noopener">View on GitHub</a>
   </div>
-</main>
+  <div class="hero-shot">
+    <img src="img/dashboard-hero.webp" width="2560" height="1188" alt="Tikka Masala tunnel list: four tunnels with their ID and status, each with Copy, Use and Admin buttons, plus links to Access Controls">
+  </div>
+</div>
 
-<footer class="site-footer">
-  <div class="wrap footer-grid">
-    <div class="footer-col">
-      <div class="footer-brand">
-        <img src="assets/cloudflare-logo.png" alt="">
-        Tikka Masala
-      </div>
-      <p>A small self-hosted app to back up and restore Cloudflare Tunnel configurations, with scheduling and notifications built in.</p>
-      <p>Tikka Masala is released under the MIT License. Icons by <a href="https://tabler.io/icons">Tabler Icons</a>.</p>
+<div class="stats" aria-label="Project stats">
+  <div class="container stats-grid">
+    <div class="stat">
+      <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg></div>
+      <div><span class="stat-value" data-stat="latest-release">–</span><span class="stat-label">Latest release</span></div>
     </div>
-    <div class="footer-col">
-      <h4>Site</h4>
-      <ul>
-        <li><a href="index.html">Home</a></li>
-        <li><a href="documentation.html">Documentation</a></li>
-        <li><a href="faq.html">FAQ</a></li>
-      </ul>
+    <div class="stat">
+      <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></div>
+      <div><span class="stat-value" data-stat="docker-pulls">–</span><span class="stat-label">Docker pulls</span></div>
     </div>
-    <div class="footer-col">
-      <h4>Project</h4>
-      <ul>
-        <li><a href="https://github.com/gioxx/TikkaMasala">GitHub repository</a></li>
-        <li><a href="https://github.com/gioxx/TikkaMasala/issues">Issues</a></li>
-        <li><a href="https://hub.docker.com/r/gfsolone/tikkamasala">Docker Hub</a></li>
-      </ul>
+    <div class="stat">
+      <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg></div>
+      <div><span class="stat-value" data-stat="image-size">–</span><span class="stat-label">Docker image size</span></div>
+    </div>
+    <div class="stat">
+      <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg></div>
+      <div><span class="stat-value" data-stat="stars">–</span><span class="stat-label">GitHub stars</span></div>
     </div>
   </div>
-  <div class="footer-bottom">
-    <div class="wrap">
-      <p class="disclaimer">All trademarks mentioned are the property of their respective owners. Third-party trademarks, product names, trade names, corporate names and companies mentioned may be trademarks of their respective owners or registered trademarks of other companies and have been used for explanatory purposes only and for the benefit of the owner, without any intent to infringe existing copyright.</p>
+</div>
+
+<section class="features" id="features">
+  <div class="container">
+    <div class="section-label">Features</div>
+    <h2 class="section-title">Your tunnel configs, safe and readable</h2>
+    <p class="section-sub">Cloudflare keeps tunnel configurations only in its dashboard. Tikka Masala keeps a copy on storage you control, and makes rolling back a reviewed, deliberate step.</p>
+    <div class="features-grid">
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg></div>
+        <h3>Verify &amp; browse</h3>
+        <p>Verify a Cloudflare API token, list every tunnel in the account, open any of them in the Cloudflare dashboard, and jump to Access Applications and Policies.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1"/><path d="M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1 1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1"/></svg></div>
+        <h3>JSON snapshots</h3>
+        <p>Each backup is a plain JSON file with the full tunnel configuration, plus metadata (time, account, tunnel, notes) in SQLite. Download any of them in one click.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg></div>
+        <h3>Every ingress rule, visible</h3>
+        <p>The backup page lists hostname, path, origin and <code>originRequest</code> settings for each rule, and flags <code>localhost</code> origins that can break when <code>cloudflared</code> runs elsewhere.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></svg></div>
+        <h3>Preview before restoring</h3>
+        <p>Diff a snapshot against the tunnel's live configuration: added, removed and changed rules, reordering, and non-ingress settings. Nothing is applied until you confirm.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></div>
+        <h3>Restore anywhere</h3>
+        <p>Push a snapshot back to its original tunnel, another tunnel or another account, with a restore history that records where each backup went.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <h3>Scheduled backups</h3>
+        <p>A built-in cron scheduler backs up all tunnels or a chosen subset, with per-tunnel frequency (every run, weekly, monthly) and automatic retention.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg></div>
+        <h3>Notifications</h3>
+        <p>Results over a generic webhook and/or Telegram, per-event, with messages you can rewrite using placeholders.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <h3>Encrypted token storage</h3>
+        <p>With <code>TOKEN_ENCRYPTION_KEY</code> set, the API token is saved encrypted (Fernet) in SQLite; without it, the token is never written to disk.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.72 1.72 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3-6c.5-.3.9-1 .9-1.5Z"/><path d="M10 21.9V14L2.1 9.1"/><path d="m10 14 11.9-6.9"/><path d="M14 19.8v-8.1"/><path d="M18 17.5V9.4"/></svg></div>
+        <h3>Official Docker images</h3>
+        <p>Multi-arch images (<code>amd64</code>, <code>arm64</code>) on Docker Hub and GHCR. A demo mode lets you try the UI without persisting anything.</p>
+      </div>
     </div>
   </div>
+</section>
+
+<section class="shots" id="screenshots">
+  <div class="container">
+    <div class="section-label">Screenshots</div>
+    <h2 class="section-title">Know what a restore will do, before it does it</h2>
+    <p class="section-sub">Screenshots from a demo instance with made-up tunnels on <code>example.*</code> hosts.</p>
+
+    <div class="shot shot-scroll reveal">
+      <img src="img/backup-detail.webp" width="2560" height="4472" loading="lazy" alt="Backup detail page: ingress table with a host-local origin flagged, and a restore preview listing changed, added, removed and reordered rules">
+    </div>
+    <p class="shot-caption"><strong>Backup detail and restore preview.</strong> Every ingress rule of the snapshot with its origin and settings; the <code>localhost</code> origin is flagged. Below, <em>Preview changes</em> diffs the snapshot against the live tunnel: two changed rules, one added, one removed, and a warning that the order differs. (Scroll inside the image.)</p>
+
+    <div class="shots-grid reveal">
+      <div>
+        <div class="shot shot-scroll">
+          <img src="img/dashboard.webp" width="2560" height="8882" loading="lazy" alt="Home page: tunnel list, single backup form, automatic backups with recent runs, saved backups with archive statistics, and notifications">
+        </div>
+        <p class="shot-caption"><strong>Home.</strong> Load tunnels, take a manual backup, configure the scheduler and see its recent runs, browse saved backups with archive statistics and retention, and check notification channels. (Scroll inside the image.)</p>
+      </div>
+      <div>
+        <div class="shot-phone">
+          <img src="img/dashboard-mobile.webp" width="1170" height="2532" loading="lazy" alt="Tunnel list on a phone: each tunnel shown as a card with name, ID, status and actions">
+        </div>
+        <p class="shot-caption"><strong>Mobile.</strong> On phones, every table turns into cards, so nothing gets cut off.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="how" id="how-it-works">
+  <div class="container">
+    <div class="section-label">How it works</div>
+    <h2 class="section-title">From snapshot to safe rollback</h2>
+    <p class="section-sub">Tikka Masala talks to the Cloudflare API with your token and keeps everything else local.</p>
+    <div class="steps">
+      <div class="step reveal">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Connect your account</h3>
+          <p>Enter (or prefill from the environment) your Account ID and an API token with <code>Cloudflare Tunnel</code> permissions, verify it, and load the tunnels.</p>
+        </div>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Take snapshots</h3>
+          <p>Back up a tunnel by hand, with optional notes, or let the scheduler back up all tunnels (or a subset) on a cron schedule. Each snapshot is a JSON file under <code>/data/backups</code>.</p>
+        </div>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Review what's inside</h3>
+          <p>Open a backup to see every ingress rule and where it points. Host-local origins are flagged, so you know which routes depend on where <code>cloudflared</code> runs.</p>
+        </div>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Preview the restore</h3>
+          <p>Pick the target tunnel and press <em>Preview changes</em>: Tikka Masala fetches its live configuration and shows the diff against the snapshot, without applying anything.</p>
+        </div>
+      </div>
+      <div class="step reveal">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h3>Restore &amp; get notified</h3>
+          <p>Apply the snapshot. It replaces the tunnel's whole remote configuration, gets recorded in the restore history, and triggers a notification if you set one up.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="install" id="install">
+  <div class="container">
+    <div class="section-label">Install</div>
+    <h2 class="section-title">Up and running in minutes</h2>
+    <p class="section-sub">All you need is Docker. Official images are published for every release:</p>
+
+    <div class="images">
+      <button type="button" class="image-pill" data-copy="docker.io/gfsolone/tikkamasala" title="Copy image name" aria-label="Copy docker.io/gfsolone/tikkamasala"><span class="ref"><span>docker.io/</span>gfsolone/tikkamasala</span></button>
+      <button type="button" class="image-pill" data-copy="ghcr.io/gioxx/tikkamasala" title="Copy image name" aria-label="Copy ghcr.io/gioxx/tikkamasala"><span class="ref"><span>ghcr.io/</span>gioxx/tikkamasala</span></button>
+      <div class="image-pill">tags: <span>latest</span> · <span>X.Y.Z</span> · <span>dev</span></div>
+    </div>
+
+    <div class="install-grid reveal">
+      <div>
+        <h3>Docker</h3>
+<pre><span class="comment"># Get a sample environment file and fill it in</span>
+curl -Lo .env https://raw.githubusercontent.com/gioxx/TikkaMasala/main/.env.sample
+nano .env
+
+<span class="comment"># Start</span>
+docker run -d \
+  --name tikkamasala \
+  --restart unless-stopped \
+  --env-file .env \
+  -p 8080:8080 \
+  -v "$(pwd)/data:/data" \
+  gfsolone/tikkamasala:latest</pre>
+        <p class="note">The web UI is available at <strong>http://localhost:8080</strong>. Backups and settings live in <code>./data</code>, so they survive container updates.</p>
+      </div>
+      <div>
+        <h3>Generate the encryption key</h3>
+<pre>python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</pre>
+        <p class="note">Put it in <code>TOKEN_ENCRYPTION_KEY</code>: without it the API token is never saved server-side, and scheduled backups need <code>CLOUDFLARE_API_TOKEN</code> in the environment.</p>
+        <h3 style="margin-top:1.75rem">Update</h3>
+<pre>docker pull gfsolone/tikkamasala:latest
+docker rm -f tikkamasala   <span class="comment"># data stays in ./data</span>
+<span class="comment"># then run the same docker run command again</span></pre>
+        <p class="note">Pin a release (e.g. <code>gfsolone/tikkamasala:1.3.9</code>) instead of <code>latest</code> to upgrade on your own schedule. Compose and Portainer setups are in the docs below.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="docs" id="docs">
+  <div class="container">
+    <div class="section-label">Documentation</div>
+    <h2 class="section-title">Configure, run, restore</h2>
+    <p class="section-sub">Everything below is also in the <a href="https://github.com/gioxx/TikkaMasala/blob/main/README.md" target="_blank" rel="noopener">README</a>.</p>
+
+    <div class="docs-layout">
+      <aside class="toc">
+        <p>On this page</p>
+        <a href="#doc-requirements">Requirements</a>
+        <a href="#doc-env">Environment variables</a>
+        <a href="#doc-running">Running the app</a>
+        <a href="#doc-prefill">Prefill &amp; persistence</a>
+        <a href="#doc-storage">Storage layout</a>
+        <a href="#doc-backups">What gets backed up</a>
+        <a href="#doc-restore">Restore</a>
+        <a href="#doc-scheduling">Automatic backups</a>
+        <a href="#doc-notifications">Notifications</a>
+        <a href="#doc-demo">Demo mode</a>
+        <a href="#doc-security">Security</a>
+        <a href="#doc-faq">FAQ</a>
+      </aside>
+
+      <div class="doc">
+        <h3 id="doc-requirements">Requirements</h3>
+        <ul>
+          <li>Docker (with or without Compose), or Python 3.12 to run the app directly</li>
+          <li>A Cloudflare API token with permissions suitable for Cloudflare Tunnel configuration changes</li>
+        </ul>
+        <p>Recommended token permissions: <code>Account: Cloudflare Tunnel -&gt; Edit</code> and <code>Zone: DNS -&gt; Edit</code>. For backup-only usage, the token can later be reduced to read-only permissions if your workflow allows it.</p>
+
+        <h3 id="doc-env">Environment variables</h3>
+        <p>Configure the app through environment variables, whether you use Docker Compose, <code>docker run</code>, Portainer, or a direct shell session. Start from <a href="https://github.com/gioxx/TikkaMasala/blob/main/.env.sample" target="_blank" rel="noopener"><code>.env.sample</code></a>.</p>
+        <div class="table-wrap">
+          <table class="kv">
+            <thead><tr><th>Variable</th><th>Required</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>CLOUDFLARE_ACCOUNT_ID</code></td><td>No</td><td>Prefills the Cloudflare account ID in the UI.</td></tr>
+              <tr><td><code>CLOUDFLARE_API_TOKEN</code></td><td>No</td><td>Prefills the API token in the UI.</td></tr>
+              <tr><td><code>TOKEN_ENCRYPTION_KEY</code></td><td>Recommended</td><td>Fernet key used to encrypt the API token before saving it in SQLite.</td></tr>
+              <tr><td><code>AUTO_BACKUP_TIMEZONE</code></td><td>No</td><td>Force automatic backups to use a specific IANA timezone such as <code>Europe/Rome</code>.</td></tr>
+              <tr><td><code>BACKUP_RETENTION_DAYS</code></td><td>No</td><td>Automatically delete backups older than this many days after new backups are created.</td></tr>
+              <tr><td><code>NOTIFICATION_WEBHOOK_URL</code></td><td>No</td><td>Send JSON notifications to a generic webhook endpoint.</td></tr>
+              <tr><td><code>NOTIFICATION_WEBHOOK_EVENTS</code></td><td>No</td><td>Comma-separated list of notification events to emit to the webhook.</td></tr>
+              <tr><td><code>TELEGRAM_BOT_TOKEN</code></td><td>No</td><td>Telegram bot token used to send notifications through the Bot API.</td></tr>
+              <tr><td><code>TELEGRAM_CHAT_ID</code></td><td>No</td><td>Telegram chat, group, or channel ID where notifications should be sent.</td></tr>
+              <tr><td><code>TELEGRAM_NOTIFICATION_EVENTS</code></td><td>No</td><td>Comma-separated list of notification events to emit to Telegram.</td></tr>
+              <tr><td><code>DATA_DIR</code></td><td>No</td><td>Storage path for the SQLite database and JSON backups. Default: <code>/data</code>.</td></tr>
+              <tr><td><code>REQUEST_TIMEOUT</code></td><td>No</td><td>Outbound Cloudflare API timeout in seconds. Default: <code>20</code>.</td></tr>
+              <tr><td><code>LOG_LEVEL</code></td><td>No</td><td>Application log level written to container stdout. Default: <code>INFO</code>.</td></tr>
+              <tr><td><code>CLOUDFLARE_API_BASE</code></td><td>No</td><td>Override for the Cloudflare API base URL. Default: <code>https://api.cloudflare.com/client/v4</code>.</td></tr>
+              <tr><td><code>DEMO</code></td><td>No</td><td>Enable demo mode. Defaults to <code>false</code>. Disables persistence, automatic backups, notifications, and the backup archive.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="doc-running">Running the app</h3>
+        <p>Prebuilt images are published on every release on <a href="https://hub.docker.com/r/gfsolone/tikkamasala" target="_blank" rel="noopener">Docker Hub</a> (<code>gfsolone/tikkamasala</code>) and the <a href="https://github.com/gioxx/TikkaMasala/pkgs/container/tikkamasala" target="_blank" rel="noopener">GitHub Container Registry</a> (<code>ghcr.io/gioxx/tikkamasala</code>), so building locally is optional.</p>
+        <h4>Docker Compose</h4>
+        <p>The <code>docker-compose.yml</code> in the repository builds the image locally and mounts <code>./data</code> into the container so backups and settings survive restarts.</p>
+<pre>git clone https://github.com/gioxx/TikkaMasala.git &amp;&amp; cd TikkaMasala
+cp .env.sample .env
+docker compose up -d --build</pre>
+        <p>Then open <code>http://localhost:8080</code>. To use a prebuilt image instead, replace <code>build: .</code> with <code>image: gfsolone/tikkamasala:latest</code>.</p>
+        <h4>Without Docker</h4>
+<pre>python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+set -a
+source .env
+set +a
+uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
+        <h4>Portainer</h4>
+        <p>Portainer stacks pull an image rather than building from a local <code>Dockerfile</code>. From <strong>Stacks → Add stack</strong>, paste:</p>
+<pre><span class="key">services:</span>
+  <span class="key">tikkamasala:</span>
+    <span class="key">image:</span> gfsolone/tikkamasala:latest
+    <span class="key">container_name:</span> tikkamasala
+    <span class="key">restart:</span> unless-stopped
+    <span class="key">environment:</span>
+      <span class="key">CLOUDFLARE_ACCOUNT_ID:</span> ${CLOUDFLARE_ACCOUNT_ID:-}
+      <span class="key">CLOUDFLARE_API_TOKEN:</span> ${CLOUDFLARE_API_TOKEN:-}
+      <span class="key">TOKEN_ENCRYPTION_KEY:</span> ${TOKEN_ENCRYPTION_KEY:-}
+      <span class="key">AUTO_BACKUP_TIMEZONE:</span> ${AUTO_BACKUP_TIMEZONE:-}
+      <span class="key">BACKUP_RETENTION_DAYS:</span> ${BACKUP_RETENTION_DAYS:-90}
+      <span class="key">DEMO:</span> ${DEMO:-false}
+    <span class="key">ports:</span>
+      - <span class="str">"8080:8080"</span>
+    <span class="key">volumes:</span>
+      - tikkamasala_data:/data
+
+<span class="key">volumes:</span>
+  <span class="key">tikkamasala_data:</span></pre>
+        <p>Use <code>ghcr.io/gioxx/tikkamasala:latest</code> instead if you prefer GHCR. Set the values in the stack's <strong>Environment variables</strong> panel (Portainer prompts for anything left as <code>${VAR}</code> without a default) or edit the <code>environment:</code> block directly, adding any other variable from the <a href="#doc-env">table above</a>. The named volume can be swapped for a bind mount (e.g. <code>/opt/tikkamasala/data:/data</code>) if you'd rather keep backups on a known host path.</p>
+
+        <h3 id="doc-prefill">Prefill &amp; persistence</h3>
+        <p>The UI can prefill authentication fields from three sources: environment variables, saved values in the local database, and a browser cookie for the API token. Effective priority:</p>
+        <ul>
+          <li><strong>Account ID</strong>: database, then environment</li>
+          <li><strong>API token</strong>: browser cookie, then database, then environment</li>
+        </ul>
+        <p>Automatic backups use only server-side credentials: database or environment. Browser cookies are never used by the scheduler.</p>
+        <p>After a successful token verification or API action, the <strong>Account ID</strong> is saved in <code>app.db</code>, the <strong>API token</strong> is stored in a browser cookie, and it is also saved in <code>app.db</code> only if <code>TOKEN_ENCRYPTION_KEY</code> is configured.</p>
+        <div class="callout"><strong>Clear saved auth data</strong> removes only the saved Account ID and API token from the database and clears the browser cookie. If <code>CLOUDFLARE_ACCOUNT_ID</code> or <code>CLOUDFLARE_API_TOKEN</code> are still set in the environment, the UI keeps showing those values as prefilled.</div>
+
+        <h3 id="doc-storage">Storage layout</h3>
+        <p>Everything is stored under <code>DATA_DIR</code>, which defaults to <code>/data</code> in the container and typically maps to <code>./data</code> on the host:</p>
+        <ul>
+          <li><code>app.db</code>: SQLite database for backup metadata, restore history, and saved auth settings</li>
+          <li><code>backups/*.json</code>: exported tunnel configuration snapshots</li>
+        </ul>
+
+        <h3 id="doc-backups">What gets backed up</h3>
+        <p>Tikka Masala saves the tunnel configuration returned by the Cloudflare Tunnel configuration endpoints, along with backup metadata: export timestamp, account ID, tunnel ID, tunnel name, and notes. It does not back up arbitrary account-wide Cloudflare settings.</p>
+        <p>The backup detail page lists every ingress rule from the snapshot (hostname, path, origin <code>service</code>, and any <code>originRequest</code> settings such as <code>noTLSVerify</code>, <code>httpHostHeader</code> or <code>connectTimeout</code>), so you can see where each route points without downloading the JSON.</p>
+        <div class="callout">A rule whose <code>service</code> targets <code>localhost</code> or a loopback address (<code>127.0.0.0/8</code>, <code>::1</code>) is flagged as <strong>host-local</strong>. That address is resolved relative to wherever <code>cloudflared</code> runs: when it runs in a container, <code>localhost</code> is the container, not the Docker host, so the route can return <code>502</code> after a restore even though it worked where the backup was taken. Use <code>host.docker.internal</code>, the bridge gateway IP, or a service/container name instead.</div>
+
+        <h3 id="doc-restore">Restore</h3>
+        <p>Restoring a backup replaces the current remote configuration of the selected tunnel with the configuration stored in the snapshot. The target can be the original tunnel, a different tunnel, or a tunnel in another account.</p>
+        <p>The backup detail page keeps a restore history: when a backup was restored, which account and tunnel it was restored to, and whether the restore targeted the original tunnel, a different tunnel, or a different account.</p>
+        <h4>Preview changes before restoring</h4>
+        <p>The restore form has a <strong>Preview changes</strong> button next to <strong>Restore backup</strong>. It fetches the target tunnel's current live configuration and compares it against the snapshot without applying anything, then shows:</p>
+        <ul>
+          <li>every ingress rule in the snapshot's order, with its position and whether it's unchanged, changed, or newly added, so an inserted rule that would shadow a later, more specific rule is visible before you apply it</li>
+          <li>removed rules, with the position they currently hold live</li>
+          <li>which <code>originRequest</code> settings changed on an existing rule, or which ones a new/removed rule carries</li>
+          <li>a note when only the rule order differs (Cloudflare matches ingress rules top to bottom, so a pure reorder can still change routing)</li>
+          <li>changes to non-ingress config fields such as <code>warp-routing</code>, since restore replaces the whole tunnel configuration, not just <code>ingress</code></li>
+        </ul>
+        <p>Previewing does not apply anything or record restore history; the account ID, tunnel ID, and API token you entered stay filled in so you can review the diff and then press <strong>Restore backup</strong>.</p>
+
+        <h3 id="doc-scheduling">Automatic backups</h3>
+        <p>The scheduler is built into the app and stores its configuration in the local SQLite database. From the home page you can enable or disable automatic backups, set a cron expression, run the job immediately with <strong>Run now</strong>, and see the last run, next run, and recent execution history.</p>
+        <p>By default, automatic backups use the timezone detected from the browser when you save the schedule. Set <code>AUTO_BACKUP_TIMEZONE</code> for a fixed server-side timezone for all users.</p>
+        <h4>Advanced schedule</h4>
+        <p>The <strong>Advanced schedule</strong> page (<code>/auto-backup/tunnel-filters</code>) controls backup scope and per-tunnel frequency.</p>
+        <ul>
+          <li><strong>All tunnels</strong> (default): every tunnel in the account is backed up on each run, with optional per-tunnel frequency throttling.</li>
+          <li><strong>Selected tunnels only</strong>: only the tunnels you explicitly check are included in each run.</li>
+        </ul>
+        <p>Per-tunnel frequency: <strong>Every run</strong> (default), <strong>Once per week</strong> (skipped if a backup exists within the last 7 days) or <strong>Once per month</strong> (skipped if a backup exists within the last 30 days). This lets you run the scheduler daily while backing up low-priority tunnels only once a week.</p>
+        <div class="callout">Automatic backups require server-side credentials from the database or environment; browser-only token prefill is not enough for scheduled jobs. Automatic and manual backups share the same archive. If <code>BACKUP_RETENTION_DAYS</code> is set, old backup files and related database records (including restore history) are deleted automatically after new backups are created.</div>
+
+        <h3 id="doc-notifications">Notifications</h3>
+        <p>Tikka Masala can send server-side notifications through a generic webhook and/or Telegram. Set <code>NOTIFICATION_WEBHOOK_URL</code> / <code>NOTIFICATION_WEBHOOK_EVENTS</code> and/or <code>TELEGRAM_BOT_TOKEN</code> / <code>TELEGRAM_CHAT_ID</code> / <code>TELEGRAM_NOTIFICATION_EVENTS</code>.</p>
+        <p>Supported events: <code>notification_test</code>, <code>manual_backup_success</code>, <code>manual_backup_failed</code>, <code>auto_backup_success</code>, <code>auto_backup_partial</code>, <code>auto_backup_failed</code>, <code>restore_success</code>, <code>restore_failed</code>, <code>retention_cleanup</code>. If a channel's events variable is empty, the default set is enabled: <code>auto_backup_success</code>, <code>auto_backup_partial</code>, <code>auto_backup_failed</code>, <code>restore_failed</code>, <code>retention_cleanup</code>.</p>
+        <p>Webhook notifications send a JSON payload with app name and version, event name, message, timestamp, and event-specific details. Telegram sends the same information as a plain-text message, compact by default (title and message only); uncheck <strong>Compact Telegram notifications</strong> on the <strong>Customize notification messages</strong> page to append the <code>key: value</code> details block. Use <strong>Send test notification</strong> from the UI to verify delivery.</p>
+        <h4>Customizing notification messages</h4>
+        <p>Each event has a built-in default message. Override it from <code>/notifications/messages</code>. Messages support <code>{placeholder}</code> tokens replaced at runtime; <code>{version}</code> and <code>{timestamp}</code> are always available.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Event</th><th>Available tokens</th></tr></thead>
+            <tbody>
+              <tr><td><code>notification_test</code></td><td><em>(none specific)</em></td></tr>
+              <tr><td><code>manual_backup_success</code></td><td><code>{backup_id}</code>, <code>{account_id}</code>, <code>{tunnel_id}</code>, <code>{tunnel_name}</code>, <code>{route_count}</code></td></tr>
+              <tr><td><code>manual_backup_failed</code></td><td><code>{account_id}</code>, <code>{tunnel_id}</code>, <code>{error}</code></td></tr>
+              <tr><td><code>auto_backup_*</code></td><td><code>{trigger}</code>, <code>{account_id}</code>, <code>{tunnel_count}</code>, <code>{backup_count}</code>, <code>{error_count}</code>, <code>{skipped_count}</code>, <code>{processed_count}</code>, <code>{backed_up_tunnels}</code>, <code>{skipped_tunnels}</code></td></tr>
+              <tr><td><code>restore_success</code></td><td><code>{backup_id}</code>, <code>{account_id}</code>, <code>{tunnel_id}</code></td></tr>
+              <tr><td><code>restore_failed</code></td><td><code>{backup_id}</code>, <code>{account_id}</code>, <code>{tunnel_id}</code>, <code>{error}</code></td></tr>
+              <tr><td><code>retention_cleanup</code></td><td><code>{deleted_count}</code>, <code>{retention_days}</code>, <code>{cutoff}</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>For <code>auto_backup_*</code> events: <code>{tunnel_count}</code> is every tunnel discovered on the account, <code>{processed_count}</code> is <code>backup_count</code> + <code>error_count</code>, <code>{skipped_count}</code> is tunnels skipped by scheduling rules, and <code>{backed_up_tunnels}</code> / <code>{skipped_tunnels}</code> are comma-separated tunnel name lists (or <code>-</code> if none). Leaving a field empty restores the built-in default; unknown tokens are left as-is.</p>
+
+        <h3 id="doc-demo">Demo mode</h3>
+        <p>Set <code>DEMO=true</code> to try the UI without persisting auth data or enabling server-side automation: authentication data is not stored in SQLite or the browser cookie, automatic backups, notifications and the backup archive are disabled. Manual tunnel listing and manual backup downloads still work.</p>
+
+        <h3 id="doc-security">Security</h3>
+        <ul>
+          <li>The API token is never persisted in plaintext in the database.</li>
+          <li>If <code>TOKEN_ENCRYPTION_KEY</code> is missing, the token is not written to SQLite at all.</li>
+          <li>The token can still be reused temporarily through the browser cookie or environment prefill.</li>
+          <li>Plaintext tokens saved by older versions are upgraded to encrypted form the first time they are read with a valid <code>TOKEN_ENCRYPTION_KEY</code>.</li>
+        </ul>
+        <div class="callout">The web UI has no built-in authentication, and it can restore tunnel configurations with your token. Keep port 8080 on a trusted network, or put it behind a reverse proxy with authentication (Cloudflare Access works well).</div>
+
+        <h3 id="doc-faq">FAQ</h3>
+        <h4>What happens if I don't set <code>TOKEN_ENCRYPTION_KEY</code>?</h4>
+        <p>The API token is not written to SQLite at all. It's still usable via the browser cookie or environment prefill during your session, but scheduled backups won't have server-side credentials unless <code>CLOUDFLARE_API_TOKEN</code> is set in the environment.</p>
+        <h4>Why does a restored route return 502 even though the backup worked fine?</h4>
+        <p>Check whether that rule's origin is <code>localhost</code> or a loopback address: the backup detail page flags these as <strong>host-local</strong>. When <code>cloudflared</code> runs in a container, <code>localhost</code> means the container, not the Docker host. Point the rule at <code>host.docker.internal</code>, the bridge gateway IP, or a service/container name instead, and use <strong>Preview changes</strong> to see the full ingress diff before you apply.</p>
+        <h4>The Admin link says "Cloudflare Tunnels have moved". What should I do?</h4>
+        <p>Cloudflare moved Tunnels out of Zero Trust and under <strong>Networking</strong>. Update to 1.3.9 or later: the <strong>Admin</strong> link in the tunnel list now opens the tunnel's overview at its new location. The Access Controls links (Applications and Policies) are unaffected.</p>
+        <h4>Can I back up only some tunnels, or less often for some?</h4>
+        <p>Yes, on the <strong>Advanced schedule</strong> page: back up all tunnels or a selected subset, and set a per-tunnel frequency of every run, once per week, or once per month.</p>
+        <h4>Can I use webhook and Telegram notifications together?</h4>
+        <p>Yes, they're independent channels: enable either one or both, each with its own event list.</p>
+        <h4>Does Tikka Masala back up my whole Cloudflare account?</h4>
+        <p>No. It backs up only the tunnel configuration of the tunnels you back up, plus metadata like timestamp and tunnel name, not account-wide settings, DNS records or Access policies.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Tikka Masala is open source software released under the MIT license. Not affiliated with Cloudflare, Inc.</p>
+  <p style="margin-top:0.5rem">
+    <a href="https://github.com/gioxx/TikkaMasala" target="_blank" rel="noopener">GitHub</a>
+    &nbsp;·&nbsp;
+    <a href="https://github.com/gioxx/TikkaMasala/releases" target="_blank" rel="noopener">Releases</a>
+    &nbsp;·&nbsp;
+    <a href="https://hub.docker.com/r/gfsolone/tikkamasala" target="_blank" rel="noopener">Docker Hub</a>
+    &nbsp;·&nbsp;
+    <a href="https://github.com/gioxx/TikkaMasala/issues" target="_blank" rel="noopener">Issues</a>
+    &nbsp;·&nbsp;
+    <a href="third-party-notices.txt">Third-party notices</a>
+  </p>
 </footer>
 
-<button class="back-to-top" type="button" aria-label="Back to top">&uarr;</button>
-<script src="assets/site.js"></script>
-<script src="assets/stats.js"></script>
+<div id="copy-status" class="sr-only" role="status" aria-live="polite"></div>
+
+<button class="to-top" type="button" aria-label="Back to top" title="Back to top">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>
+</button>
+
+<script>
+  (function () {
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.documentElement.classList.add("js");
+
+    // Reveal cards, steps and screenshots as they scroll into view.
+    var items = document.querySelectorAll(".reveal");
+    if (reduce || !("IntersectionObserver" in window)) {
+      items.forEach(function (el) { el.classList.add("visible"); });
+    } else {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add("visible"); io.unobserve(e.target); }
+        });
+      }, { rootMargin: "0px 0px -8% 0px" });
+      items.forEach(function (el, i) {
+        // Stagger siblings in the same grid a little.
+        el.style.transitionDelay = (Array.prototype.indexOf.call(el.parentNode.children, el) % 3) * 80 + "ms";
+        io.observe(el);
+      });
+    }
+
+    // Highlight the menu item of the section in view.
+    var links = document.querySelectorAll('nav .nav-links a[href^="#"]');
+    var byId = {};
+    links.forEach(function (a) { byId[a.getAttribute("href").slice(1)] = a; });
+    var sections = Object.keys(byId).map(function (id) { return document.getElementById(id); }).filter(Boolean);
+    function onScroll() {
+      var y = window.scrollY + 56 + 1;
+      var current = null;
+      sections.forEach(function (sec) { if (sec.offsetTop <= y) current = sec.id; });
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
+        current = sections[sections.length - 1].id;
+      }
+      links.forEach(function (a) { a.classList.toggle("active", byId[current] === a); });
+      toTop.classList.toggle("show", window.scrollY > 600);
+    }
+
+    var toTop = document.querySelector(".to-top");
+    toTop.addEventListener("click", function () {
+      window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    });
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    // Project stats: GitHub and Docker Hub (via shields.io), filled in when available.
+    function setStat(name, text) {
+      var el = document.querySelector('[data-stat="' + name + '"]');
+      if (el) el.textContent = text;
+    }
+    function formatCount(n) {
+      return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
+    }
+    function fetchJSON(url) {
+      return fetch(url).then(function (res) {
+        if (!res.ok) throw new Error("request failed");
+        return res.json();
+      });
+    }
+    if (window.fetch) {
+      fetchJSON("https://api.github.com/repos/gioxx/TikkaMasala")
+        .then(function (d) { setStat("stars", formatCount(d.stargazers_count)); }, function () {});
+      fetchJSON("https://api.github.com/repos/gioxx/TikkaMasala/releases/latest")
+        .then(function (d) { setStat("latest-release", d.tag_name); }, function () {});
+      fetchJSON("https://img.shields.io/docker/pulls/gfsolone/tikkamasala.json")
+        .then(function (d) { setStat("docker-pulls", d.message); }, function () {});
+      fetchJSON("https://img.shields.io/docker/image-size/gfsolone/tikkamasala/latest.json")
+        .then(function (d) { setStat("image-size", d.message); }, function () {});
+    }
+
+    // Copy to clipboard: every code block, plus the image names.
+    var ICON_COPY = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
+    var ICON_CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+
+    function copyText(text) {
+      if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+      return new Promise(function (resolve, reject) {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (e) {}
+        document.body.removeChild(ta);
+        ok ? resolve() : reject();
+      });
+    }
+
+    // One live region for every copy button, so screen readers hear the
+    // outcome whichever button was used.
+    var status = document.getElementById("copy-status");
+    function announce(msg) {
+      status.textContent = "";
+      setTimeout(function () { status.textContent = msg; }, 50);
+    }
+
+    function flash(btn, iconHolder) {
+      clearTimeout(btn._t);
+      btn.classList.add("copied");
+      iconHolder.innerHTML = ICON_CHECK;
+      btn._t = setTimeout(function () {
+        btn.classList.remove("copied");
+        iconHolder.innerHTML = ICON_COPY;
+      }, 1600);
+    }
+
+    document.querySelectorAll("pre").forEach(function (pre) {
+      var wrap = document.createElement("div");
+      wrap.className = "code";
+      pre.parentNode.insertBefore(wrap, pre);
+      wrap.appendChild(pre);
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "copy-btn";
+      btn.title = "Copy to clipboard";
+      btn.setAttribute("aria-label", "Copy code to clipboard");
+      btn.innerHTML = '<span class="ico">' + ICON_COPY + '</span><span class="label" aria-hidden="true">Copied</span>';
+      btn.addEventListener("click", function () {
+        copyText(pre.innerText.replace(/\n$/, "")).then(function () {
+          flash(btn, btn.querySelector(".ico"));
+          announce("Code copied to clipboard");
+        }, function () { announce("Copy failed: select the text and copy it manually"); });
+      });
+      wrap.appendChild(btn);
+    });
+
+    document.querySelectorAll("button.image-pill[data-copy]").forEach(function (btn) {
+      var ico = document.createElement("span");
+      ico.className = "ico";
+      ico.style.display = "inline-flex";
+      ico.innerHTML = ICON_COPY;
+      btn.appendChild(ico);
+      btn.addEventListener("click", function () {
+        var ref = btn.getAttribute("data-copy");
+        copyText(ref).then(function () {
+          flash(btn, ico);
+          announce(ref + " copied to clipboard");
+        }, function () { announce("Copy failed: select the text and copy it manually"); });
+      });
+    });
+    onScroll();
+  })();
+</script>
+
 </body>
 </html>
