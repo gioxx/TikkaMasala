@@ -11,6 +11,8 @@ Website: <https://tikkamasala.gioxx.org>
 [![](https://img.shields.io/docker/pulls/gfsolone/tikkamasala.svg)](https://hub.docker.com/r/gfsolone/tikkamasala)
 [![](https://img.shields.io/docker/image-size/gfsolone/tikkamasala/latest.svg)](https://hub.docker.com/r/gfsolone/tikkamasala)
 
+![Tikka Masala tunnel list with Copy, Use and Admin actions for each tunnel](docs/img/dashboard-hero.webp)
+
 ## Table of Contents
 
 - [Features](#features)
