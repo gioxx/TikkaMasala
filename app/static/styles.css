@@ -1625,4 +1625,40 @@ html[data-theme="light"] .hero h1 a {
     min-width: calc(100% + 2.5rem);
     max-width: calc(100% + 2.5rem);
   }
+
+  /* Tables: one card per row, each value under its column label (data-label) */
+  .table-wrap { overflow-x: visible; }
+  .table-wrap table,
+  .table-wrap tbody,
+  .table-wrap tr,
+  .table-wrap td { display: block; width: 100%; }
+  .table-wrap thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .table-wrap tbody tr {
+    padding: 0.65rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-wrap td {
+    border-bottom: 0;
+    padding: 0.3rem 0.35rem;
+    overflow-wrap: anywhere;
+  }
+  .table-wrap td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.15rem;
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .table-wrap td code { overflow-wrap: anywhere; }
+  .tunnel-actions { min-width: 0; }
 }

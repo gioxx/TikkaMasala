@@ -245,12 +245,12 @@
             <tbody>
               {% for tunnel in tunnels %}
               <tr>
-                <td>{{ tunnel.name }}</td>
-                <td>
+                <td data-label="Name">{{ tunnel.name }}</td>
+                <td data-label="ID">
                   <code>{{ tunnel.id }}</code>
                 </td>
-                <td>{{ tunnel.status or 'unknown' }}</td>
-                <td>
+                <td data-label="Status">{{ tunnel.status or 'unknown' }}</td>
+                <td data-label="Actions">
                   <div class="inline-actions tunnel-actions">
                     <button
                       type="button"
@@ -549,9 +549,9 @@
               <tbody>
                 {% for run in auto_backup.recent_runs %}
                 <tr>
-                  <td>#{{ run.id }}</td>
-                  <td>{{ run.started_at }}</td>
-                  <td>
+                  <td data-label="ID">#{{ run.id }}</td>
+                  <td data-label="Started">{{ run.started_at }}</td>
+                  <td data-label="Status">
                     {% if run.status == "success" %}
                     <span class="status-pill status-match">Success</span>
                     {% elif run.status == "partial" %}
@@ -564,9 +564,9 @@
                     <span class="status-pill status-warn">Failed</span>
                     {% endif %}
                   </td>
-                  <td>{{ run.tunnel_count }}</td>
-                  <td>{{ run.backup_count }}</td>
-                  <td>{{ run.error_count }}</td>
+                  <td data-label="Tunnels">{{ run.tunnel_count }}</td>
+                  <td data-label="Backups">{{ run.backup_count }}</td>
+                  <td data-label="Errors">{{ run.error_count }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -668,14 +668,14 @@
             <tbody>
               {% for backup in backups %}
               <tr>
-                <td>#{{ backup.id }}</td>
-                <td>{{ backup.created_at }}</td>
-                <td>
+                <td data-label="ID">#{{ backup.id }}</td>
+                <td data-label="Created">{{ backup.created_at }}</td>
+                <td data-label="Tunnel">
                   <div>{{ backup.tunnel_name or 'Unknown tunnel' }}</div>
                   <small><code>{{ backup.tunnel_id }}</code></small>
                 </td>
-                <td>{{ backup.route_count }}</td>
-                <td>
+                <td data-label="Routes">{{ backup.route_count }}</td>
+                <td data-label="Actions">
                   <div class="inline-actions">
                     <a href="/backup/{{ backup.id }}">View</a>
                     <a href="/backup/{{ backup.id }}/download">Download</a>
