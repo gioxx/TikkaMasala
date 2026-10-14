@@ -34,10 +34,13 @@ Website: <https://tikkamasala.gioxx.org>
 
 - Verify a Cloudflare API token before using it
 - Load the tunnels visible to a Cloudflare account
+- Open each tunnel's page in the Cloudflare dashboard (Networking → Tunnels) straight from the tunnel list
 - Quick-access links to Cloudflare Access Controls (Applications and Policies) from the tunnels section
 - Create JSON backups of a tunnel configuration
 - Download saved snapshots
+- See every ingress rule of a snapshot (hostname, path, origin `service`, `originRequest` settings), with host-local origins such as `localhost` flagged
 - Restore a snapshot to the original tunnel or to another tunnel
+- Preview a restore as an ingress diff against the tunnel's live configuration before applying it
 - Keep local metadata in SQLite
 - Track restore history per backup
 - Prefill `Account ID` and `API token` from environment, browser, or database
