@@ -110,7 +110,7 @@
                 {% set tid = tunnel.id | string %}
                 {% set tcfg = schedule.tunnels.get(tid, {}) %}
                 <tr>
-                  <td class="col-include">
+                  <td data-label="Include" class="col-include">
                     <input
                       type="checkbox"
                       name="include_{{ tid }}"
@@ -120,11 +120,11 @@
                       {% if schedule.mode != "selected" or tid in schedule.tunnels %}checked{% endif %}
                     >
                   </td>
-                  <td>
+                  <td data-label="Tunnel name">
                     <label for="include_{{ tid }}">{{ tunnel.name or tid }}</label>
                   </td>
-                  <td><code>{{ tid }}</code></td>
-                  <td>
+                  <td data-label="Tunnel ID"><code>{{ tid }}</code></td>
+                  <td data-label="Frequency">
                     <select name="freq_{{ tid }}" id="freq_{{ tid }}" class="compact-select">
                       <option value="always" {% if tcfg.get("frequency", "always") == "always" %}selected{% endif %}>Every run</option>
                       <option value="weekly"  {% if tcfg.get("frequency") == "weekly"  %}selected{% endif %}>Once per week</option>

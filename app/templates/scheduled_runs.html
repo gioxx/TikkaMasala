@@ -97,10 +97,10 @@
               {% for item in runs %}
               {% set run = item.record %}
               <tr>
-                <td>#{{ run.id }}</td>
-                <td>{{ run.started_at }}</td>
-                <td>{{ run.finished_at or 'Running' }}</td>
-                <td>
+                <td data-label="ID">#{{ run.id }}</td>
+                <td data-label="Started">{{ run.started_at }}</td>
+                <td data-label="Finished">{{ run.finished_at or 'Running' }}</td>
+                <td data-label="Status">
                   {% if run.status == "success" %}
                   <span class="status-pill status-match">Success</span>
                   {% elif run.status == "partial" %}
@@ -113,11 +113,11 @@
                   <span class="status-pill status-warn">Failed</span>
                   {% endif %}
                 </td>
-                <td><code>{{ run.account_id }}</code></td>
-                <td>{{ run.tunnel_count }}</td>
-                <td>{{ run.backup_count }}</td>
-                <td>{{ run.error_count }}</td>
-                <td class="wrap-anywhere">{{ item.details_summary or '—' }}</td>
+                <td data-label="Account ID"><code>{{ run.account_id }}</code></td>
+                <td data-label="Tunnels">{{ run.tunnel_count }}</td>
+                <td data-label="Backups">{{ run.backup_count }}</td>
+                <td data-label="Errors">{{ run.error_count }}</td>
+                <td data-label="Details" class="wrap-anywhere">{{ item.details_summary or '—' }}</td>
               </tr>
               {% endfor %}
             </tbody>

@@ -119,15 +119,15 @@
             <tbody>
               {% for rule in ingress_rules %}
               <tr>
-                <td>{{ rule.hostname or 'catch-all' }}</td>
-                <td>{% if rule.path %}<code>{{ rule.path }}</code>{% else %}&mdash;{% endif %}</td>
-                <td>
+                <td data-label="Hostname">{{ rule.hostname or 'catch-all' }}</td>
+                <td data-label="Path">{% if rule.path %}<code>{{ rule.path }}</code>{% else %}&mdash;{% endif %}</td>
+                <td data-label="Service (origin)">
                   <code>{{ rule.service }}</code>
                   {% if rule.is_fragile %}
                   <span class="status-pill status-warn">host-local</span>
                   {% endif %}
                 </td>
-                <td>
+                <td data-label="Origin settings">
                   {% if rule.origin_request %}
                   <div class="origin-delta">
                     {% for key, value in rule.origin_request | dictsort %}
@@ -175,13 +175,13 @@
             <tbody>
               {% for row in ingress_diff.ordered %}
               <tr>
-                <td>
+                <td data-label="Pos / change">
                   <span class="diff-pos">#{{ row.position }}</span>
                   {% if row.status == 'add' %}<span class="status-pill status-alt">add</span>
                   {% elif row.status == 'change' %}<span class="status-pill status-warn">change</span>{% endif %}
                 </td>
-                <td>{{ row.incoming.hostname or 'catch-all' }}{% if row.incoming.path %} <code>{{ row.incoming.path }}</code>{% endif %}</td>
-                <td>
+                <td data-label="Hostname / setting">{{ row.incoming.hostname or 'catch-all' }}{% if row.incoming.path %} <code>{{ row.incoming.path }}</code>{% endif %}</td>
+                <td data-label="Service (origin) / value">
                   {% if row.status == 'change' and row.current.service != row.incoming.service %}
                   <code>{{ row.current.service }}</code> &rarr; <code>{{ row.incoming.service }}</code>
                   {% else %}
@@ -208,9 +208,9 @@
               {% endfor %}
               {% for position, rule in ingress_diff.removed_positions %}
               <tr>
-                <td><span class="diff-pos">#{{ position }}</span> <span class="status-pill status-warn">remove</span></td>
-                <td>{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td>
-                <td>
+                <td data-label="Pos / change"><span class="diff-pos">#{{ position }}</span> <span class="status-pill status-warn">remove</span></td>
+                <td data-label="Hostname / setting">{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td>
+                <td data-label="Service (origin) / value">
                   <code>{{ rule.service }}</code>
                   {% if rule.origin_request %}
                   <div class="origin-delta">
@@ -223,13 +223,13 @@
               </tr>
               {% endfor %}
               {% if ingress_diff.reordered %}
-              <tr><td><span class="status-pill status-warn">reorder</span></td><td colspan="2">Rule order differs between the snapshot and the live configuration. Cloudflare matches rules top to bottom, so applying this snapshot can change which origin serves a request.</td></tr>
+              <tr><td data-label="Pos / change"><span class="status-pill status-warn">reorder</span></td><td colspan="2">Rule order differs between the snapshot and the live configuration. Cloudflare matches rules top to bottom, so applying this snapshot can change which origin serves a request.</td></tr>
               {% endif %}
               {% for key, old, new in settings_delta or [] %}
               <tr>
-                <td><span class="status-pill status-warn">config</span></td>
-                <td><code>{{ key }}</code></td>
-                <td><code>{{ old | tojson if old is not none else '—' }}</code> &rarr; <code>{{ new | tojson if new is not none else '—' }}</code></td>
+                <td data-label="Pos / change"><span class="status-pill status-warn">config</span></td>
+                <td data-label="Hostname / setting"><code>{{ key }}</code></td>
+                <td data-label="Service (origin) / value"><code>{{ old | tojson if old is not none else '—' }}</code> &rarr; <code>{{ new | tojson if new is not none else '—' }}</code></td>
               </tr>
               {% endfor %}
               {% if not ingress_diff.has_changes and not settings_delta %}
@@ -296,9 +296,9 @@
             <tbody>
               {% for restore in restores %}
               <tr>
-                <td>#{{ restore.id }}</td>
-                <td>{{ restore.restored_at }}</td>
-                <td>
+                <td data-label="ID">#{{ restore.id }}</td>
+                <td data-label="Restored">{{ restore.restored_at }}</td>
+                <td data-label="Target">
                   {% if restore.account_id == backup.account_id and restore.tunnel_id == backup.tunnel_id %}
                   <span class="status-pill status-match">Original tunnel</span>
                   {% elif restore.account_id == backup.account_id %}
@@ -307,8 +307,8 @@
                   <span class="status-pill status-warn">Different account</span>
                   {% endif %}
                 </td>
-                <td><code>{{ restore.account_id }}</code></td>
-                <td><code>{{ restore.tunnel_id }}</code></td>
+                <td data-label="Account ID"><code>{{ restore.account_id }}</code></td>
+                <td data-label="Tunnel ID"><code>{{ restore.tunnel_id }}</code></td>
               </tr>
               {% endfor %}
             </tbody>
