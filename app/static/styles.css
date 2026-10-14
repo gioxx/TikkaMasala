@@ -1047,6 +1047,8 @@ tbody tr:hover {
   border-radius: 8px;
 }
 .tunnel-actions { min-width: max-content; }
+/* Long IDs break only when the table would otherwise outgrow its card */
+.table-wrap td code { overflow-wrap: anywhere; }
 .copy-field {
   display: inline-flex;
   align-items: center;
@@ -1659,6 +1661,5 @@ html[data-theme="light"] .hero h1 a {
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
-  .table-wrap td code { overflow-wrap: anywhere; }
   .tunnel-actions { min-width: 0; }
 }
