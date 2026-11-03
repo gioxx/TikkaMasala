@@ -329,3 +329,18 @@ def get_restore_history(backup_id: int) -> list[RestoreRecord]:
             (backup_id,),
         ).fetchall()
     return [RestoreRecord(**dict(row)) for row in rows]
+
+
+def get_latest_backups_per_tunnel() -> list[BackupRecord]:
+    """Return the most recent backup of every tunnel, ordered by tunnel name."""
+
+    with closing(db()) as conn:
+        rows = conn.execute(
+            """
+            SELECT b.id, b.created_at, b.account_id, b.tunnel_id, b.tunnel_name, b.route_count, b.filename, b.notes
+            FROM backups b
+            JOIN (SELECT tunnel_id, MAX(id) AS id FROM backups GROUP BY tunnel_id) latest ON latest.id = b.id
+            ORDER BY b.tunnel_name COLLATE NOCASE, b.tunnel_id
+            """
+        ).fetchall()
+    return [BackupRecord(**dict(row)) for row in rows]
