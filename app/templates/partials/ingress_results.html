@@ -8,7 +8,6 @@
               hx-get="/ingress"
               hx-target="#ingress-results"
               hx-swap="outerHTML"
-              hx-push-url="true"
               hx-indicator="#ingress-loading"
             >Saved snapshots</a>
             <a
@@ -18,7 +17,6 @@
               hx-get="/ingress?source=live"
               hx-target="#ingress-results"
               hx-swap="outerHTML"
-              hx-push-url="true"
               hx-indicator="#ingress-loading"
             >{% if overview.source == "live" %}Refresh live{% else %}Live from Cloudflare{% endif %}</a>
             <span id="ingress-loading" class="htmx-indicator hint" role="status">Loading&hellip;</span>
@@ -51,6 +49,9 @@
           <strong>Hostname served by more than one tunnel.</strong>
           {{ overview.shared_hostnames | join(", ") }}.
           Traffic only reaches the tunnel the DNS record points at, so the other rules are probably left over.
+          {% if overview.source == "snapshot" %}
+          Snapshots can be old or belong to deleted tunnels: check with <em>Live from Cloudflare</em>.
+          {% endif %}
         </section>
         {% endif %}
 
@@ -105,7 +106,7 @@
                   <span class="status-pill status-warn status-pill-compact">host-local</span>
                   {% endif %}
                   {% if row.rule.origin_request %}
-                  <span class="status-pill status-info status-pill-compact" title="{% for key, value in row.rule.origin_request | dictsort %}{{ key }}={{ value | tojson }}{% if not loop.last %}, {% endif %}{% endfor %}">{{ row.rule.origin_request | length }} origin setting{{ 's' if row.rule.origin_request | length != 1 }}</span>
+                  <span class="status-pill status-info status-pill-compact" title="{% for key, value in row.rule.origin_request | dictsort %}{{ key }}={{ value | tojson | forceescape }}{% if not loop.last %}, {% endif %}{% endfor %}">{{ row.rule.origin_request | length }} origin setting{{ 's' if row.rule.origin_request | length != 1 }}</span>
                   {% endif %}
                 </td>
                 <td data-label="Tunnel">
@@ -126,7 +127,7 @@
               </tr>
               {% endfor %}
               <tr class="ingress-filter-empty" data-filter-empty hidden>
-                <td colspan="5">No rule matches the current filter.</td>
+                <td colspan="5" data-filter-empty-text>No rule matches the current filter.</td>
               </tr>
             </tbody>
           </table>

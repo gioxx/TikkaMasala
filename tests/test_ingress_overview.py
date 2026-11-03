@@ -109,7 +109,8 @@ def test_live_overview(monkeypatch):
     assert [row.rule.hostname for row in overview.rows] == ["live.example.com", None]
     by_id = {t.tunnel_id: t for t in overview.tunnels}
     assert "t2" not in by_id
-    assert by_id["t3"].note and by_id["t3"].rule_count == 0
+    assert by_id["t3"].note
+    assert not [row for row in overview.rows if row.tunnel_id == "t3"]
     assert by_id["t4"].error == "Authentication error (code 10000)"
     assert overview.generated_at
 
@@ -237,3 +238,59 @@ def test_list_tunnels_single_page_without_result_info(monkeypatch):
 
     monkeypatch.setattr(cloudflare, "cloudflare_get", fake_get)
     assert [t["id"] for t in asyncio.run(cloudflare.list_tunnels("acc", "token"))] == ["only"]
+
+
+# --- local review follow-ups -------------------------------------------------
+
+
+def test_origin_settings_tooltip_is_escaped(client, make_backup):
+    make_backup(tunnel_id="esc-1", tunnel_name="Esc", ingress=[
+        {"hostname": "esc.example.com", "service": "http://a", "originRequest": {"httpHostHeader": 'x" onmouseover="alert(1)'}},
+        {"service": "http_status:404"},
+    ])
+    body = client.get("/ingress").text
+    assert 'onmouseover="alert(1)' not in body
+    assert "httpHostHeader=&#34;x" in body
+
+
+def test_history_restore_request_gets_full_page(client):
+    response = client.get("/ingress", headers={"HX-Request": "true", "HX-History-Restore-Request": "true"})
+    assert "<html" in response.text
+
+
+def test_source_switch_does_not_push_history(client):
+    assert "hx-push-url" not in client.get("/ingress").text
+
+
+def test_list_tunnels_excludes_deleted(monkeypatch):
+    from app import cloudflare
+
+    paths = []
+
+    async def fake_get(account_id, path, api_token):
+        paths.append(path)
+        return {"success": True, "result": []}
+
+    monkeypatch.setattr(cloudflare, "cloudflare_get", fake_get)
+    asyncio.run(cloudflare.list_tunnels("acc", "token"))
+    assert "is_deleted=false" in paths[0]
+
+
+def test_snapshot_shared_warning_suggests_live_check(client, make_backup):
+    make_backup(tunnel_id="dup-a", tunnel_name="DupA", ingress=[{"hostname": "dup.example.com", "service": "http://a"}])
+    make_backup(tunnel_id="dup-b", tunnel_name="DupB", ingress=[{"hostname": "dup.example.com", "service": "http://b"}])
+    body = client.get("/ingress").text
+    assert "dup.example.com" in body
+    assert "check with <em>Live from Cloudflare</em>" in body
+
+
+def test_undecodable_snapshot_marks_tunnel_unreadable(make_backup, data_dir):
+    import sqlite3
+    from contextlib import closing
+
+    backup_id = make_backup(tunnel_id="bad-1", tunnel_name="Bad")
+    with closing(sqlite3.connect(data_dir / "app.db")) as conn:
+        filename = conn.execute("SELECT filename FROM backups WHERE id = ?", (backup_id,)).fetchone()[0]
+    (data_dir / "backups" / filename).write_bytes(b"\xff\xfe\x00 not utf-8")
+    tunnel = next(t for t in ingress_overview.snapshot_overview().tunnels if t.tunnel_id == "bad-1")
+    assert tunnel.error == "Snapshot file could not be read."

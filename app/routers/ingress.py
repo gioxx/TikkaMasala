@@ -38,8 +38,10 @@ async def ingress_overview_page(request: Request, source: str = "snapshot") -> H
     else:
         overview = snapshot_overview()
 
-    # htmx requests only need the results block; normal requests get the full page.
-    template = "partials/ingress_results.html" if request.headers.get("HX-Request") else "ingress.html"
+    # htmx swaps only need the results block. History restores also send
+    # HX-Request but expect the full page, as do normal requests.
+    is_partial = request.headers.get("HX-Request") and not request.headers.get("HX-History-Restore-Request")
+    template = "partials/ingress_results.html" if is_partial else "ingress.html"
     response = templates.TemplateResponse(
         request,
         template,

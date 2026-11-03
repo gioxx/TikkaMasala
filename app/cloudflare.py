@@ -62,11 +62,15 @@ MAX_TUNNEL_PAGES = 100  # safety stop: 5000 tunnels
 
 
 async def list_tunnels(account_id: str, api_token: str) -> list[dict[str, Any]]:
-    """Return every tunnel of the account, following the API's pagination."""
+    """Return every non-deleted tunnel of the account, following the API's pagination.
+
+    Without ``is_deleted=false`` Cloudflare also returns deleted tunnels, which
+    cannot be backed up or inspected.
+    """
 
     tunnels: list[dict[str, Any]] = []
     for page in range(1, MAX_TUNNEL_PAGES + 1):
-        data = await cloudflare_get(account_id, f"cfd_tunnel?page={page}&per_page={TUNNELS_PER_PAGE}", api_token)
+        data = await cloudflare_get(account_id, f"cfd_tunnel?is_deleted=false&page={page}&per_page={TUNNELS_PER_PAGE}", api_token)
         result = data.get("result", [])
         if not isinstance(result, list):
             break

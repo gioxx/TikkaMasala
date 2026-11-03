@@ -34,7 +34,6 @@ class TunnelSource:
     tunnel_id: str
     tunnel_name: str
     account_id: str | None = None
-    rule_count: int = 0
     backup_id: int | None = None
     snapshot_at: str | None = None
     error: str | None = None
@@ -109,7 +108,6 @@ def build_overview(
     rows: list[OverviewRow] = []
     tunnels: list[TunnelSource] = []
     for tunnel, rules in entries:
-        tunnel.rule_count = len(rules)
         tunnels.append(tunnel)
         for position, rule in enumerate(rules, start=1):
             rows.append(
@@ -162,7 +160,7 @@ def snapshot_overview() -> IngressOverview:
                 rules = extract_ingress(json.load(handle))
         except FileNotFoundError:
             tunnel.error = "Snapshot file is missing from the backup directory."
-        except (OSError, json.JSONDecodeError):
+        except (OSError, ValueError):  # ValueError covers JSONDecodeError and UnicodeDecodeError
             logger.exception("Unable to read snapshot %s for the ingress overview.", file_path)
             tunnel.error = "Snapshot file could not be read."
         entries.append((tunnel, rules))

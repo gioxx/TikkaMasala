@@ -66,7 +66,15 @@
           if (matches) visible += 1;
         });
         const emptyRow = results.querySelector("[data-filter-empty]");
-        if (emptyRow) emptyRow.hidden = visible > 0 || rows.length === 0;
+        if (emptyRow) {
+          emptyRow.hidden = visible > 0 || rows.length === 0;
+          const emptyText = emptyRow.querySelector("[data-filter-empty-text]");
+          if (emptyText) {
+            emptyText.textContent = query
+              ? "No rule matches the current filter."
+              : "Only catch-all rules here: tick \u201cShow catch-all rules\u201d to see them.";
+          }
+        }
       };
 
       const formatIngressDates = () => {
@@ -82,6 +90,7 @@
       ingressFilterInput?.addEventListener("input", applyIngressFilter);
       ingressShowCatchAll?.addEventListener("change", applyIngressFilter);
       // Results are replaced by htmx when switching source: re-apply filter and date formatting.
+      // The source switch deliberately does not push URLs: htmx history restores would detach these listeners.
       document.body.addEventListener("htmx:afterSettle", () => {
         applyIngressFilter();
         formatIngressDates();
