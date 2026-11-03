@@ -33,6 +33,7 @@ class TunnelSource:
 
     tunnel_id: str
     tunnel_name: str
+    account_id: str | None = None
     rule_count: int = 0
     backup_id: int | None = None
     snapshot_at: str | None = None
@@ -46,6 +47,7 @@ class OverviewRow:
     tunnel_name: str
     position: int  # 1-based rule order inside the tunnel (first match wins)
     rule: IngressRule
+    account_id: str | None = None  # account the tunnel belongs to (for dashboard links)
     backup_id: int | None = None
     snapshot_at: str | None = None
     shared_with: list[str] = field(default_factory=list)
@@ -59,7 +61,7 @@ class OverviewRow:
 
     @property
     def search_text(self) -> str:
-        parts = [self.rule.hostname or "catch-all", self.rule.path or "", self.rule.service, self.tunnel_name]
+        parts = [self.rule.hostname or ("catch-all" if self.rule.is_catch_all else "any hostname"), self.rule.path or "", self.rule.service, self.tunnel_name]
         return " ".join(parts).lower()
 
 
@@ -78,10 +80,6 @@ class IngressOverview:
     @property
     def fragile_count(self) -> int:
         return sum(1 for row in self.rows if row.rule.is_fragile)
-
-    @property
-    def catch_all_count(self) -> int:
-        return sum(1 for row in self.rows if not row.rule.hostname)
 
     @property
     def shared_hostnames(self) -> list[str]:
@@ -103,9 +101,9 @@ def build_overview(
 ) -> IngressOverview:
     """Flatten per-tunnel rules into rows sorted by hostname (catch-all rules last).
 
-    A hostname + path served by more than one tunnel is flagged: Cloudflare
-    sends traffic to the tunnel its DNS record points at, so the other rules
-    are likely stale.
+    A hostname configured in more than one tunnel is flagged, whatever the
+    paths: DNS points a hostname at a single tunnel, so the rules in the other
+    tunnels never receive traffic.
     """
 
     rows: list[OverviewRow] = []
@@ -120,19 +118,19 @@ def build_overview(
                     tunnel_name=tunnel.tunnel_name,
                     position=position,
                     rule=rule,
+                    account_id=tunnel.account_id,
                     backup_id=tunnel.backup_id,
                     snapshot_at=tunnel.snapshot_at,
                 )
             )
 
-    owners: dict[tuple[str, str | None], dict[str, str]] = {}
+    owners: dict[str, dict[str, str]] = {}
     for row in rows:
         if row.rule.hostname:
-            key = (row.rule.hostname.lower(), row.rule.path)
-            owners.setdefault(key, {})[row.tunnel_id] = row.tunnel_name
+            owners.setdefault(row.rule.hostname.lower(), {})[row.tunnel_id] = row.tunnel_name
     for row in rows:
         if row.rule.hostname:
-            tunnel_owners = owners[(row.rule.hostname.lower(), row.rule.path)]
+            tunnel_owners = owners[row.rule.hostname.lower()]
             row.shared_with = sorted(name for tid, name in tunnel_owners.items() if tid != row.tunnel_id)
 
     rows.sort(
@@ -153,6 +151,7 @@ def snapshot_overview() -> IngressOverview:
         tunnel = TunnelSource(
             tunnel_id=backup.tunnel_id,
             tunnel_name=backup.tunnel_name or "Unknown tunnel",
+            account_id=backup.account_id,
             backup_id=backup.id,
             snapshot_at=backup.created_at,
         )
@@ -174,7 +173,11 @@ async def _live_entry(
     account_id: str, api_token: str, tunnel: dict, semaphore: asyncio.Semaphore
 ) -> tuple[TunnelSource, list[IngressRule]]:
     tunnel_id = str(tunnel.get("id") or "").strip()
-    source = TunnelSource(tunnel_id=tunnel_id, tunnel_name=str(tunnel.get("name") or "Unknown tunnel"))
+    source = TunnelSource(
+        tunnel_id=tunnel_id,
+        tunnel_name=str(tunnel.get("name") or "Unknown tunnel"),
+        account_id=account_id,
+    )
     async with semaphore:
         try:
             data = await cloudflare_get(account_id, f"cfd_tunnel/{tunnel_id}/configurations", api_token)
@@ -197,6 +200,14 @@ async def live_overview(account_id: str, api_token: str) -> IngressOverview:
         tunnels = await list_tunnels(account_id, api_token)
     except HTTPException as exc:
         return IngressOverview(source="live", generated_at=generated_at, error=f"Could not load tunnels: {exc.detail}")
+    except Exception:
+        # Timeouts, connection errors or a non-JSON reply: show the error state, not a 500.
+        logger.exception("Unexpected error listing tunnels for the live ingress overview.")
+        return IngressOverview(
+            source="live",
+            generated_at=generated_at,
+            error="Could not load tunnels: the Cloudflare API did not answer correctly. Check the container logs.",
+        )
 
     active = [t for t in tunnels if t.get("id") and not t.get("deleted_at")]
     active.sort(key=lambda t: str(t.get("name") or "").lower())

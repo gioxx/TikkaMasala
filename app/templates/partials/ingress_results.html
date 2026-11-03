@@ -83,14 +83,16 @@
             </thead>
             <tbody>
               {% for row in overview.rows %}
-              <tr data-search="{{ row.search_text }}" data-catch-all="{{ 'false' if row.rule.hostname else 'true' }}">
+              <tr data-search="{{ row.search_text }}" data-catch-all="{{ 'true' if row.rule.is_catch_all else 'false' }}">
                 <td data-label="Hostname">
                   {% if row.link %}
                   <a href="{{ row.link }}" target="_blank" rel="noopener noreferrer" class="wrap-anywhere">{{ row.rule.hostname }}</a>
                   {% elif row.rule.hostname %}
                   <span class="wrap-anywhere">{{ row.rule.hostname }}</span>
-                  {% else %}
+                  {% elif row.rule.is_catch_all %}
                   <span class="status-pill status-muted status-pill-compact">catch-all</span>
+                  {% else %}
+                  <span class="status-pill status-muted status-pill-compact" title="Rule without hostname: matches its path on every hostname routed to this tunnel">any hostname</span>
                   {% endif %}
                   {% if row.shared_with %}
                   <span class="status-pill status-warn status-pill-compact" title="Also in: {{ row.shared_with | join(', ') }}">also in {{ row.shared_with | join(', ') }}</span>
@@ -107,8 +109,8 @@
                   {% endif %}
                 </td>
                 <td data-label="Tunnel">
-                  {% if account_id %}
-                  <a href="https://dash.cloudflare.com/{{ account_id }}/tunnels/{{ row.tunnel_id }}/overview" target="_blank" rel="noopener noreferrer" title="Open in the Cloudflare dashboard">{{ row.tunnel_name }}</a>
+                  {% if row.account_id %}
+                  <a href="https://dash.cloudflare.com/{{ row.account_id }}/tunnels/{{ row.tunnel_id }}/overview" target="_blank" rel="noopener noreferrer" title="Open in the Cloudflare dashboard">{{ row.tunnel_name }}</a>
                   {% else %}
                   {{ row.tunnel_name }}
                   {% endif %}

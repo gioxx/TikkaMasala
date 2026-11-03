@@ -43,7 +43,7 @@ async def ingress_overview_page(request: Request, source: str = "snapshot") -> H
     response = templates.TemplateResponse(
         request,
         template,
-        {"overview": overview, "account_id": account_id, "demo_mode": DEMO_MODE},
+        {"overview": overview, "demo_mode": DEMO_MODE},
     )
     response.headers["Vary"] = "HX-Request"
     return response

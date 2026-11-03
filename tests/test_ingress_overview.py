@@ -156,3 +156,84 @@ def test_ingress_page_live_without_credentials(client):
 
 def test_dashboard_links_to_ingress_page(client):
     assert 'href="/ingress"' in client.get("/").text
+
+
+# --- review follow-ups -------------------------------------------------------
+
+
+def test_hostname_shared_between_tunnels_even_with_different_paths():
+    # DNS routes by hostname, so only one of these tunnels can ever receive traffic.
+    overview = build_overview(
+        "live",
+        [
+            (TunnelSource("t1", "Home"), [rule("app.example.com", path="^/api")]),
+            (TunnelSource("t2", "Office"), [rule("app.example.com", path="^/web")]),
+        ],
+    )
+    assert {row.tunnel_name: row.shared_with for row in overview.rows} == {"Home": ["Office"], "Office": ["Home"]}
+
+
+def test_rows_carry_their_tunnel_account():
+    overview = build_overview(
+        "snapshot",
+        [
+            (TunnelSource("t1", "Old", account_id="acc-old"), [rule("a.example.com")]),
+            (TunnelSource("t2", "New", account_id="acc-new"), [rule("b.example.com")]),
+        ],
+    )
+    assert {row.tunnel_name: row.account_id for row in overview.rows} == {"Old": "acc-old", "New": "acc-new"}
+
+
+def test_snapshot_rows_use_backup_account(make_backup):
+    make_backup(tunnel_id="acct-1", tunnel_name="Acct", ingress=[{"hostname": "acct.example.com", "service": "http://a"}])
+    row = next(r for r in ingress_overview.snapshot_overview().rows if r.tunnel_id == "acct-1")
+    assert row.account_id == "acc-1"
+
+
+def test_pathed_rule_without_hostname_is_not_catch_all(client, make_backup):
+    make_backup(tunnel_id="path-1", tunnel_name="Paths", ingress=[
+        {"path": "^/health", "service": "http://10.0.0.3:9000"},
+        {"service": "http_status:404"},
+    ])
+    body = client.get("/ingress").text
+    start = body.index('<tr data-search="any hostname ^/health')
+    row = body[start: body.index("</tr>", start)]
+    assert 'data-catch-all="false"' in row
+    assert "any hostname" in row
+
+
+def test_live_overview_handles_transport_errors(monkeypatch):
+    async def timeout(account_id, api_token):
+        raise RuntimeError("connect timeout")
+
+    monkeypatch.setattr(ingress_overview, "list_tunnels", timeout)
+    overview = asyncio.run(ingress_overview.live_overview("acc", "token"))
+    assert overview.rows == []
+    assert "Could not load tunnels" in overview.error
+
+
+def test_list_tunnels_follows_pagination(monkeypatch):
+    from app import cloudflare
+
+    calls = []
+
+    async def fake_get(account_id, path, api_token):
+        calls.append(path)
+        page = int(path.split("page=")[1].split("&")[0])
+        results = {1: [{"id": "a"}, {"id": "b"}], 2: [{"id": "c"}]}[page]
+        return {"success": True, "result": results, "result_info": {"page": page, "total_pages": 2}}
+
+    monkeypatch.setattr(cloudflare, "cloudflare_get", fake_get)
+    tunnels = asyncio.run(cloudflare.list_tunnels("acc", "token"))
+    assert [t["id"] for t in tunnels] == ["a", "b", "c"]
+    assert len(calls) == 2
+
+
+def test_list_tunnels_single_page_without_result_info(monkeypatch):
+    from app import cloudflare
+
+    async def fake_get(account_id, path, api_token):
+        return {"success": True, "result": [{"id": "only"}]}
+
+    monkeypatch.setattr(cloudflare, "cloudflare_get", fake_get)
+    assert [t["id"] for t in asyncio.run(cloudflare.list_tunnels("acc", "token"))] == ["only"]
