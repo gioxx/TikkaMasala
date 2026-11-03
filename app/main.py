@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from app.backups import get_backup_retention_days
 from app.config import API_BASE, AUTO_BACKUP_TIMEZONE, BASE_DIR, DATA_DIR, DEMO_MODE, LOG_LEVEL
 from app.notifications import get_notification_log_context, get_notification_status
-from app.routers import auto_backup, backups, dashboard, notifications
+from app.routers import auto_backup, backups, dashboard, ingress, notifications
 from app.scheduler import auto_backup_scheduler, configure_auto_backup_job
 
 logger = logging.getLogger(__name__)
@@ -72,6 +72,7 @@ app.include_router(dashboard.router)
 app.include_router(auto_backup.router)
 app.include_router(notifications.router)
 app.include_router(backups.router)
+app.include_router(ingress.router)
 
 
 @app.get("/healthz")

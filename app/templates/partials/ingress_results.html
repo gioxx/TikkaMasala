@@ -1,0 +1,145 @@
+<div id="ingress-results" class="ingress-results">
+        <div class="ingress-source-row">
+          <div class="source-switch" role="group" aria-label="Data source">
+            <a
+              href="/ingress"
+              class="secondary-link-button secondary-link-button-small"
+              {% if overview.source == "snapshot" %}aria-current="page"{% endif %}
+              hx-get="/ingress"
+              hx-target="#ingress-results"
+              hx-swap="outerHTML"
+              hx-indicator="#ingress-loading"
+            >Saved snapshots</a>
+            <a
+              href="/ingress?source=live"
+              class="secondary-link-button secondary-link-button-small"
+              {% if overview.source == "live" %}aria-current="page"{% endif %}
+              hx-get="/ingress?source=live"
+              hx-target="#ingress-results"
+              hx-swap="outerHTML"
+              hx-indicator="#ingress-loading"
+            >{% if overview.source == "live" %}Refresh live{% else %}Live from Cloudflare{% endif %}</a>
+            <span id="ingress-loading" class="htmx-indicator hint" role="status">Loading&hellip;</span>
+          </div>
+          <p class="hint">
+            {% if overview.source == "live" %}
+            Current configuration read from the Cloudflare API{% if overview.generated_at %} at
+            <span class="local-datetime" data-utc-datetime="{{ overview.generated_at }}">{{ overview.generated_at }}</span>{% endif %}.
+            {% else %}
+            Latest saved snapshot of each tunnel. Rules changed after that snapshot are not shown: use
+            <em>Live from Cloudflare</em> to read the current configuration.
+            {% endif %}
+          </p>
+        </div>
+
+        {% if overview.error %}
+        <section class="notice error top-gap">{{ overview.error }}</section>
+        {% endif %}
+
+        {% if overview.tunnels %}
+        <p class="hint ingress-summary">
+          {{ overview.tunnels | length }} tunnel{{ 's' if overview.tunnels | length != 1 }}
+          &middot; {{ overview.hostname_count }} hostname{{ 's' if overview.hostname_count != 1 }}
+          &middot; {{ overview.fragile_count }} host-local origin{{ 's' if overview.fragile_count != 1 }}
+        </p>
+        {% endif %}
+
+        {% if overview.shared_hostnames %}
+        <section class="notice warn top-gap">
+          <strong>Hostname served by more than one tunnel.</strong>
+          {{ overview.shared_hostnames | join(", ") }}.
+          Traffic only reaches the tunnel the DNS record points at, so the other rules are probably left over.
+          {% if overview.source == "snapshot" %}
+          Snapshots can be old or belong to deleted tunnels: check with <em>Live from Cloudflare</em>.
+          {% endif %}
+        </section>
+        {% endif %}
+
+        {% if overview.tunnels_with_errors %}
+        <section class="notice error top-gap">
+          <strong>Some tunnels could not be read.</strong>
+          <ul class="ingress-issues">
+            {% for tunnel in overview.tunnels_with_errors %}
+            <li><strong>{{ tunnel.tunnel_name }}</strong>: {{ tunnel.error }}</li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+
+        {% for tunnel in overview.tunnels_with_notes %}
+        <p class="hint">{{ tunnel.tunnel_name }}: {{ tunnel.note }}</p>
+        {% endfor %}
+
+        {% if overview.rows %}
+        <div class="table-wrap top-gap">
+          <table class="ingress-table">
+            <thead>
+              <tr>
+                <th>Hostname</th>
+                <th>Path</th>
+                <th>Service (origin)</th>
+                <th>Tunnel</th>
+                <th>{% if overview.source == "snapshot" %}Snapshot{% else %}Rule{% endif %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in overview.rows %}
+              <tr data-search="{{ row.search_text }}" data-catch-all="{{ 'true' if row.rule.is_catch_all else 'false' }}">
+                <td data-label="Hostname">
+                  {% if row.link %}
+                  <a href="{{ row.link }}" target="_blank" rel="noopener noreferrer" class="wrap-anywhere">{{ row.rule.hostname }}</a>
+                  {% elif row.rule.hostname %}
+                  <span class="wrap-anywhere">{{ row.rule.hostname }}</span>
+                  {% elif row.rule.is_catch_all %}
+                  <span class="status-pill status-muted status-pill-compact">catch-all</span>
+                  {% else %}
+                  <span class="status-pill status-muted status-pill-compact" title="Rule without hostname: matches its path on every hostname routed to this tunnel">any hostname</span>
+                  {% endif %}
+                  {% if row.shared_with %}
+                  <span class="status-pill status-warn status-pill-compact" title="Also in: {{ row.shared_with | join(', ') }}">also in {{ row.shared_with | join(', ') }}</span>
+                  {% endif %}
+                </td>
+                <td data-label="Path">{% if row.rule.path %}<code>{{ row.rule.path }}</code>{% else %}&mdash;{% endif %}</td>
+                <td data-label="Service (origin)">
+                  <code>{{ row.rule.service }}</code>
+                  {% if row.rule.is_fragile %}
+                  <span class="status-pill status-warn status-pill-compact">host-local</span>
+                  {% endif %}
+                  {% if row.rule.origin_request %}
+                  <span class="status-pill status-info status-pill-compact" title="{% for key, value in row.rule.origin_request | dictsort %}{{ key }}={{ value | tojson | forceescape }}{% if not loop.last %}, {% endif %}{% endfor %}">{{ row.rule.origin_request | length }} origin setting{{ 's' if row.rule.origin_request | length != 1 }}</span>
+                  {% endif %}
+                </td>
+                <td data-label="Tunnel">
+                  {% if row.account_id %}
+                  <a href="https://dash.cloudflare.com/{{ row.account_id }}/tunnels/{{ row.tunnel_id }}/overview" target="_blank" rel="noopener noreferrer" title="Open in the Cloudflare dashboard">{{ row.tunnel_name }}</a>
+                  {% else %}
+                  {{ row.tunnel_name }}
+                  {% endif %}
+                </td>
+                <td data-label="{% if overview.source == 'snapshot' %}Snapshot{% else %}Rule{% endif %}">
+                  {% if overview.source == "snapshot" and row.backup_id %}
+                  <a href="/backup/{{ row.backup_id }}" title="Rule {{ row.position }} of the tunnel">#{{ row.backup_id }}</a>
+                  <span class="hint local-datetime" data-utc-datetime="{{ row.snapshot_at }}">{{ row.snapshot_at }}</span>
+                  {% else %}
+                  #{{ row.position }}
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+              <tr class="ingress-filter-empty" data-filter-empty hidden>
+                <td colspan="5" data-filter-empty-text>No rule matches the current filter.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        {% elif not overview.error %}
+        <p class="top-gap">
+          {% if overview.source == "snapshot" %}
+          No snapshots saved yet. Create a backup from the <a href="/#backup-section">dashboard</a>,
+          or switch to <em>Live from Cloudflare</em>.
+          {% else %}
+          No tunnels with ingress rules found in this account.
+          {% endif %}
+        </p>
+        {% endif %}
+      </div>

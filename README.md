@@ -43,6 +43,7 @@ Website: <https://tikkamasala.gioxx.org>
 - See every ingress rule of a snapshot (hostname, path, origin `service`, `originRequest` settings), with host-local origins such as `localhost` flagged
 - Restore a snapshot to the original tunnel or to another tunnel
 - Preview a restore as an ingress diff against the tunnel's live configuration before applying it
+- See every public hostname of every tunnel and the origin it points to on one **Hostnames** page (`/ingress`): read from the latest snapshot of each tunnel, or live from the Cloudflare API, with filtering and warnings for host-local origins and hostnames served by more than one tunnel
 - Keep local metadata in SQLite
 - Track restore history per backup
 - Prefill `Account ID` and `API token` from environment, browser, or database
@@ -381,6 +382,7 @@ Manual tunnel listing and manual backup downloads still work.
 - Application entrypoint (app wiring, routers, lifecycle): [`app/main.py`](app/main.py)
 - Domain modules: [`config.py`](app/config.py) (environment), [`db.py`](app/db.py) (SQLite schema and settings), [`credentials.py`](app/credentials.py) (Account ID / token handling), [`cloudflare.py`](app/cloudflare.py) (API client), [`backups.py`](app/backups.py) (snapshots and retention), [`scheduler.py`](app/scheduler.py) (automatic backups), [`notifications.py`](app/notifications.py) (webhook / Telegram), [`ingress.py`](app/ingress.py) (ingress parsing and diff), [`web.py`](app/web.py) (templates and page renderers)
 - HTTP routes: [`app/routers/`](app/routers)
+- Hostnames overview: [`app/ingress_overview.py`](app/ingress_overview.py); live refresh uses [htmx](https://htmx.org) 2.0.4, vendored in [`app/static/vendor/`](app/static/vendor) (0BSD license)
 - Templates extend [`app/templates/base.html`](app/templates/base.html) (head, hero, footer); shared page behaviour lives in [`app/static/app.js`](app/static/app.js)
 - Page templates: [`index.html`](app/templates/index.html), [`backup.html`](app/templates/backup.html), [`scheduled_runs.html`](app/templates/scheduled_runs.html), [`tunnel_filters.html`](app/templates/tunnel_filters.html), [`notification_messages.html`](app/templates/notification_messages.html)
 - Tests: `pip install -r requirements-dev.txt && pytest`
