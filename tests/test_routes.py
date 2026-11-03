@@ -83,7 +83,7 @@ def test_backup_detail_shows_ingress(client, make_backup):
     assert response.status_code == 200
     body = response.text
     assert f"Backup #{backup_id}" in body
-    assert "app.example.com" in body
+    assert '<td data-label="Hostname">app.example.com</td>' in body
     assert "http://localhost:3000" in body
 
 
