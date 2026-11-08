@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.config import DEMO_MODE
 from app.credentials import get_saved_account_id, get_saved_api_token
 from app.ingress_overview import IngressOverview, live_overview, snapshot_overview
+from app.profiles import current_profile_id
 from app.web import templates
 
 logger = logging.getLogger(__name__)
@@ -27,9 +28,10 @@ async def ingress_overview_page(request: Request, source: str = "snapshot") -> H
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
 
-    account_id = get_saved_account_id()
+    profile_id = current_profile_id(request)
+    account_id = get_saved_account_id(profile_id)
     if source == "live":
-        api_token = get_saved_api_token(request)
+        api_token = get_saved_api_token(request, profile_id)
         if account_id and api_token:
             logger.info("Live ingress overview requested (account_id=%s).", account_id)
             overview = await live_overview(account_id, api_token)

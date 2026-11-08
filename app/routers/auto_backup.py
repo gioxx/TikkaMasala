@@ -11,8 +11,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.cloudflare import list_tunnels
 from app.config import AUTO_BACKUP_TIMEZONE, DEFAULT_AUTO_BACKUP_CRON, DEMO_MODE
 from app.credentials import get_saved_account_id, get_server_api_token
+from app.profiles import current_profile_id
 from app.scheduler import (
     TUNNEL_FREQUENCY_OPTIONS,
+    configure_all_auto_backup_jobs,
     configure_auto_backup_job,
     get_auto_backup_prerequisites,
     get_auto_backup_timezone_name,
@@ -42,15 +44,18 @@ async def auto_backup_settings_action(
         return render_index_page(request, error="Automatic backups are not available in Demo mode.", success_target="auto-backup")
     try:
         logger.info("Automatic backup settings update requested.")
+        timezone_saved = False
         if not AUTO_BACKUP_TIMEZONE and browser_timezone.strip():
             try:
                 set_auto_backup_timezone(browser_timezone)
+                timezone_saved = True
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+        profile_id = current_profile_id(request)
         normalized_cron = validate_cron_expression(cron_expression)
         enabled_flag = enabled == "on"
-        prereqs = get_auto_backup_prerequisites()
+        prereqs = get_auto_backup_prerequisites(profile_id)
 
         if enabled_flag and not prereqs["ready"]:
             raise HTTPException(
@@ -58,9 +63,13 @@ async def auto_backup_settings_action(
                 detail="Automatic backups require a server-side Account ID and API token from the database or environment.",
             )
 
-        set_auto_backup_cron(normalized_cron)
-        set_auto_backup_enabled(enabled_flag)
-        configure_auto_backup_job()
+        set_auto_backup_cron(profile_id, normalized_cron)
+        set_auto_backup_enabled(profile_id, enabled_flag)
+        if timezone_saved:
+            # The timezone is global: every profile's cron trigger depends on it.
+            configure_all_auto_backup_jobs()
+        else:
+            configure_auto_backup_job(profile_id)
         logger.info(
             "Automatic backup settings updated (enabled=%s, cron=%s, timezone=%s).",
             enabled_flag,
@@ -81,14 +90,15 @@ async def auto_backup_run_action(request: Request) -> HTMLResponse:
         return render_index_page(request, error="Automatic backups are not available in Demo mode.", success_target="auto-backup")
     try:
         logger.info("Manual automatic-backup run requested from UI.")
-        prereqs = get_auto_backup_prerequisites()
+        profile_id = current_profile_id(request)
+        prereqs = get_auto_backup_prerequisites(profile_id)
         if not prereqs["ready"]:
             raise HTTPException(
                 status_code=400,
                 detail="Automatic backups require a server-side Account ID and API token from the database or environment.",
             )
 
-        result = await run_auto_backup_job(trigger="manual")
+        result = await run_auto_backup_job(profile_id, trigger="manual")
         status = result["status"]
         logger.info(
             "Manual automatic-backup run finished (status=%s, tunnels=%s, backups=%s, errors=%s).",
@@ -124,12 +134,13 @@ async def auto_backup_run_action(request: Request) -> HTMLResponse:
 async def auto_backup_tunnel_filters_page(request: Request) -> HTMLResponse:
     if DEMO_MODE:
         return RedirectResponse(url="/#auto-backup-section", status_code=303)
-    prereqs = get_auto_backup_prerequisites()
+    profile_id = current_profile_id(request)
+    prereqs = get_auto_backup_prerequisites(profile_id)
     tunnels: list[dict[str, Any]] = []
     load_error: str | None = None
     if prereqs["ready"]:
-        account_id = get_saved_account_id()
-        api_token = get_server_api_token()
+        account_id = get_saved_account_id(profile_id)
+        api_token = get_server_api_token(profile_id)
         try:
             tunnels = await list_tunnels(account_id, api_token)  # type: ignore[arg-type]
         except HTTPException as exc:
@@ -137,7 +148,7 @@ async def auto_backup_tunnel_filters_page(request: Request) -> HTMLResponse:
         except Exception:
             logger.exception("Unexpected error loading tunnels for tunnel-filters page.")
             load_error = "Unexpected error loading tunnels from Cloudflare API."
-    current_schedule = get_auto_backup_tunnel_schedule()
+    current_schedule = get_auto_backup_tunnel_schedule(profile_id)
     return templates.TemplateResponse(
         request,
         "tunnel_filters.html",
@@ -180,7 +191,7 @@ async def auto_backup_tunnel_filters_action(request: Request) -> HTMLResponse:
                     tunnels_cfg[tid] = {"name": name, "frequency": freq}
 
         new_schedule: dict[str, Any] = {"mode": mode, "tunnels": tunnels_cfg}
-        set_auto_backup_tunnel_schedule(new_schedule)
+        set_auto_backup_tunnel_schedule(current_profile_id(request), new_schedule)
         logger.info(
             "Tunnel backup schedule updated (mode=%s, tunnel_overrides=%s).",
             mode,

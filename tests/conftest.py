@@ -59,6 +59,7 @@ def make_backup(data_dir: Path):
         tunnel_name: str = "Home",
         ingress: list[dict] | None = None,
         created_at: str = "2026-01-01T00:00:00+00:00",
+        account_id: str = "acc-1",
     ) -> int:
         ingress = ingress if ingress is not None else [
             {"hostname": "app.example.com", "service": "http://10.0.0.5:8080"},
@@ -67,7 +68,7 @@ def make_backup(data_dir: Path):
         filename = f"test_{tunnel_id}_{len(created)}_{created_at[:10]}.json"
         payload = {
             "exported_at": created_at,
-            "account_id": "acc-1",
+            "account_id": account_id,
             "tunnel_id": tunnel_id,
             "tunnel": {"id": tunnel_id, "name": tunnel_name},
             "configuration": {"config": {"ingress": ingress}},
@@ -80,7 +81,7 @@ def make_backup(data_dir: Path):
                 INSERT INTO backups (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (created_at, "acc-1", tunnel_id, tunnel_name, len(ingress), filename, ""),
+                (created_at, account_id, tunnel_id, tunnel_name, len(ingress), filename, ""),
             )
             conn.commit()
             backup_id = int(cursor.lastrowid)

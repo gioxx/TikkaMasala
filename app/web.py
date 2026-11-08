@@ -29,6 +29,7 @@ from app.config import (
 )
 from app.credentials import build_prefill_status, get_saved_account_id, get_saved_api_token
 from app.ingress import IngressDiff, extract_ingress, fragile_rules, origin_request_delta
+from app.profiles import current_profile_id
 from app.scheduler import (
     build_auto_backup_status,
     get_scheduled_runs_page,
@@ -95,6 +96,7 @@ def render_index_page(
     resolved_page = backup_page if isinstance(backup_page, int) else get_requested_backup_page(request)
     resolved_page_size = backup_page_size if isinstance(backup_page_size, int) else get_requested_backup_page_size(request)
     backups, backup_pagination = get_backups_page(resolved_page, resolved_page_size)
+    profile_id = current_profile_id(request)
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -106,12 +108,12 @@ def render_index_page(
             "backup_pagination": backup_pagination,
             "backup_page_size_options": sorted(BACKUPS_PAGE_SIZE_OPTIONS),
             "database_stats": get_database_stats(),
-            "backup_retention": get_backup_retention_status(),
+            "backup_retention": get_backup_retention_status(profile_id),
             "tunnels": tunnels,
-            "prefill_status": prefill_status or build_prefill_status(request),
-            "prefill_account_id": prefill_account_id if prefill_account_id is not None else get_saved_account_id(),
-            "prefill_api_token": prefill_api_token if prefill_api_token is not None else get_saved_api_token(request),
-            "auto_backup": build_auto_backup_status(),
+            "prefill_status": prefill_status or build_prefill_status(request, profile_id),
+            "prefill_account_id": prefill_account_id if prefill_account_id is not None else get_saved_account_id(profile_id),
+            "prefill_api_token": prefill_api_token if prefill_api_token is not None else get_saved_api_token(request, profile_id),
+            "auto_backup": build_auto_backup_status(profile_id),
             "demo_mode": DEMO_MODE,
         },
     )
@@ -132,6 +134,7 @@ def render_backup_page(
     content = load_backup_json(backup_id)
     restores = get_restore_history(backup_id)
     ingress_rules = extract_ingress(content)
+    profile_id = current_profile_id(request)
     return templates.TemplateResponse(
         request,
         "backup.html",
@@ -145,8 +148,8 @@ def render_backup_page(
             "settings_delta": settings_delta,
             "message": message,
             "error": error,
-            "prefill_account_id": get_saved_account_id(),
-            "prefill_api_token": get_saved_api_token(request),
+            "prefill_account_id": get_saved_account_id(profile_id),
+            "prefill_api_token": get_saved_api_token(request, profile_id),
             "form_account_id": form_account_id,
             "form_tunnel_id": form_tunnel_id,
             "form_api_token": form_api_token,
@@ -156,11 +159,13 @@ def render_backup_page(
 
 
 def render_scheduled_runs_page(request: Request) -> HTMLResponse:
+    profile_id = current_profile_id(request)
     runs, scheduled_runs_pagination = get_scheduled_runs_page(
+        profile_id,
         get_requested_scheduled_runs_page(request),
         get_requested_scheduled_runs_page_size(request),
     )
-    scheduled_runs_stats = get_scheduled_runs_stats()
+    scheduled_runs_stats = get_scheduled_runs_stats(profile_id)
     run_items = [
         {
             "record": run,

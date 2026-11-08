@@ -19,6 +19,7 @@ from app.credentials import (
 )
 from app.ingress import config_settings_delta, diff_ingress, extract_ingress
 from app.notifications import queue_notification, render_notification_message
+from app.profiles import current_profile_id
 from app.web import render_backup_page
 
 logger = logging.getLogger(__name__)
@@ -56,9 +57,10 @@ async def restore_backup(
 ) -> HTMLResponse:
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
+    profile_id = current_profile_id(request)
     try:
-        account_id = resolve_account_id(account_id)
-        api_token = resolve_api_token(request, api_token)
+        account_id = resolve_account_id(profile_id, account_id)
+        api_token = resolve_api_token(request, profile_id, api_token)
         logger.info(
             "Restore %s requested (backup_id=%s, account_id=%s, tunnel_id=%s).",
             "preview" if mode == "preview" else "apply",
@@ -77,8 +79,8 @@ async def restore_backup(
             live_config_body = live_result.get("config") if isinstance(live_result, dict) else {}
             diff = diff_ingress(extract_ingress(live_result), extract_ingress(payload))
             settings_delta = config_settings_delta(live_config_body, config_body)
-            remember_account_id(account_id)
-            remember_api_token(api_token)
+            remember_account_id(profile_id, account_id)
+            remember_api_token(profile_id, api_token)
             response = render_backup_page(
                 request,
                 backup_id,
@@ -92,8 +94,8 @@ async def restore_backup(
             set_api_token_cookie(response, api_token)
             return response
         await cloudflare_put(account_id, f"cfd_tunnel/{tunnel_id}/configurations", api_token, {"config": config_body})
-        remember_account_id(account_id)
-        remember_api_token(api_token)
+        remember_account_id(profile_id, account_id)
+        remember_api_token(profile_id, api_token)
         record_restore(backup_id, account_id, tunnel_id)
         logger.info("Restore completed successfully (backup_id=%s, account_id=%s, tunnel_id=%s).", backup_id, account_id, tunnel_id)
         _rs_details = {

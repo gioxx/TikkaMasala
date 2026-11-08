@@ -20,13 +20,15 @@ from app.config import (
     BACKUPS_PAGE_SIZE_OPTIONS,
     DB_PATH,
 )
+from app.credentials import get_saved_account_id
 from app.db import BackupRecord, RestoreRecord, db
 from app.notifications import queue_notification, render_notification_message
+from app.profiles import DEFAULT_PROFILE_ID, get_profile, list_profiles
 
 logger = logging.getLogger(__name__)
 
 
-def get_backup_retention_days() -> int | None:
+def _env_retention_days() -> int | None:
     if not BACKUP_RETENTION_DAYS_RAW:
         return None
     try:
@@ -38,6 +40,22 @@ def get_backup_retention_days() -> int | None:
         logger.warning("Ignoring BACKUP_RETENTION_DAYS because it must be greater than zero: %s", BACKUP_RETENTION_DAYS_RAW)
         return None
     return days
+
+
+def get_backup_retention_days(profile_id: int | None) -> int | None:
+    """Profile value if set; else the environment value for Default (or no profile); else keep forever."""
+    if profile_id is not None:
+        try:
+            stored = get_profile(profile_id).retention_days
+        except LookupError:
+            stored = None
+        if stored is not None and stored > 0:
+            return stored
+        if stored is not None:
+            logger.warning("Ignoring retention_days=%s for profile %s because it must be greater than zero.", stored, profile_id)
+    if profile_id is None or profile_id == DEFAULT_PROFILE_ID:
+        return _env_retention_days()
+    return None
 
 
 def get_last_backup_time_for_tunnel(tunnel_id: str) -> datetime | None:
@@ -54,7 +72,13 @@ def get_last_backup_time_for_tunnel(tunnel_id: str) -> datetime | None:
     return None
 
 
-async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: str | None = None) -> BackupRecord:
+async def create_backup(
+    account_id: str,
+    tunnel_id: str,
+    api_token: str,
+    notes: str | None = None,
+    origin: str = "manual",
+) -> BackupRecord:
     tunnel_data, config_data = await fetch_tunnel_configuration(account_id, tunnel_id, api_token)
     tunnel = tunnel_data.get("result", {})
     config = config_data.get("result", {})
@@ -81,10 +105,10 @@ async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: 
     with closing(db()) as conn:
         cursor = conn.execute(
             """
-            INSERT INTO backups (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO backups (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes or ""),
+            (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes or "", origin),
         )
         conn.commit()
         backup_id = cursor.lastrowid
@@ -100,51 +124,37 @@ async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: 
         route_count=route_count,
         filename=filename,
         notes=notes,
+        origin=origin,
     )
 
 
-def purge_expired_backups(reference_time: datetime | None = None) -> int:
-    retention_days = get_backup_retention_days()
-    if retention_days is None:
-        return 0
+def _purge_group(
+    conn,
+    retention_days: int,
+    reference_time: datetime,
+    where: str,
+    params: tuple,
+) -> int:
+    cutoff_iso = (reference_time - timedelta(days=retention_days)).replace(microsecond=0).isoformat()
+    rows = conn.execute(
+        f"SELECT id, filename FROM backups WHERE created_at < ? AND {where} ORDER BY id ASC",
+        (cutoff_iso, *params),
+    ).fetchall()
 
-    cutoff_time = (reference_time or datetime.now(timezone.utc)) - timedelta(days=retention_days)
-    cutoff_iso = cutoff_time.replace(microsecond=0).isoformat()
+    for row in rows:
+        backup_id = int(row["id"])
+        file_path = BACKUP_DIR / str(row["filename"])
+        try:
+            file_path.unlink(missing_ok=True)
+        except OSError:
+            logger.exception("Failed to remove expired backup file: %s", file_path)
+        conn.execute("DELETE FROM restores WHERE backup_id = ?", (backup_id,))
+        conn.execute("DELETE FROM backups WHERE id = ?", (backup_id,))
+    conn.commit()
 
-    with closing(db()) as conn:
-        rows = conn.execute(
-            """
-            SELECT id, filename
-            FROM backups
-            WHERE created_at < ?
-            ORDER BY id ASC
-            """,
-            (cutoff_iso,),
-        ).fetchall()
-
-        deleted_count = 0
-        for row in rows:
-            backup_id = int(row["id"])
-            filename = str(row["filename"])
-            file_path = BACKUP_DIR / filename
-
-            try:
-                file_path.unlink(missing_ok=True)
-            except OSError:
-                logger.exception("Failed to remove expired backup file: %s", file_path)
-
-            conn.execute("DELETE FROM restores WHERE backup_id = ?", (backup_id,))
-            conn.execute("DELETE FROM backups WHERE id = ?", (backup_id,))
-            deleted_count += 1
-
-        conn.commit()
-
+    deleted_count = len(rows)
     if deleted_count:
-        logger.info(
-            "Deleted %s expired backup(s) older than %s day(s) due to BACKUP_RETENTION_DAYS.",
-            deleted_count,
-            retention_days,
-        )
+        logger.info("Deleted %s expired backup(s) older than %s day(s) due to the retention policy.", deleted_count, retention_days)
         _rc_details = {
             "deleted_count": deleted_count,
             "retention_days": retention_days,
@@ -156,14 +166,40 @@ def purge_expired_backups(reference_time: datetime | None = None) -> int:
             _rc_details,
             level="info",
         )
-
     return deleted_count
+
+
+def purge_expired_backups(reference_time: datetime | None = None) -> int:
+    reference_time = reference_time or datetime.now(timezone.utc)
+    deleted_total = 0
+    claimed: list[str] = []
+
+    with closing(db()) as conn:
+        for profile in list_profiles():
+            account_id = get_saved_account_id(profile.id)
+            # No account: owns nothing. Shared account: the first profile in id order owns it.
+            if not account_id or account_id in claimed:
+                continue
+            claimed.append(account_id)
+            retention_days = get_backup_retention_days(profile.id)
+            if retention_days is None:
+                continue
+            deleted_total += _purge_group(conn, retention_days, reference_time, "account_id = ?", (account_id,))
+
+        # Backups of accounts that match no profile follow the environment rule.
+        retention_days = get_backup_retention_days(None)
+        if retention_days is not None:
+            placeholders = ",".join("?" for _ in claimed)
+            where = f"account_id NOT IN ({placeholders})" if claimed else "1 = 1"
+            deleted_total += _purge_group(conn, retention_days, reference_time, where, tuple(claimed))
+
+    return deleted_total
 
 
 def get_backups() -> list[BackupRecord]:
     with closing(db()) as conn:
         rows = conn.execute(
-            "SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes FROM backups ORDER BY id DESC"
+            "SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin FROM backups ORDER BY id DESC"
         ).fetchall()
     return [BackupRecord(**dict(row)) for row in rows]
 
@@ -177,7 +213,7 @@ def get_backups_page(page: int, page_size: int = BACKUPS_PAGE_SIZE) -> tuple[lis
         total_count = int(conn.execute("SELECT COUNT(*) FROM backups").fetchone()[0])
         rows = conn.execute(
             """
-            SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes
+            SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin
             FROM backups
             ORDER BY id DESC
             LIMIT ? OFFSET ?
@@ -244,14 +280,18 @@ def get_database_stats() -> dict[str, Any]:
     }
 
 
-def get_backup_retention_status() -> dict[str, Any]:
-    retention_days = get_backup_retention_days()
+def get_backup_retention_status(profile_id: int | None) -> dict[str, Any]:
+    retention_days = get_backup_retention_days(profile_id)
     if retention_days is None:
+        if profile_id is None or profile_id == DEFAULT_PROFILE_ID:
+            detail = "BACKUP_RETENTION_DAYS is not currently set, so Tikka Masala will not delete old backups automatically."
+        else:
+            detail = "No retention period is set for this profile, so Tikka Masala will not delete its old backups automatically."
         return {
             "enabled": False,
             "days": None,
             "summary": "Full archive retention is active. Backups are kept until you remove them manually.",
-            "detail": "BACKUP_RETENTION_DAYS is not currently set, so Tikka Masala will not delete old backups automatically.",
+            "detail": detail,
         }
 
     return {
@@ -287,7 +327,7 @@ def get_directory_size(path: Path) -> int:
 def get_backup(backup_id: int) -> BackupRecord:
     with closing(db()) as conn:
         row = conn.execute(
-            "SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes FROM backups WHERE id = ?",
+            "SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin FROM backups WHERE id = ?",
             (backup_id,),
         ).fetchone()
     if row is None:
@@ -337,7 +377,7 @@ def get_latest_backups_per_tunnel() -> list[BackupRecord]:
     with closing(db()) as conn:
         rows = conn.execute(
             """
-            SELECT b.id, b.created_at, b.account_id, b.tunnel_id, b.tunnel_name, b.route_count, b.filename, b.notes
+            SELECT b.id, b.created_at, b.account_id, b.tunnel_id, b.tunnel_name, b.route_count, b.filename, b.notes, b.origin
             FROM backups b
             JOIN (SELECT tunnel_id, MAX(id) AS id FROM backups GROUP BY tunnel_id) latest ON latest.id = b.id
             ORDER BY b.tunnel_name COLLATE NOCASE, b.tunnel_id

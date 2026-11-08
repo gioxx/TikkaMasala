@@ -18,30 +18,43 @@ from app.config import (
     ENCRYPTED_VALUE_PREFIX,
     TOKEN_ENCRYPTION_KEY,
 )
-from app.db import get_setting, set_setting
+from app.profiles import DEFAULT_PROFILE_ID, get_profile, update_profile
 
 logger = logging.getLogger(__name__)
 
 
-def get_saved_account_id() -> str:
-    if DEMO_MODE:
-        return DEFAULT_ACCOUNT_ID
-    return (get_setting("account_id") or DEFAULT_ACCOUNT_ID).strip()
+def _env_account_id(profile_id: int) -> str:
+    """Environment fallback: only the Default profile ever reads ``CLOUDFLARE_ACCOUNT_ID``."""
+    return DEFAULT_ACCOUNT_ID.strip() if profile_id == DEFAULT_PROFILE_ID else ""
 
 
-def get_account_id_source() -> str | None:
+def _env_api_token(profile_id: int) -> str:
+    """Environment fallback: only the Default profile ever reads ``CLOUDFLARE_API_TOKEN``."""
+    return DEFAULT_API_TOKEN.strip() if profile_id == DEFAULT_PROFILE_ID else ""
+
+
+def _stored_account_id(profile_id: int) -> str:
+    return (get_profile(profile_id).account_id or "").strip()
+
+
+def get_saved_account_id(profile_id: int) -> str:
     if DEMO_MODE:
-        return "environment" if DEFAULT_ACCOUNT_ID else None
-    stored_value = (get_setting("account_id") or "").strip()
-    if stored_value:
+        return _env_account_id(profile_id)
+    return _stored_account_id(profile_id) or _env_account_id(profile_id)
+
+
+def get_account_id_source(profile_id: int) -> str | None:
+    if DEMO_MODE:
+        return "environment" if _env_account_id(profile_id) else None
+    if _stored_account_id(profile_id):
         return "database"
-    if DEFAULT_ACCOUNT_ID:
+    if _env_account_id(profile_id):
         return "environment"
     return None
 
 
-def resolve_account_id(account_id: str | None) -> str:
-    resolved = (account_id or "").strip() or get_saved_account_id()
+def resolve_account_id(profile_id: int, account_id: str | None) -> str:
+    resolved = (account_id or "").strip() or get_saved_account_id(profile_id)
     if not resolved:
         raise HTTPException(
             status_code=400,
@@ -50,12 +63,12 @@ def resolve_account_id(account_id: str | None) -> str:
     return resolved
 
 
-def remember_account_id(account_id: str) -> None:
+def remember_account_id(profile_id: int, account_id: str) -> None:
     if DEMO_MODE:
         return
     normalized = account_id.strip()
     if normalized:
-        set_setting("account_id", normalized)
+        update_profile(profile_id, account_id=normalized)
 
 
 def get_fernet() -> Fernet | None:
@@ -88,67 +101,68 @@ def decrypt_secret(value: str) -> str:
         raise RuntimeError("Failed to decrypt stored API token. Check TOKEN_ENCRYPTION_KEY.") from exc
 
 
-def get_saved_api_token(request: Request) -> str:
+def _read_stored_api_token(profile_id: int) -> str | None:
+    """Return the profile's saved token in clear, or ``None`` if unset or unreadable.
+
+    A token still stored in plaintext (legacy install) is re-saved encrypted
+    when an encryption key is configured.
+    """
+    stored_token = (get_profile(profile_id).api_token or "").strip()
+    if not stored_token:
+        return None
+    try:
+        decrypted = decrypt_secret(stored_token).strip()
+    except RuntimeError:
+        logger.exception(
+            "Saved API token of profile %s is not readable with the current key; falling back.",
+            profile_id,
+        )
+        return None
+    if decrypted and not stored_token.startswith(ENCRYPTED_VALUE_PREFIX):
+        try:
+            remember_api_token(profile_id, decrypted)
+        except RuntimeError:
+            logger.exception("Unable to encrypt the plaintext API token of profile %s.", profile_id)
+    return decrypted or None
+
+
+def get_saved_api_token(request: Request, profile_id: int) -> str:
     if DEMO_MODE:
-        return DEFAULT_API_TOKEN.strip()
+        return _env_api_token(profile_id)
     cookie_token = request.cookies.get(API_TOKEN_COOKIE_NAME, "").strip()
     if cookie_token:
         return cookie_token
-    stored_token = (get_setting("api_token") or "").strip()
-    if stored_token:
-        try:
-            decrypted = decrypt_secret(stored_token).strip()
-            if decrypted and not stored_token.startswith(ENCRYPTED_VALUE_PREFIX):
-                remember_api_token(decrypted)
-            return decrypted
-        except RuntimeError:
-            logger.exception("Unable to decrypt saved API token; falling back to environment/default prefill.")
-    return DEFAULT_API_TOKEN.strip()
+    return get_server_api_token(profile_id)
 
 
-def get_api_token_source(request: Request) -> str | None:
+def get_api_token_source(request: Request, profile_id: int) -> str | None:
     if DEMO_MODE:
-        return "environment" if DEFAULT_API_TOKEN else None
+        return "environment" if _env_api_token(profile_id) else None
     cookie_token = request.cookies.get(API_TOKEN_COOKIE_NAME, "").strip()
     if cookie_token:
         return "browser"
-    stored_token = (get_setting("api_token") or "").strip()
-    if stored_token:
-        try:
-            decrypt_secret(stored_token)
-            return "database"
-        except RuntimeError:
-            logger.exception("Saved API token exists in the database but is not readable with the current key.")
-    if DEFAULT_API_TOKEN:
+    return get_server_api_token_source(profile_id)
+
+
+def get_server_api_token(profile_id: int) -> str:
+    """The token for server-side work (no browser cookie): database first, then environment."""
+    if DEMO_MODE:
+        return _env_api_token(profile_id)
+    return _read_stored_api_token(profile_id) or _env_api_token(profile_id)
+
+
+def get_server_api_token_source(profile_id: int) -> str | None:
+    if DEMO_MODE:
+        return "environment" if _env_api_token(profile_id) else None
+    if _read_stored_api_token(profile_id):
+        return "database"
+    if _env_api_token(profile_id):
         return "environment"
     return None
 
 
-def get_server_api_token() -> str:
-    stored_token = (get_setting("api_token") or "").strip()
-    if stored_token:
-        try:
-            return decrypt_secret(stored_token).strip()
-        except RuntimeError:
-            logger.exception("Unable to decrypt saved API token for server-side scheduler; falling back to environment token.")
-    return DEFAULT_API_TOKEN.strip()
-
-
-def get_server_api_token_source() -> str | None:
-    stored_token = (get_setting("api_token") or "").strip()
-    if stored_token:
-        try:
-            decrypt_secret(stored_token)
-            return "database"
-        except RuntimeError:
-            logger.exception("Saved API token exists in the database but is not readable for the scheduler.")
-    if DEFAULT_API_TOKEN:
-        return "environment"
-    return None
-
-
-def resolve_api_token(request: Request, api_token: str | None) -> str:
-    resolved = (api_token or "").strip() or get_saved_api_token(request)
+def resolve_api_token(request: Request, profile_id: int, api_token: str | None) -> str:
+    resolved = (api_token or "").strip() or get_saved_api_token(request, profile_id)
     if not resolved:
         raise HTTPException(
             status_code=400,
@@ -157,12 +171,17 @@ def resolve_api_token(request: Request, api_token: str | None) -> str:
     return resolved
 
 
-def remember_api_token(api_token: str) -> None:
+def remember_api_token(profile_id: int, api_token: str) -> None:
     if DEMO_MODE:
         return
     normalized = api_token.strip()
     if normalized and TOKEN_ENCRYPTION_KEY:
-        set_setting("api_token", encrypt_secret(normalized))
+        update_profile(profile_id, api_token=encrypt_secret(normalized))
+
+
+def clear_saved_credentials(profile_id: int) -> None:
+    """Forget the Account ID and API token saved on the profile (environment values stay)."""
+    update_profile(profile_id, account_id=None, api_token=None)
 
 
 def set_api_token_cookie(response: HTMLResponse | RedirectResponse, api_token: str) -> None:
@@ -193,5 +212,7 @@ def build_prefill_status_from_sources(account_source: str | None, api_token_sour
     }
 
 
-def build_prefill_status(request: Request) -> dict[str, Any]:
-    return build_prefill_status_from_sources(get_account_id_source(), get_api_token_source(request))
+def build_prefill_status(request: Request, profile_id: int) -> dict[str, Any]:
+    return build_prefill_status_from_sources(
+        get_account_id_source(profile_id), get_api_token_source(request, profile_id)
+    )

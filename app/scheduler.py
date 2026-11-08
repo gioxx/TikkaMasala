@@ -17,7 +17,6 @@ from fastapi import HTTPException
 from app.backups import create_backup, get_last_backup_time_for_tunnel
 from app.cloudflare import list_tunnels
 from app.config import (
-    AUTO_BACKUP_JOB_ID,
     AUTO_BACKUP_TIMEZONE,
     DEFAULT_AUTO_BACKUP_CRON,
     SCHEDULED_RUNS_PAGE_SIZE,
@@ -31,26 +30,41 @@ from app.credentials import (
 )
 from app.db import ScheduledRunRecord, db, get_setting, set_setting
 from app.notifications import get_notification_status, queue_notification, render_notification_message
+from app.profiles import get_profile, list_profiles, update_profile
 
 logger = logging.getLogger(__name__)
 auto_backup_scheduler = AsyncIOScheduler(timezone="UTC")
-auto_backup_lock = asyncio.Lock()
+AUTO_BACKUP_JOB_ID_PREFIX = "auto-backup-profile-"
+# One lock per profile, so a long run of one profile never blocks another.
+_profile_locks: dict[int, asyncio.Lock] = {}
 
 
-def get_auto_backup_enabled() -> bool:
-    return (get_setting("auto_backup_enabled") or "").strip().lower() in {"1", "true", "yes", "on"}
+def auto_backup_job_id(profile_id: int) -> str:
+    return f"{AUTO_BACKUP_JOB_ID_PREFIX}{profile_id}"
 
 
-def get_auto_backup_cron() -> str:
-    return (get_setting("auto_backup_cron") or DEFAULT_AUTO_BACKUP_CRON).strip()
+def _profile_lock(profile_id: int) -> asyncio.Lock:
+    return _profile_locks.setdefault(profile_id, asyncio.Lock())
 
 
-def set_auto_backup_enabled(enabled: bool) -> None:
-    set_setting("auto_backup_enabled", "1" if enabled else "0")
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def set_auto_backup_cron(cron_expression: str) -> None:
-    set_setting("auto_backup_cron", cron_expression.strip())
+def get_auto_backup_enabled(profile_id: int) -> bool:
+    return get_profile(profile_id).auto_backup_enabled
+
+
+def get_auto_backup_cron(profile_id: int) -> str:
+    return (get_profile(profile_id).auto_backup_cron or DEFAULT_AUTO_BACKUP_CRON).strip()
+
+
+def set_auto_backup_enabled(profile_id: int, enabled: bool) -> None:
+    update_profile(profile_id, auto_backup_enabled=enabled)
+
+
+def set_auto_backup_cron(profile_id: int, cron_expression: str) -> None:
+    update_profile(profile_id, auto_backup_cron=cron_expression.strip())
 
 
 def normalize_timezone_name(timezone_name: str) -> str:
@@ -101,8 +115,8 @@ DEFAULT_TUNNEL_SCHEDULE: dict[str, Any] = {"mode": "all", "tunnels": {}}
 TUNNEL_FREQUENCY_OPTIONS = ("always", "weekly", "monthly")
 
 
-def get_auto_backup_tunnel_schedule() -> dict[str, Any]:
-    raw = (get_setting("auto_backup_tunnel_schedule") or "").strip()
+def get_auto_backup_tunnel_schedule(profile_id: int) -> dict[str, Any]:
+    raw = (get_profile(profile_id).tunnel_schedule or "").strip()
     if not raw:
         return dict(DEFAULT_TUNNEL_SCHEDULE)
     try:
@@ -114,8 +128,8 @@ def get_auto_backup_tunnel_schedule() -> dict[str, Any]:
         return dict(DEFAULT_TUNNEL_SCHEDULE)
 
 
-def set_auto_backup_tunnel_schedule(config: dict[str, Any]) -> None:
-    set_setting("auto_backup_tunnel_schedule", json.dumps(config, ensure_ascii=False))
+def set_auto_backup_tunnel_schedule(profile_id: int, config: dict[str, Any]) -> None:
+    update_profile(profile_id, tunnel_schedule=json.dumps(config, ensure_ascii=False))
 
 
 def validate_cron_expression(cron_expression: str) -> str:
@@ -129,11 +143,11 @@ def validate_cron_expression(cron_expression: str) -> str:
     return normalized
 
 
-def get_auto_backup_prerequisites() -> dict[str, Any]:
-    account_id = get_saved_account_id()
-    account_source = get_account_id_source()
-    api_token = get_server_api_token()
-    api_token_source = get_server_api_token_source()
+def get_auto_backup_prerequisites(profile_id: int) -> dict[str, Any]:
+    account_id = get_saved_account_id(profile_id)
+    account_source = get_account_id_source(profile_id)
+    api_token = get_server_api_token(profile_id)
+    api_token_source = get_server_api_token_source(profile_id)
     missing_items: list[str] = []
     if not account_id:
         missing_items.append("Server-side Account ID")
@@ -149,15 +163,15 @@ def get_auto_backup_prerequisites() -> dict[str, Any]:
     }
 
 
-def create_scheduled_run(account_id: str, status: str, details: str | None = None) -> int:
-    started_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+def create_scheduled_run(profile_id: int, account_id: str, status: str, details: str | None = None) -> int:
+    started_at = _now_iso()
     with closing(db()) as conn:
         cursor = conn.execute(
             """
-            INSERT INTO scheduled_runs (started_at, status, account_id, details)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO scheduled_runs (profile_id, started_at, status, account_id, details)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (started_at, status, account_id, details),
+            (profile_id, started_at, status, account_id, details),
         )
         conn.commit()
         return int(cursor.lastrowid)
@@ -171,7 +185,7 @@ def complete_scheduled_run(
     error_count: int,
     details: str | None = None,
 ) -> None:
-    finished_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    finished_at = _now_iso()
     with closing(db()) as conn:
         conn.execute(
             """
@@ -184,33 +198,36 @@ def complete_scheduled_run(
         conn.commit()
 
 
-def get_recent_scheduled_runs(limit: int = 5) -> list[ScheduledRunRecord]:
+def get_recent_scheduled_runs(profile_id: int, limit: int = 5) -> list[ScheduledRunRecord]:
     with closing(db()) as conn:
         rows = conn.execute(
             """
-            SELECT id, started_at, finished_at, status, account_id, tunnel_count, backup_count, error_count, details
+            SELECT id, started_at, finished_at, status, account_id, tunnel_count, backup_count, error_count, details, profile_id
             FROM scheduled_runs
+            WHERE profile_id = ?
             ORDER BY id DESC
             LIMIT ?
             """,
-            (limit,),
+            (profile_id, limit),
         ).fetchall()
     return [ScheduledRunRecord(**dict(row)) for row in rows]
 
 
-def get_all_scheduled_runs() -> list[ScheduledRunRecord]:
+def get_all_scheduled_runs(profile_id: int) -> list[ScheduledRunRecord]:
     with closing(db()) as conn:
         rows = conn.execute(
             """
-            SELECT id, started_at, finished_at, status, account_id, tunnel_count, backup_count, error_count, details
+            SELECT id, started_at, finished_at, status, account_id, tunnel_count, backup_count, error_count, details, profile_id
             FROM scheduled_runs
+            WHERE profile_id = ?
             ORDER BY id DESC
-            """
+            """,
+            (profile_id,),
         ).fetchall()
     return [ScheduledRunRecord(**dict(row)) for row in rows]
 
 
-def get_scheduled_runs_stats() -> dict[str, int]:
+def get_scheduled_runs_stats(profile_id: int) -> dict[str, int]:
     with closing(db()) as conn:
         row = conn.execute(
             """
@@ -218,7 +235,9 @@ def get_scheduled_runs_stats() -> dict[str, int]:
                 COUNT(*) AS run_count,
                 COALESCE(SUM(backup_count), 0) AS total_backup_count
             FROM scheduled_runs
-            """
+            WHERE profile_id = ?
+            """,
+            (profile_id,),
         ).fetchone()
     return {
         "run_count": int(row["run_count"] or 0),
@@ -226,19 +245,27 @@ def get_scheduled_runs_stats() -> dict[str, int]:
     }
 
 
-def get_scheduled_runs_page(page: int, page_size: int | None = SCHEDULED_RUNS_PAGE_SIZE) -> tuple[list[ScheduledRunRecord], dict[str, Any]]:
+def get_scheduled_runs_page(
+    profile_id: int,
+    page: int,
+    page_size: int | None = SCHEDULED_RUNS_PAGE_SIZE,
+) -> tuple[list[ScheduledRunRecord], dict[str, Any]]:
     page = max(page, 1)
 
     with closing(db()) as conn:
-        total_count = int(conn.execute("SELECT COUNT(*) FROM scheduled_runs").fetchone()[0])
+        total_count = int(
+            conn.execute("SELECT COUNT(*) FROM scheduled_runs WHERE profile_id = ?", (profile_id,)).fetchone()[0]
+        )
 
         if page_size is None:
             rows = conn.execute(
                 """
-                SELECT id, started_at, finished_at, status, account_id, tunnel_count, backup_count, error_count, details
+                SELECT id, started_at, finished_at, status, account_id, tunnel_count, backup_count, error_count, details, profile_id
                 FROM scheduled_runs
+                WHERE profile_id = ?
                 ORDER BY id DESC
-                """
+                """,
+                (profile_id,),
             ).fetchall()
             runs = [ScheduledRunRecord(**dict(row)) for row in rows]
             return runs, {
@@ -263,12 +290,13 @@ def get_scheduled_runs_page(page: int, page_size: int | None = SCHEDULED_RUNS_PA
 
         rows = conn.execute(
             """
-            SELECT id, started_at, finished_at, status, account_id, tunnel_count, backup_count, error_count, details
+            SELECT id, started_at, finished_at, status, account_id, tunnel_count, backup_count, error_count, details, profile_id
             FROM scheduled_runs
+            WHERE profile_id = ?
             ORDER BY id DESC
             LIMIT ? OFFSET ?
             """,
-            (resolved_page_size, offset),
+            (profile_id, resolved_page_size, offset),
         ).fetchall()
 
     runs = [ScheduledRunRecord(**dict(row)) for row in rows]
@@ -312,30 +340,35 @@ def summarize_scheduled_run_details(details: str | None) -> str | None:
     return details
 
 
-def get_next_auto_backup_run() -> str | None:
-    job = auto_backup_scheduler.get_job(AUTO_BACKUP_JOB_ID)
-    if job is None or job.next_run_time is None:
+def get_next_auto_backup_run(profile_id: int) -> str | None:
+    job = auto_backup_scheduler.get_job(auto_backup_job_id(profile_id))
+    next_run_time = getattr(job, "next_run_time", None) if job is not None else None
+    if next_run_time is None:
         return None
-    return job.next_run_time.astimezone(timezone.utc).replace(microsecond=0).isoformat()
+    return next_run_time.astimezone(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def get_last_auto_backup_run_at() -> str | None:
-    value = (get_setting("auto_backup_last_run_at") or "").strip()
+def get_last_auto_backup_run_at(profile_id: int) -> str | None:
+    value = (get_profile(profile_id).last_run_at or "").strip()
     return value or None
 
 
-def get_last_auto_backup_status() -> str | None:
-    value = (get_setting("auto_backup_last_status") or "").strip()
+def get_last_auto_backup_status(profile_id: int) -> str | None:
+    value = (get_profile(profile_id).last_status or "").strip()
     return value or None
 
 
-def build_auto_backup_status() -> dict[str, Any]:
-    prereqs = get_auto_backup_prerequisites()
-    enabled = get_auto_backup_enabled()
-    cron_expression = get_auto_backup_cron()
+def _record_last_run(profile_id: int, status: str) -> None:
+    update_profile(profile_id, last_run_at=_now_iso(), last_status=status)
+
+
+def build_auto_backup_status(profile_id: int) -> dict[str, Any]:
+    prereqs = get_auto_backup_prerequisites(profile_id)
+    enabled = get_auto_backup_enabled(profile_id)
+    cron_expression = get_auto_backup_cron(profile_id)
     timezone_name = get_auto_backup_timezone_name()
     timezone_source = get_auto_backup_timezone_source()
-    tunnel_schedule = get_auto_backup_tunnel_schedule()
+    tunnel_schedule = get_auto_backup_tunnel_schedule(profile_id)
     tunnel_schedule_mode = tunnel_schedule.get("mode", "all")
     tunnel_schedule_count = len(tunnel_schedule.get("tunnels", {}))
     return {
@@ -344,10 +377,10 @@ def build_auto_backup_status() -> dict[str, Any]:
         "timezone_name": timezone_name,
         "timezone_source": timezone_source,
         "timezone_locked_by_env": timezone_source == "environment",
-        "last_run_at": get_last_auto_backup_run_at(),
-        "last_status": get_last_auto_backup_status(),
-        "next_run_at": get_next_auto_backup_run(),
-        "recent_runs": get_recent_scheduled_runs(),
+        "last_run_at": get_last_auto_backup_run_at(profile_id),
+        "last_status": get_last_auto_backup_status(profile_id),
+        "next_run_at": get_next_auto_backup_run(profile_id),
+        "recent_runs": get_recent_scheduled_runs(profile_id),
         "prereqs": prereqs,
         "notifications": get_notification_status(),
         "tunnel_schedule_mode": tunnel_schedule_mode,
@@ -355,64 +388,112 @@ def build_auto_backup_status() -> dict[str, Any]:
     }
 
 
-def configure_auto_backup_job() -> None:
-    existing_job = auto_backup_scheduler.get_job(AUTO_BACKUP_JOB_ID)
-    if existing_job is not None:
-        auto_backup_scheduler.remove_job(AUTO_BACKUP_JOB_ID)
+def _remove_job(job_id: str) -> None:
+    if auto_backup_scheduler.get_job(job_id) is not None:
+        auto_backup_scheduler.remove_job(job_id)
 
-    if not get_auto_backup_enabled():
+
+def configure_auto_backup_job(profile_id: int) -> None:
+    """Register, replace or remove the scheduler job of one profile from its saved settings."""
+    job_id = auto_backup_job_id(profile_id)
+    _remove_job(job_id)
+
+    try:
+        enabled = get_auto_backup_enabled(profile_id)
+    except LookupError:
+        return
+    if not enabled:
         return
 
-    if not get_auto_backup_prerequisites()["ready"]:
-        logger.warning("Automatic backups are enabled but server-side prerequisites are missing; scheduler job not registered.")
+    if not get_auto_backup_prerequisites(profile_id)["ready"]:
+        logger.warning(
+            "Automatic backups of profile %s are enabled but server-side prerequisites are missing; scheduler job not registered.",
+            profile_id,
+        )
         return
 
-    cron_expression = get_auto_backup_cron()
+    cron_expression = get_auto_backup_cron(profile_id)
     try:
         trigger = CronTrigger.from_crontab(cron_expression, timezone=get_auto_backup_timezone())
     except ValueError:
-        logger.exception("Skipping auto-backup scheduler registration because the cron expression is invalid.")
+        logger.exception(
+            "Skipping auto-backup scheduler registration of profile %s because the cron expression is invalid.",
+            profile_id,
+        )
         return
 
     auto_backup_scheduler.add_job(
         run_auto_backup_job,
         trigger=trigger,
-        id=AUTO_BACKUP_JOB_ID,
+        id=job_id,
         replace_existing=True,
-        kwargs={"trigger": "schedule"},
+        kwargs={"profile_id": profile_id, "trigger": "schedule"},
         coalesce=True,
         misfire_grace_time=300,
         max_instances=1,
     )
+    logger.info(
+        "Automatic backup scheduled for profile %s (cron=%s, timezone=%s).",
+        profile_id,
+        cron_expression,
+        get_auto_backup_timezone_name(),
+    )
 
 
-async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
-    if auto_backup_lock.locked():
-        logger.info("Automatic backup run skipped because another run is already in progress.")
+def configure_all_auto_backup_jobs() -> None:
+    """Sync scheduler jobs with every profile; safe to call again after any change.
+
+    Jobs of profiles that no longer exist are removed. One profile's failure is
+    logged and never stops the others from registering.
+    """
+    profile_ids = {profile.id for profile in list_profiles()}
+    for job in auto_backup_scheduler.get_jobs():
+        if not job.id.startswith(AUTO_BACKUP_JOB_ID_PREFIX):
+            continue
+        suffix = job.id.removeprefix(AUTO_BACKUP_JOB_ID_PREFIX)
+        if not suffix.isdigit() or int(suffix) not in profile_ids:
+            auto_backup_scheduler.remove_job(job.id)
+    for profile_id in sorted(profile_ids):
+        try:
+            configure_auto_backup_job(profile_id)
+        except Exception:
+            logger.exception("Could not configure the automatic backup job of profile %s.", profile_id)
+
+
+async def run_auto_backup_job(profile_id: int, trigger: str = "schedule") -> dict[str, Any]:
+    lock = _profile_lock(profile_id)
+    if lock.locked():
+        logger.info("Automatic backup run of profile %s skipped because another run is already in progress.", profile_id)
         details = json.dumps({"message": "Skipped because another automatic backup is already running."}, ensure_ascii=False)
-        run_id = create_scheduled_run(get_saved_account_id() or "unknown", "skipped", details)
+        run_id = create_scheduled_run(profile_id, get_saved_account_id(profile_id) or "unknown", "skipped", details)
         complete_scheduled_run(run_id, "skipped", 0, 0, 0, details)
-        set_setting("auto_backup_last_run_at", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
-        set_setting("auto_backup_last_status", "skipped")
+        _record_last_run(profile_id, "skipped")
         return {"status": "skipped", "tunnel_count": 0, "backup_count": 0, "error_count": 0}
 
-    async with auto_backup_lock:
-        account_id = get_saved_account_id()
-        api_token = get_server_api_token()
+    async with lock:
+        account_id = get_saved_account_id(profile_id)
+        api_token = get_server_api_token(profile_id)
         if not account_id or not api_token:
-            logger.warning("Automatic backup run skipped because server-side credentials are missing.")
+            logger.warning(
+                "Automatic backup run of profile %s skipped because server-side credentials are missing.",
+                profile_id,
+            )
             details = json.dumps(
                 {"message": "Missing server-side account ID or API token for automatic backups."},
                 ensure_ascii=False,
             )
-            run_id = create_scheduled_run(account_id or "unknown", "skipped", details)
+            run_id = create_scheduled_run(profile_id, account_id or "unknown", "skipped", details)
             complete_scheduled_run(run_id, "skipped", 0, 0, 0, details)
-            set_setting("auto_backup_last_run_at", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
-            set_setting("auto_backup_last_status", "skipped")
+            _record_last_run(profile_id, "skipped")
             return {"status": "skipped", "tunnel_count": 0, "backup_count": 0, "error_count": 0}
 
-        run_id = create_scheduled_run(account_id, "running")
-        logger.info("Starting automatic backup run (trigger=%s, account_id=%s).", trigger, account_id)
+        run_id = create_scheduled_run(profile_id, account_id, "running")
+        logger.info(
+            "Starting automatic backup run (profile_id=%s, trigger=%s, account_id=%s).",
+            profile_id,
+            trigger,
+            account_id,
+        )
         tunnel_count = 0
         backup_count = 0
         errors: list[dict[str, str]] = []
@@ -426,7 +507,7 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
             tunnel_count = len(tunnels)
             note = f"Automatic backup triggered by {trigger}."
 
-            tunnel_schedule = get_auto_backup_tunnel_schedule()
+            tunnel_schedule = get_auto_backup_tunnel_schedule(profile_id)
             schedule_mode = tunnel_schedule.get("mode", "all")
             tunnel_overrides: dict[str, Any] = tunnel_schedule.get("tunnels", {})
             now = datetime.now(timezone.utc)
@@ -457,7 +538,7 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
                         continue
 
                 try:
-                    await create_backup(account_id, tunnel_id, api_token, note)
+                    await create_backup(account_id, tunnel_id, api_token, note, origin="automatic")
                     backup_count += 1
                     backed_up_names.append(tunnel_name)
                 except HTTPException as exc:
@@ -473,7 +554,7 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
             errors.append({"message": str(exc.detail)})
             status = "failed"
         except Exception as exc:
-            logger.exception("Unexpected error during automatic backup run.")
+            logger.exception("Unexpected error during automatic backup run of profile %s.", profile_id)
             errors.append({"message": f"Unexpected error: {exc}"})
             status = "failed"
 
@@ -481,10 +562,10 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
             details = json.dumps({"errors": errors}, ensure_ascii=False)
 
         complete_scheduled_run(run_id, status, tunnel_count, backup_count, len(errors), details)
-        set_setting("auto_backup_last_run_at", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
-        set_setting("auto_backup_last_status", status)
+        _record_last_run(profile_id, status)
         logger.info(
-            "Automatic backup run completed (trigger=%s, status=%s, tunnels=%s, backups=%s, errors=%s).",
+            "Automatic backup run completed (profile_id=%s, trigger=%s, status=%s, tunnels=%s, backups=%s, errors=%s).",
+            profile_id,
             trigger,
             status,
             tunnel_count,

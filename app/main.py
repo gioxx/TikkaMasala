@@ -22,8 +22,9 @@ from app.config import (
     LOG_LEVEL,
 )
 from app.notifications import get_notification_log_context, get_notification_status
+from app.profiles import DEFAULT_PROFILE_ID
 from app.routers import auto_backup, backups, dashboard, ingress, notifications
-from app.scheduler import auto_backup_scheduler, configure_auto_backup_job
+from app.scheduler import auto_backup_scheduler, configure_all_auto_backup_jobs
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ async def startup_event() -> None:
         API_BASE,
         LOG_LEVEL,
         AUTO_BACKUP_TIMEZONE or "auto",
-        get_backup_retention_days() or "disabled",
+        get_backup_retention_days(DEFAULT_PROFILE_ID) or "disabled",
         get_notification_status()["summary_label"],
         DEMO_MODE,
     )
@@ -66,7 +67,7 @@ async def startup_event() -> None:
     if not DEMO_MODE:
         if not auto_backup_scheduler.running:
             auto_backup_scheduler.start()
-        configure_auto_backup_job()
+        configure_all_auto_backup_jobs()
     logger.info("Application startup complete.")
 
 
