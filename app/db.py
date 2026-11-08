@@ -20,6 +20,7 @@ class BackupRecord:
     route_count: int
     filename: str
     notes: str | None
+    origin: str
 
 
 @dataclass
@@ -57,6 +58,7 @@ class ScheduledRunRecord:
     backup_count: int
     error_count: int
     details: str | None
+    profile_id: int
 
 
 def db() -> sqlite3.Connection:

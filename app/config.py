@@ -30,7 +30,6 @@ DEMO_MODE = os.getenv("DEMO", "false").strip().lower() in ("true", "1", "yes")
 API_TOKEN_COOKIE_NAME = "cf_api_token"
 API_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 ENCRYPTED_VALUE_PREFIX = "enc:"
-AUTO_BACKUP_JOB_ID = "auto-backup-all-tunnels"
 DEFAULT_AUTO_BACKUP_CRON = "0 3 * * *"
 BACKUPS_PAGE_SIZE = 5
 BACKUPS_PAGE_SIZE_OPTIONS = {5, 10, 25, 50, 75, 100}

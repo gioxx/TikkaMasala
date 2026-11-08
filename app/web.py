@@ -113,7 +113,7 @@ def render_index_page(
             "prefill_status": prefill_status or build_prefill_status(request, profile_id),
             "prefill_account_id": prefill_account_id if prefill_account_id is not None else get_saved_account_id(profile_id),
             "prefill_api_token": prefill_api_token if prefill_api_token is not None else get_saved_api_token(request, profile_id),
-            "auto_backup": build_auto_backup_status(),
+            "auto_backup": build_auto_backup_status(profile_id),
             "demo_mode": DEMO_MODE,
         },
     )
@@ -159,11 +159,13 @@ def render_backup_page(
 
 
 def render_scheduled_runs_page(request: Request) -> HTMLResponse:
+    profile_id = current_profile_id(request)
     runs, scheduled_runs_pagination = get_scheduled_runs_page(
+        profile_id,
         get_requested_scheduled_runs_page(request),
         get_requested_scheduled_runs_page_size(request),
     )
-    scheduled_runs_stats = get_scheduled_runs_stats()
+    scheduled_runs_stats = get_scheduled_runs_stats(profile_id)
     run_items = [
         {
             "record": run,

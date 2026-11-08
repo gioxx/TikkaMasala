@@ -54,7 +54,13 @@ def get_last_backup_time_for_tunnel(tunnel_id: str) -> datetime | None:
     return None
 
 
-async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: str | None = None) -> BackupRecord:
+async def create_backup(
+    account_id: str,
+    tunnel_id: str,
+    api_token: str,
+    notes: str | None = None,
+    origin: str = "manual",
+) -> BackupRecord:
     tunnel_data, config_data = await fetch_tunnel_configuration(account_id, tunnel_id, api_token)
     tunnel = tunnel_data.get("result", {})
     config = config_data.get("result", {})
@@ -81,10 +87,10 @@ async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: 
     with closing(db()) as conn:
         cursor = conn.execute(
             """
-            INSERT INTO backups (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO backups (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes or ""),
+            (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes or "", origin),
         )
         conn.commit()
         backup_id = cursor.lastrowid
@@ -100,6 +106,7 @@ async def create_backup(account_id: str, tunnel_id: str, api_token: str, notes: 
         route_count=route_count,
         filename=filename,
         notes=notes,
+        origin=origin,
     )
 
 
@@ -163,7 +170,7 @@ def purge_expired_backups(reference_time: datetime | None = None) -> int:
 def get_backups() -> list[BackupRecord]:
     with closing(db()) as conn:
         rows = conn.execute(
-            "SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes FROM backups ORDER BY id DESC"
+            "SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin FROM backups ORDER BY id DESC"
         ).fetchall()
     return [BackupRecord(**dict(row)) for row in rows]
 
@@ -177,7 +184,7 @@ def get_backups_page(page: int, page_size: int = BACKUPS_PAGE_SIZE) -> tuple[lis
         total_count = int(conn.execute("SELECT COUNT(*) FROM backups").fetchone()[0])
         rows = conn.execute(
             """
-            SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes
+            SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin
             FROM backups
             ORDER BY id DESC
             LIMIT ? OFFSET ?
@@ -287,7 +294,7 @@ def get_directory_size(path: Path) -> int:
 def get_backup(backup_id: int) -> BackupRecord:
     with closing(db()) as conn:
         row = conn.execute(
-            "SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes FROM backups WHERE id = ?",
+            "SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin FROM backups WHERE id = ?",
             (backup_id,),
         ).fetchone()
     if row is None:
@@ -337,7 +344,7 @@ def get_latest_backups_per_tunnel() -> list[BackupRecord]:
     with closing(db()) as conn:
         rows = conn.execute(
             """
-            SELECT b.id, b.created_at, b.account_id, b.tunnel_id, b.tunnel_name, b.route_count, b.filename, b.notes
+            SELECT b.id, b.created_at, b.account_id, b.tunnel_id, b.tunnel_name, b.route_count, b.filename, b.notes, b.origin
             FROM backups b
             JOIN (SELECT tunnel_id, MAX(id) AS id FROM backups GROUP BY tunnel_id) latest ON latest.id = b.id
             ORDER BY b.tunnel_name COLLATE NOCASE, b.tunnel_id
