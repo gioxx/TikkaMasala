@@ -38,7 +38,7 @@ Website: <https://tikkamasala.gioxx.org>
 ## Features
 
 - Enter your Account ID and API token once on a first-run setup screen; they are checked against Cloudflare before they are saved
-- **Tunnels** home: summary tiles (status, hostname count, last backup, saved backups) and a live table of every tunnel in the account, with a per-row **Back up** button and a **Back up all now** button
+- **Tunnels** home: four summary tiles (tunnels and their health, hostnames, automatic backup state, saved backups) and a live table with each tunnel's status, hostname count and last backup, plus a per-row **Back up** button and a **Back up all now** button
 - Open each tunnel's page in the Cloudflare dashboard (Networking → Tunnels) straight from the tunnel list
 - Quick-access links to Cloudflare Access Controls (Applications and Policies) below the tunnel table
 - Create JSON backups of one tunnel or of all tunnels at once
@@ -198,7 +198,7 @@ For backup-only usage, you can reduce the token to read-only permissions later.
 
 A top bar gives access to five sections (it collapses to a menu button below 960px):
 
-- **Tunnels** (`/`): the home page. Summary tiles, the live tunnel table, per-row **Back up** and **Back up all now**
+- **Tunnels** (`/`): the home page. Four summary tiles, the live tunnel table (status, hostnames, last backup), per-row **Back up** and **Back up all now**
 - **Hostnames** (`/ingress`): every public hostname of every tunnel and its origin
 - **Backups** (`/backups`): the saved backups with archive statistics and retention (interim page, to be redesigned)
 - **Automation** (`/automation`): the scheduler, notification channels and message customization (interim page, to be redesigned)

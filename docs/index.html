@@ -617,15 +617,15 @@
     <div class="shots-grid reveal">
       <div>
         <div class="shot shot-scroll">
-          <img src="img/dashboard.webp" width="2560" height="8942" loading="lazy" alt="Home page: tunnel list, single backup form, automatic backups with recent runs, saved backups with archive statistics, and notifications">
+          <img src="img/dashboard.webp" width="2560" height="8942" loading="lazy" alt="Tikka Masala screenshot">
         </div>
-        <p class="shot-caption"><strong>Tunnels page.</strong> Summary tiles for status, hostnames, last backup and saved backups, a live table of every tunnel with a per-row Back up button, and Back up all now. The top bar leads to Hostnames, Backups, Automation (scheduler, recent runs, notification channels) and Settings. (Scroll inside the image.)</p>
+        <p class="shot-caption"><strong>Tunnels page.</strong> Four summary tiles (tunnels and their health, hostnames, automatic backup state, saved backups) and a live table with each tunnel's status, hostname count and last backup, a per-row Back up button, and Back up all now. The top bar leads to Hostnames, Backups, Automation (scheduler, recent runs, notification channels) and Settings. (Scroll inside the image.)</p>
       </div>
       <div>
         <div class="shot-phone">
           <img src="img/dashboard-mobile.webp" width="1170" height="2532" loading="lazy" alt="Tunnel list on a phone: each tunnel shown as a card with name, ID, status and actions">
         </div>
-        <p class="shot-caption"><strong>Mobile.</strong> On phones, every table turns into cards, so nothing gets cut off.</p>
+        <p class="shot-caption"><strong>Mobile.</strong> On phones, the tunnel table becomes a compact list and other tables reflow, so nothing gets cut off.</p>
       </div>
     </div>
   </div>
@@ -641,7 +641,7 @@
         <div class="step-num">1</div>
         <div class="step-body">
           <h3>Connect your account</h3>
-          <p>Enter your Account ID and an API token with <code>Cloudflare Tunnel</code> permissions on the first-run setup screen (or set them in the environment). They are checked against Cloudflare before being saved, then you can load the tunnels.</p>
+          <p>Enter your Account ID and an API token with <code>Cloudflare Tunnel</code> permissions on the first-run setup screen (or set them in the environment). They are checked against Cloudflare before being saved. The Tunnels page then lists your tunnels.</p>
         </div>
       </div>
       <div class="step reveal">
@@ -849,7 +849,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
         <p>Previewing does not apply anything or record restore history; the account ID, tunnel ID, and API token you entered stay filled in so you can review the diff and then press <strong>Restore backup</strong>.</p>
 
         <h3 id="doc-scheduling">Automatic backups</h3>
-        <p>The scheduler is built into the app and stores its configuration in the local SQLite database. From the home page you can enable or disable automatic backups, set a cron expression, run the job immediately with <strong>Run now</strong>, and see the last run, next run, and recent execution history.</p>
+        <p>The scheduler is built into the app and stores its configuration in the local SQLite database. From the Automation page you can enable or disable automatic backups, set a cron expression, run the job immediately with <strong>Run now</strong>, and see the last run, next run, and recent execution history.</p>
         <p>By default, automatic backups use the timezone detected from the browser when you save the schedule. Set <code>AUTO_BACKUP_TIMEZONE</code> for a fixed server-side timezone for all users.</p>
         <h4>Advanced schedule</h4>
         <p>The <strong>Advanced schedule</strong> page (<code>/auto-backup/tunnel-filters</code>) controls backup scope and per-tunnel frequency.</p>
@@ -899,7 +899,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
         <p>Nothing to worry about: the app generates a key as <code>encryption.key</code> in the data directory on first use and keeps using it. Keep that file with your data; without it the saved token can't be decrypted and you'd enter it again on the setup screen. Before downgrading to an older version, set <code>TOKEN_ENCRYPTION_KEY</code> to the content of that file.</p>
         <h4>Why does a restored route return 502 even though the backup worked fine?</h4>
         <p>Check whether that rule's origin is <code>localhost</code> or a loopback address: the backup detail page flags these as <strong>host-local</strong>. When <code>cloudflared</code> runs in a container, <code>localhost</code> means the container, not the Docker host. Point the rule at <code>host.docker.internal</code>, the bridge gateway IP, or a service/container name instead, and use <strong>Preview changes</strong> to see the full ingress diff before you apply.</p>
-        <h4>The Admin link says "Cloudflare Tunnels have moved". What should I do?</h4>
+        <h4>The tunnel name link says "Cloudflare Tunnels have moved". What should I do?</h4>
         <p>Cloudflare moved Tunnels out of Zero Trust and under <strong>Networking</strong>. Update to 1.3.9 or later: the tunnel name link in the tunnel list now opens the tunnel's overview at its new location. The Access Controls links (Applications and Policies) are unaffected.</p>
         <h4>Can I back up only some tunnels, or less often for some?</h4>
         <p>Yes, on the <strong>Advanced schedule</strong> page: back up all tunnels or a selected subset, and set a per-tunnel frequency of every run, once per week, or once per month.</p>
