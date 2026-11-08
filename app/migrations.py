@@ -217,13 +217,17 @@ def apply_migrations(conn: sqlite3.Connection, db_path: Path | None = None) -> i
         try:
             # Re-read under the write lock: another process may have migrated meanwhile.
             current = _user_version(conn)
+            if current >= LATEST_SCHEMA_VERSION:
+                conn.execute("ROLLBACK")
+                return current
             logger.info("Migrating database schema from version %s to %s.", current, LATEST_SCHEMA_VERSION)
             for version in range(current + 1, LATEST_SCHEMA_VERSION + 1):
                 MIGRATIONS[version - 1](conn)
                 conn.execute(f"PRAGMA user_version = {version}")
             conn.execute("COMMIT")
         except BaseException:
-            conn.execute("ROLLBACK")
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
             raise
     finally:
         conn.isolation_level = previous_isolation

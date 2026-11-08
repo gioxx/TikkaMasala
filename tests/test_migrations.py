@@ -311,3 +311,24 @@ def test_destinations_table_exists_and_rejects_unknown_kind(tmp_path):
                 VALUES (1, 'email', 'enc:x', '2026-01-01T00:00:00+00:00')
                 """
             )
+
+
+def test_returns_early_when_another_process_migrated_first(tmp_path, caplog):
+    path = tmp_path / "race.db"
+
+    class RacingConn(sqlite3.Connection):
+        def execute(self, sql, *args):
+            if sql == "BEGIN IMMEDIATE":
+                with closing(sqlite3.connect(path)) as other:
+                    apply_migrations(other)
+            return super().execute(sql, *args)
+
+    conn = sqlite3.connect(path, factory=RacingConn)
+    try:
+        with caplog.at_level(logging.INFO, logger="app.migrations"):
+            assert apply_migrations(conn) == LATEST_SCHEMA_VERSION
+        assert not conn.in_transaction
+    finally:
+        conn.close()
+    # only the competing process logs a migration, not the one that lost the race
+    assert caplog.text.count("Migrating database schema") == 1
