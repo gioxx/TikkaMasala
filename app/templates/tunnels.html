@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% set active_section = "tunnels" %}
+
+{% block title %}Tikka Masala{% endblock %}
+{% block main_class %}container{% endblock %}
+
+{% block content %}
+      {% if demo_mode %}
+      <section class="demo-banner">
+        <p>Demo mode is active.</p>
+        <p>Credentials come only from environment variables and are never saved. Automatic backups, notifications, and backup archive are disabled. Manual backups work normally: completed backups are downloaded directly as JSON files.</p>
+      </section>
+      {% endif %}
+
+      {#- Persistent live region outside #tunnels-home: htmx actions fill it out of band, so screen readers announce the outcome. -#}
+      <div id="tunnels-live" class="sr-only" role="status" aria-live="polite"></div>
+{% include "partials/tunnels_home.html" %}
+{% endblock %}

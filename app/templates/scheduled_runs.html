@@ -1,14 +1,7 @@
 {% extends "base.html" %}
+{% set active_section = "automation" %}
 
 {% block title %}Tikka Masala · Automatic Backup Archive{% endblock %}
-
-{% block nav_links %}
-            <a href="/">Dashboard</a>
-            <a href="/#auto-backup-section">Automatic backups</a>
-            <a href="/#notifications-section">Notifications</a>
-            <a href="/#saved-backups-section">Saved backups</a>
-            <a href="/settings">Settings</a>
-{% endblock %}
 
 {% block content %}
       {% if demo_mode %}

@@ -26,7 +26,7 @@ from app.scheduler import (
     set_auto_backup_tunnel_schedule,
     validate_cron_expression,
 )
-from app.web import render_index_page, render_scheduled_runs_page, templates
+from app.web import render_automation_page, render_scheduled_runs_page, templates
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ async def auto_backup_settings_action(
     browser_timezone: str = Form(default=""),
 ) -> HTMLResponse:
     if DEMO_MODE:
-        return render_index_page(request, error="Automatic backups are not available in Demo mode.", success_target="auto-backup")
+        return render_automation_page(request, error="Automatic backups are not available in Demo mode.", success_target="auto-backup")
     try:
         logger.info("Automatic backup settings update requested.")
         timezone_saved = False
@@ -78,16 +78,16 @@ async def auto_backup_settings_action(
         )
 
         message = "Automatic backups enabled." if enabled_flag else "Automatic backups disabled."
-        return render_index_page(request, message=message, success_target="auto-backup")
+        return render_automation_page(request, message=message, success_target="auto-backup")
     except HTTPException as exc:
         logger.warning("Automatic backup settings update failed: %s", exc.detail)
-        return render_index_page(request, error=exc.detail, success_target="auto-backup")
+        return render_automation_page(request, error=exc.detail, success_target="auto-backup")
 
 
 @router.post("/auto-backup/run", response_class=HTMLResponse)
 async def auto_backup_run_action(request: Request) -> HTMLResponse:
     if DEMO_MODE:
-        return render_index_page(request, error="Automatic backups are not available in Demo mode.", success_target="auto-backup")
+        return render_automation_page(request, error="Automatic backups are not available in Demo mode.", success_target="auto-backup")
     try:
         logger.info("Manual automatic-backup run requested from UI.")
         profile_id = current_profile_id(request)
@@ -109,31 +109,31 @@ async def auto_backup_run_action(request: Request) -> HTMLResponse:
         )
         if status == "success":
             message = f"Automatic backup run completed: {result['backup_count']} backup(s) created from {result['tunnel_count']} tunnel(s)."
-            return render_index_page(request, message=message, success_target="auto-backup")
+            return render_automation_page(request, message=message, success_target="auto-backup")
         elif status == "partial":
             error = (
                 f"Automatic backup run completed with errors: {result['backup_count']} backup(s) created, "
                 f"{result['error_count']} error(s)."
             )
-            return render_index_page(request, error=error, success_target="auto-backup")
+            return render_automation_page(request, error=error, success_target="auto-backup")
         elif status == "skipped":
             message = "Automatic backup run skipped because another run is already in progress."
-            return render_index_page(request, message=message, success_target="auto-backup")
+            return render_automation_page(request, message=message, success_target="auto-backup")
         else:
             error = (
                 f"Automatic backup run failed: {result['error_count']} error(s), "
                 f"{result['backup_count']} backup(s) created."
             )
-            return render_index_page(request, error=error, success_target="auto-backup")
+            return render_automation_page(request, error=error, success_target="auto-backup")
     except HTTPException as exc:
         logger.warning("Manual automatic-backup run failed before execution: %s", exc.detail)
-        return render_index_page(request, error=exc.detail, success_target="auto-backup")
+        return render_automation_page(request, error=exc.detail, success_target="auto-backup")
 
 
 @router.get("/auto-backup/tunnel-filters", response_class=HTMLResponse)
 async def auto_backup_tunnel_filters_page(request: Request) -> HTMLResponse:
     if DEMO_MODE:
-        return RedirectResponse(url="/#auto-backup-section", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
     profile_id = current_profile_id(request)
     prereqs = get_auto_backup_prerequisites(profile_id)
     tunnels: list[dict[str, Any]] = []
@@ -166,7 +166,7 @@ async def auto_backup_tunnel_filters_page(request: Request) -> HTMLResponse:
 @router.post("/auto-backup/tunnel-filters", response_class=HTMLResponse)
 async def auto_backup_tunnel_filters_action(request: Request) -> HTMLResponse:
     if DEMO_MODE:
-        return RedirectResponse(url="/#auto-backup-section", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
     try:
         form = await request.form()
         mode = str(form.get("mode", "all")).strip()
@@ -197,10 +197,17 @@ async def auto_backup_tunnel_filters_action(request: Request) -> HTMLResponse:
             mode,
             len(tunnels_cfg),
         )
-        return RedirectResponse(url="/#auto-backup-section", status_code=303)
+        return RedirectResponse(url="/automation#auto-backup-section", status_code=303)
     except Exception:
         logger.exception("Unexpected error saving tunnel backup schedule.")
         return RedirectResponse(url="/auto-backup/tunnel-filters?error=1", status_code=303)
+
+
+@router.get("/automation", response_class=HTMLResponse)
+async def automation_page(request: Request) -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/", status_code=303)
+    return render_automation_page(request)
 
 
 @router.get("/auto-backup/runs", response_class=HTMLResponse)

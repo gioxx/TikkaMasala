@@ -1,5 +1,5 @@
 // Shared behaviour for every page: smooth scrolling, back-to-top button,
-// floating section nav and the System/Dark/Light theme switcher.
+// the collapsible top navigation menu and the System/Dark/Light theme switcher.
 // Page scripts run after this file and may use smoothScrollToY / smoothScrollToElement.
 
 const smoothScrollToY = (targetY, duration = 560) => {
@@ -30,8 +30,6 @@ const smoothScrollToElement = (element, offset = 0, duration = 560) => {
 };
 
 const backToTopButton = document.getElementById("back-to-top");
-const floatingNav = document.querySelector("[data-floating-nav]");
-const floatingNavLabel = document.querySelector("[data-hero-nav-label]");
 
 if (backToTopButton) {
   const toggleBackToTop = () => {
@@ -46,20 +44,43 @@ if (backToTopButton) {
   toggleBackToTop();
 }
 
-if (floatingNav) {
-  let isFloating = false;
-  const toggleFloatingNav = () => {
-    const shouldFloat = isFloating ? window.scrollY > 132 : window.scrollY > 180;
-    isFloating = shouldFloat;
-    floatingNav.classList.toggle("is-floating", shouldFloat);
-    document.body.classList.toggle("has-floating-nav", shouldFloat);
-    if (floatingNavLabel) {
-      floatingNavLabel.classList.toggle("is-hidden", shouldFloat);
-    }
+// Top navigation: on narrow screens the sections collapse behind a menu button.
+const topbar = document.querySelector("[data-topbar]");
+const topnavToggle = document.querySelector("[data-topnav-toggle]");
+
+if (topbar && topnavToggle) {
+  const setMenuOpen = (open) => {
+    topbar.classList.toggle("is-open", open);
+    topnavToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    topnavToggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
   };
 
-  window.addEventListener("scroll", toggleFloatingNav, { passive: true });
-  toggleFloatingNav();
+  topnavToggle.addEventListener("click", () => {
+    setMenuOpen(!topbar.classList.contains("is-open"));
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && topbar.classList.contains("is-open")) {
+      setMenuOpen(false);
+      topnavToggle.focus();
+    }
+  });
+
+  topbar.querySelectorAll(".topnav-link").forEach((link) => {
+    link.addEventListener("click", () => setMenuOpen(false));
+  });
+
+  // Close the menu when the viewport grows past the collapse width (--topnav-collapse in styles.css).
+  const collapseWidth = getComputedStyle(document.documentElement).getPropertyValue("--topnav-collapse").trim() || "960px";
+  const narrowQuery = window.matchMedia(`(max-width: ${collapseWidth})`);
+  const closeWhenWide = (event) => {
+    if (!event.matches) setMenuOpen(false);
+  };
+  if (typeof narrowQuery.addEventListener === "function") {
+    narrowQuery.addEventListener("change", closeWhenWide);
+  } else if (typeof narrowQuery.addListener === "function") {
+    narrowQuery.addListener(closeWhenWide);
+  }
 }
 
 document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
@@ -116,3 +137,36 @@ if (typeof systemThemeQuery.addEventListener === "function") {
 }
 
 applyThemePreference(root.dataset.themePreference || "system");
+
+// Render [data-utc-datetime] elements in the scheduler timezone. Pages that
+// carry data-auto-backup-timezone follow the same rule as the Automation page
+// (browser timezone unless the server one was set); others fall back to UTC.
+const formatLocalDateTimes = () => {
+  const container = document.querySelector("[data-auto-backup-timezone]");
+  const browserTimezoneName = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  let fallbackTimezone = "UTC";
+  if (container) {
+    const source = container.dataset.autoBackupTimezoneSource || "default";
+    fallbackTimezone = source === "default" ? browserTimezoneName : container.dataset.autoBackupTimezone || "UTC";
+  }
+  document.querySelectorAll("[data-utc-datetime]").forEach((element) => {
+    const rawValue = element.dataset.utcDatetime || "";
+    const displayTimezone = element.dataset.displayTimezone || fallbackTimezone;
+    const parsed = new Date(rawValue);
+    if (Number.isNaN(parsed.getTime())) return;
+    const zonedFormatter = new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      timeZone: displayTimezone,
+      timeZoneName: "short",
+    });
+    element.textContent = zonedFormatter.format(parsed);
+    element.title = `${rawValue} UTC`;
+  });
+};
+
+document.addEventListener("DOMContentLoaded", formatLocalDateTimes);

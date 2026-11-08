@@ -1,16 +1,7 @@
 {% extends "base.html" %}
+{% set active_section = "backups" %}
 
 {% block title %}Tikka Masala · Backup #{{ backup.id }}{% endblock %}
-
-{% block nav_links %}
-            <a href="/">Dashboard</a>
-            <a href="#restore-form">Restore</a>
-            <a href="#restore-history">Restore history</a>
-            <a href="/#auto-backup-section">Automatic backups</a>
-            <a href="/auto-backup/runs">Automatic backup archive</a>
-            <a href="/#saved-backups-section">Saved backups</a>
-            <a href="/settings">Settings</a>
-{% endblock %}
 
 {% block content %}
       {% if demo_mode %}
@@ -20,7 +11,7 @@
       </section>
       {% endif %}
 
-      <section class="card" id="restore-form">
+      <section class="card" id="backup-details">
         <h1 class="heading-with-icon">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -58,6 +49,11 @@
             <dd class="meta-value wrap-anywhere"><code>{{ backup.filename }}</code></dd>
           </div>
         </dl>
+        <nav class="page-links top-gap" aria-label="On this page">
+          <a class="secondary-link-button secondary-link-button-small" href="#restore-form">Restore</a>
+          <a class="secondary-link-button secondary-link-button-small" href="#restore-history">Restore history</a>
+          {% if not demo_mode %}<a class="secondary-link-button secondary-link-button-small" href="/backups">All backups</a>{% endif %}
+        </nav>
         {% if backup.notes %}
         <p><strong>Notes:</strong> {{ backup.notes }}</p>
         {% endif %}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import Request
@@ -40,6 +41,36 @@ from app.scheduler import (
     get_scheduled_runs_stats,
     summarize_scheduled_run_details,
 )
+from app.tunnels import RowFeedback, TunnelsHome, format_when
+
+
+@dataclass(frozen=True)
+class NavSection:
+    """One entry of the top navigation; ``icon`` names a Tabler icon drawn by ``base.html``."""
+
+    key: str
+    label: str
+    href: str
+    icon: str
+
+
+_NAV_SECTIONS = (
+    NavSection("tunnels", "Tunnels", "/", "network"),
+    NavSection("hostnames", "Hostnames", "/ingress", "world-www"),
+    NavSection("backups", "Backups", "/backups", "archive"),
+    NavSection("automation", "Automation", "/automation", "clock-play"),
+    NavSection("settings", "Settings", "/settings", "settings"),
+)
+# Hostnames, Backups and Automation redirect to "/" in demo mode, so the nav hides them.
+_DEMO_NAV_KEYS = frozenset({"tunnels", "settings"})
+
+
+def nav_sections() -> list[NavSection]:
+    """The top navigation sections; reads ``DEMO_MODE`` at call time so tests can patch it."""
+
+    if DEMO_MODE:
+        return [section for section in _NAV_SECTIONS if section.key in _DEMO_NAV_KEYS]
+    return list(_NAV_SECTIONS)
 
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -47,6 +78,9 @@ templates.env.globals["app_version"] = APP_VERSION
 templates.env.globals["access_identity"] = access_identity
 templates.env.globals["access_logout_path"] = ACCESS_LOGOUT_PATH
 templates.env.globals["origin_request_delta"] = origin_request_delta
+templates.env.globals["nav_sections"] = nav_sections
+# Short, human times in the scheduler timezone ("today 03:00", "3 days ago").
+templates.env.filters["when"] = lambda value: format_when(value)
 
 
 def get_requested_backup_page(request: Request) -> int:
@@ -85,37 +119,74 @@ def get_requested_scheduled_runs_page_size(request: Request) -> int | None:
     return page_size if page_size in SCHEDULED_RUNS_PAGE_SIZE_OPTIONS else SCHEDULED_RUNS_PAGE_SIZE
 
 
-def render_index_page(
+def render_tunnels_page(
     request: Request,
-    message: str | None = None,
-    error: str | None = None,
-    success_target: str | None = "tunnels",
-    tunnels: list[dict[str, Any]] | None = None,
-    backup_page: int | None = None,
-    backup_page_size: int | None = None,
+    home: TunnelsHome,
+    *,
+    feedback: dict[str, RowFeedback] | None = None,
+    notice: tuple[str, str] | None = None,
+    partial: bool = False,
+    status_code: int = 200,
 ) -> HTMLResponse:
-    resolved_page = backup_page if isinstance(backup_page, int) else get_requested_backup_page(request)
-    resolved_page_size = backup_page_size if isinstance(backup_page_size, int) else get_requested_backup_page_size(request)
-    backups, backup_pagination = get_backups_page(resolved_page, resolved_page_size)
-    profile_id = current_profile_id(request)
-    credentials = get_api_credentials(profile_id)
+    """The Tunnels home, or with ``partial`` only its ``#tunnels-home`` region (for htmx swaps).
+
+    ``notice`` is ``(tone, message)`` with tone ``success``, ``error`` or ``muted``;
+    ``feedback`` maps a tunnel ID to the outcome of an action on its row.
+    """
+    response = templates.TemplateResponse(
+        request,
+        "partials/tunnels_home.html" if partial else "tunnels.html",
+        {
+            "home": home,
+            # Keyed by lower-case tunnel ID; the template looks rows up the same way.
+            "feedback": {tunnel_id.lower(): outcome for tunnel_id, outcome in (feedback or {}).items()},
+            "notice": notice,
+            "live_oob": partial,
+            "demo_mode": DEMO_MODE,
+            "demo_no_credentials_message": DEMO_NO_CREDENTIALS_MESSAGE,
+        },
+        status_code=status_code,
+    )
+    if partial:
+        response.headers["Vary"] = "HX-Request"
+    return response
+
+
+def render_backups_page(request: Request) -> HTMLResponse:
+    backups, backup_pagination = get_backups_page(
+        get_requested_backup_page(request),
+        get_requested_backup_page_size(request),
+    )
     return templates.TemplateResponse(
         request,
-        "index.html",
+        "backups.html",
         {
-            "message": message,
-            "error": error,
-            "success_target": success_target,
             "backups": backups,
             "backup_pagination": backup_pagination,
             "backup_page_size_options": sorted(BACKUPS_PAGE_SIZE_OPTIONS),
             "database_stats": get_database_stats(),
-            "backup_retention": get_backup_retention_status(profile_id),
-            "tunnels": tunnels,
-            "credentials_account_id": credentials.account_id if credentials is not None else None,
-            "demo_missing_credentials": DEMO_MODE and credentials is None,
-            "demo_no_credentials_message": DEMO_NO_CREDENTIALS_MESSAGE,
+            "backup_retention": get_backup_retention_status(current_profile_id(request)),
+            "demo_mode": DEMO_MODE,
+        },
+    )
+
+
+def render_automation_page(
+    request: Request,
+    message: str | None = None,
+    error: str | None = None,
+    success_target: str | None = None,
+) -> HTMLResponse:
+    profile_id = current_profile_id(request)
+    return templates.TemplateResponse(
+        request,
+        "automation.html",
+        {
+            "message": message,
+            "error": error,
+            "success_target": success_target,
             "auto_backup": build_auto_backup_status(profile_id),
+            "backup_retention": get_backup_retention_status(profile_id),
             "demo_mode": DEMO_MODE,
         },
     )

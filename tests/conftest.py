@@ -43,6 +43,23 @@ def _setup_gate(request, monkeypatch):
     monkeypatch.setattr(app.setup, "setup_required", lambda: False)
 
 
+@pytest.fixture(autouse=True)
+def _fake_tunnel_list(monkeypatch):
+    """Keep the Tunnels home offline: an empty tunnel list and a clean cache for every test.
+
+    Tests that need tunnels patch ``app.tunnels.list_tunnels`` again.
+    """
+    import app.tunnels
+
+    async def _no_tunnels(account_id: str, api_token: str) -> list[dict]:
+        return []
+
+    app.tunnels.clear_tunnel_list_cache()
+    monkeypatch.setattr(app.tunnels, "list_tunnels", _no_tunnels)
+    yield
+    app.tunnels.clear_tunnel_list_cache()
+
+
 @pytest.fixture(scope="session")
 def data_dir() -> Path:
     return _DATA_DIR

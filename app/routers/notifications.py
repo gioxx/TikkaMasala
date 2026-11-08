@@ -21,7 +21,7 @@ from app.notifications import (
     set_notification_message_templates,
     set_telegram_compact_notifications,
 )
-from app.web import render_index_page, templates
+from app.web import render_automation_page, templates
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ router = APIRouter()
 @router.get("/notifications/messages", response_class=HTMLResponse)
 async def notification_messages_page(request: Request) -> HTMLResponse:
     if DEMO_MODE:
-        return RedirectResponse(url="/#notifications-section", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
     templates_data = get_notification_message_templates()
     return templates.TemplateResponse(
         request,
@@ -51,7 +51,7 @@ async def notification_messages_page(request: Request) -> HTMLResponse:
 @router.post("/notifications/messages", response_class=HTMLResponse)
 async def notification_messages_action(request: Request) -> HTMLResponse:
     if DEMO_MODE:
-        return RedirectResponse(url="/#notifications-section", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
     try:
         form = await request.form()
         new_templates: dict[str, str] = {}
@@ -76,7 +76,7 @@ async def notification_messages_action(request: Request) -> HTMLResponse:
 @router.post("/notifications/messages/reset", response_class=HTMLResponse)
 async def notification_messages_reset_action() -> HTMLResponse:
     if DEMO_MODE:
-        return RedirectResponse(url="/#notifications-section", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
     set_notification_message_templates({})
     logger.info("Notification message templates reset to defaults.")
     return RedirectResponse(url="/notifications/messages?reset=1", status_code=303)
@@ -85,11 +85,11 @@ async def notification_messages_reset_action() -> HTMLResponse:
 @router.post("/notifications/test", response_class=HTMLResponse)
 async def notifications_test_action(request: Request) -> HTMLResponse:
     if DEMO_MODE:
-        return render_index_page(request, error="Notifications are not available in Demo mode.", success_target="notifications")
+        return render_automation_page(request, error="Notifications are not available in Demo mode.", success_target="notifications")
     status = get_notification_status()
     if not status["webhook_enabled"] and not status["telegram_enabled"]:
         logger.warning("Notification test requested, but no notification channel is configured.")
-        return render_index_page(
+        return render_automation_page(
             request,
             error="Notification test failed: no configured channel found. Set a webhook URL and/or Telegram bot settings first.",
             success_target="notifications",
@@ -123,9 +123,9 @@ async def notifications_test_action(request: Request) -> HTMLResponse:
         message = f"Notification test sent successfully via {', '.join(successful_channels)}."
         if result["failed_channels"]:
             message += f" Failed channels: {', '.join(failed_channels)}."
-        return render_index_page(request, message=message, success_target="notifications")
+        return render_automation_page(request, message=message, success_target="notifications")
 
-    return render_index_page(
+    return render_automation_page(
         request,
         error="Notification test failed. Check the container logs for channel-specific errors.",
         success_target="notifications",

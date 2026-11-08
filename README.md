@@ -11,7 +11,7 @@ Website: <https://tikkamasala.gioxx.org>
 [![](https://img.shields.io/docker/pulls/gfsolone/tikkamasala.svg)](https://hub.docker.com/r/gfsolone/tikkamasala)
 [![](https://img.shields.io/docker/image-size/gfsolone/tikkamasala/latest.svg)](https://hub.docker.com/r/gfsolone/tikkamasala)
 
-![Tikka Masala tunnel list with Copy, Use and Admin actions for each tunnel](docs/img/dashboard-hero.webp)
+![Tikka Masala Tunnels page](docs/img/dashboard-hero.webp)
 
 ## Table of Contents
 
@@ -22,6 +22,7 @@ Website: <https://tikkamasala.gioxx.org>
 - [Run with Docker Only](#run-with-docker-only)
 - [Run Without Docker](#run-without-docker)
 - [First Run and Credentials](#first-run-and-credentials)
+- [Navigation](#navigation)
 - [Storage Layout](#storage-layout)
 - [What Gets Backed Up](#what-gets-backed-up)
 - [Restore Behavior](#restore-behavior)
@@ -37,10 +38,10 @@ Website: <https://tikkamasala.gioxx.org>
 ## Features
 
 - Enter your Account ID and API token once on a first-run setup screen; they are checked against Cloudflare before they are saved
-- Load the tunnels visible to a Cloudflare account
+- **Tunnels** home: four summary tiles (tunnels and their health, hostnames, automatic backup state, saved backups) and a live table with each tunnel's status, hostname count and last backup, plus a per-row **Back up** button and a **Back up all now** button
 - Open each tunnel's page in the Cloudflare dashboard (Networking → Tunnels) straight from the tunnel list
-- Quick-access links to Cloudflare Access Controls (Applications and Policies) from the tunnels section
-- Create JSON backups of a tunnel configuration
+- Quick-access links to Cloudflare Access Controls (Applications and Policies) below the tunnel table
+- Create JSON backups of one tunnel or of all tunnels at once
 - Download saved snapshots
 - See every ingress rule of a snapshot (hostname, path, origin `service`, `originRequest` settings), with host-local origins such as `localhost` flagged
 - Restore a snapshot to the original tunnel or to another tunnel in the same account
@@ -182,6 +183,27 @@ Upgrading from a version that kept the token in a browser cookie: the first requ
 
 If the saved token cannot be decrypted (for example `encryption.key` was removed), the app sends you back to the setup screen, which explains it; saving a new token replaces the unreadable one.
 
+### Finding your Account ID and creating a token
+
+The **Account ID** is on the **Account home** page of the [Cloudflare dashboard](https://dash.cloudflare.com/): use **Copy account ID** in the account menu.
+
+Create a custom API token in the [API tokens page](https://dash.cloudflare.com/profile/api-tokens) with:
+
+- **Account**: Cloudflare Tunnel - Edit
+- **Zone**: DNS - Edit
+
+For backup-only usage, you can reduce the token to read-only permissions later.
+
+## Navigation
+
+A top bar gives access to five sections (it collapses to a menu button below 960px):
+
+- **Tunnels** (`/`): the home page. Four summary tiles, the live tunnel table (status, hostnames, last backup), per-row **Back up** and **Back up all now**
+- **Hostnames** (`/ingress`): every public hostname of every tunnel and its origin
+- **Backups** (`/backups`): the saved backups with archive statistics and retention (interim page, to be redesigned)
+- **Automation** (`/automation`): the scheduler, notification channels and message customization (interim page, to be redesigned)
+- **Settings** (`/settings`): credentials, Cloudflare Access status and version
+
 ## Storage Layout
 
 Everything is stored under `DATA_DIR`, which defaults to `/data` in the container and typically maps to `./data` on the host.
@@ -230,7 +252,7 @@ The backup detail page lists every ingress rule with its origin address and high
 
 Tikka Masala can schedule recurring backups for tunnels visible in the configured account.
 
-The scheduler is built into the app and stores its configuration in the local SQLite database. From the home page you can:
+The scheduler is built into the app and stores its configuration in the local SQLite database. From the **Automation** page you can:
 
 - enable or disable automatic backups
 - set a cron expression
@@ -315,7 +337,8 @@ Telegram notifications send the same information as a formatted plain-text messa
 When notifications are configured:
 
 - container logs show the active channels and event counts at startup
-- the home page shows a dedicated `Notifications` box with channel and event counts
+- the **Automation** page shows a dedicated `Notifications` box with channel and event counts
+- **Back up all now** sends one `manual_backup_*` notification per tunnel, like the per-row **Back up**
 - you can use `Send test notification` from the UI to verify webhook and/or Telegram delivery immediately
 - the test notification uses the `notification_test` event
 - notification results are shown directly inside the section that triggered them instead of at the top of the page
@@ -369,7 +392,7 @@ In demo mode:
 - notifications are disabled
 - the backup archive is disabled
 
-Manual tunnel listing and manual backup downloads still work.
+Only the **Tunnels** and **Settings** sections are available. The per-row **Back up** button downloads the tunnel's JSON; there is no **Back up all now**.
 
 ## Cloudflare Access
 
@@ -429,8 +452,8 @@ Running a previous image on the migrated database without restoring `app.db.pre-
 - Domain modules: [`config.py`](app/config.py) (environment), [`db.py`](app/db.py) (SQLite schema and settings), [`credentials.py`](app/credentials.py) (Account ID / token handling), [`encryption.py`](app/encryption.py) (key and secret encryption), [`setup.py`](app/setup.py) (first-run setup), [`cloudflare.py`](app/cloudflare.py) (API client), [`backups.py`](app/backups.py) (snapshots and retention), [`scheduler.py`](app/scheduler.py) (automatic backups), [`notifications.py`](app/notifications.py) (webhook / Telegram), [`ingress.py`](app/ingress.py) (ingress parsing and diff), [`web.py`](app/web.py) (templates and page renderers)
 - HTTP routes: [`app/routers/`](app/routers)
 - Hostnames overview: [`app/ingress_overview.py`](app/ingress_overview.py); live refresh uses [htmx](https://htmx.org) 2.0.4, vendored in [`app/static/vendor/`](app/static/vendor) (0BSD license)
-- Templates extend [`app/templates/base.html`](app/templates/base.html) (head, hero, footer); shared page behaviour lives in [`app/static/app.js`](app/static/app.js)
-- Page templates: [`index.html`](app/templates/index.html), [`backup.html`](app/templates/backup.html), [`scheduled_runs.html`](app/templates/scheduled_runs.html), [`tunnel_filters.html`](app/templates/tunnel_filters.html), [`notification_messages.html`](app/templates/notification_messages.html)
+- Templates extend [`app/templates/base.html`](app/templates/base.html) (head, top navigation, footer); shared page behaviour lives in [`app/static/app.js`](app/static/app.js)
+- Page templates: [`tunnels.html`](app/templates/tunnels.html), [`backup.html`](app/templates/backup.html), [`scheduled_runs.html`](app/templates/scheduled_runs.html), [`tunnel_filters.html`](app/templates/tunnel_filters.html), [`notification_messages.html`](app/templates/notification_messages.html)
 - Tests: `pip install -r requirements-dev.txt && pytest`
 
 ## Credits
