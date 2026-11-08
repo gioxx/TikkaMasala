@@ -8,6 +8,12 @@ on:
       - '[0-9]+\.[0-9]+\.[0-9]+' # Match major.minor.patch (e.g., 0.6.1)
       - '[0-9]+\.[0-9]+'         # Match major.minor (e.g., 0.6)
 
+# Builds for the same ref must not overlap: an older run finishing last would overwrite
+# the tag (e.g. `dev`) with an older commit. Newer pushes cancel the run in progress.
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
