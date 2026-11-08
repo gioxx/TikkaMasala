@@ -29,6 +29,7 @@ Website: <https://tikkamasala.gioxx.org>
 - [Notifications](#notifications)
 - [Demo Mode](#demo-mode)
 - [Cloudflare Access](#cloudflare-access)
+- [Upgrading](#upgrading)
 - [Security Notes](#security-notes)
 - [Project Notes](#project-notes)
 - [Credits](#credits)
@@ -198,6 +199,7 @@ Everything is stored under `DATA_DIR`, which defaults to `/data` in the containe
 
 - `app.db`: SQLite database for backup metadata, restore history, and saved auth settings
 - `backups/*.json`: exported tunnel configuration snapshots
+- `app.db.pre-v1.bak`: copy of the database taken before the profiles migration (see [Upgrading](#upgrading))
 
 ## What Gets Backed Up
 
@@ -392,6 +394,20 @@ Things to know:
 - `/healthz` is never checked, so the Docker healthcheck keeps working.
 - The signed-in email (or "service token") and a **Sign out** link appear in the page header.
 - Rejected requests are logged with the client address and the reason, never with the token.
+
+## Upgrading
+
+On the first start after upgrading to a version with profiles, the app migrates the saved Account ID, API token and automatic backup settings from the global settings into a profile named "Default". Existing backups and schedule history are kept, and the UI behaves as before.
+
+Before migrating a database that already has data, the app copies it to `app.db.pre-v1.bak` in `DATA_DIR` (readable only by its owner). A database written by a newer version makes the app refuse to start.
+
+To roll back:
+
+1. Stop the container.
+2. Restore `app.db.pre-v1.bak` as `app.db` in `DATA_DIR`.
+3. Start the previous image tag.
+
+Changes made after the upgrade are lost when you restore the file.
 
 ## Security Notes
 
