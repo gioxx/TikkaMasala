@@ -8,12 +8,11 @@ on:
       - '[0-9]+\.[0-9]+\.[0-9]+' # Match major.minor.patch (e.g., 0.6.1)
       - '[0-9]+\.[0-9]+'         # Match major.minor (e.g., 0.6)
 
-# Builds that publish the same tag must not overlap: an older run finishing last would
-# overwrite it with an older commit. main (`dev`) gets one group and a newer push cancels
-# the run in progress. All release tags share one group (they all publish `latest`) and
-# queue instead of cancelling, so every version is still published, in push order.
+# Runs for the same ref never overlap. On main a newer push cancels the run in progress,
+# so `dev` always ends on the newest commit. Release tags each have their own ref and are
+# never cancelled; `latest` is not set by push order but by version (see the last step).
 concurrency:
-  group: docker-publish-${{ startsWith(github.ref, 'refs/tags/') && 'release' || github.ref }}
+  group: docker-publish-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 permissions:
@@ -37,7 +36,6 @@ jobs:
             ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
             type=raw,value=${{ github.ref_name }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
 
       - name: Set up QEMU
@@ -75,6 +73,26 @@ jobs:
             APP_VERSION=${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'dev' }}
           tags: ${{ steps.docker_meta.outputs.tags }}
           labels: ${{ steps.docker_meta.outputs.labels }}
+
+      # Point `latest` at this release only if it is still the highest version once the
+      # build is done. An older release finishing after a newer one leaves `latest` alone,
+      # whatever order the runs started or finished in.
+      - name: Promote to latest
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE: ${{ github.ref_name }}
+          DOCKERHUB_IMAGE: gfsolone/${{ github.event.repository.name }}
+          GHCR_IMAGE: ghcr.io/${{ github.repository }}
+        run: |
+          git fetch --quiet --force --tags origin
+          highest="$(git tag --list | grep -E '^[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V | tail -n 1)"
+          if [ "$highest" != "$RELEASE" ]; then
+            echo "Release $RELEASE is not the highest version ($highest): latest left unchanged."
+            exit 0
+          fi
+          for image in "${DOCKERHUB_IMAGE,,}" "${GHCR_IMAGE,,}"; do
+            docker buildx imagetools create --tag "$image:latest" "$image:$RELEASE"
+          done
 
       - name: Update repo description
         uses: peter-evans/dockerhub-description@v5.0.0
