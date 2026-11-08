@@ -24,7 +24,7 @@ from app.config import (
 )
 from app.notifications import get_notification_log_context, get_notification_status
 from app.profiles import DEFAULT_PROFILE_ID
-from app.routers import auto_backup, backups, dashboard, ingress, notifications
+from app.routers import auto_backup, backups, dashboard, ingress, notifications, settings
 from app.scheduler import auto_backup_scheduler, configure_all_auto_backup_jobs
 
 logger = logging.getLogger(__name__)
@@ -100,6 +100,7 @@ app.include_router(auto_backup.router)
 app.include_router(notifications.router)
 app.include_router(backups.router)
 app.include_router(ingress.router)
+app.include_router(settings.router)
 
 
 @app.get("/healthz")

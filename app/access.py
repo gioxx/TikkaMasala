@@ -152,6 +152,20 @@ def access_identity(request: Request) -> AccessIdentity | None:
     return getattr(request.state, "access_identity", None)
 
 
+def is_cross_site_request(request: Request) -> bool:
+    """Whether the browser says this request comes from another site (``Sec-Fetch-Site: cross-site``).
+
+    A cheap guard for state-changing form posts (login CSRF): requests without the
+    header (older browsers, scripts) are let through.
+    """
+
+    return request.headers.get("Sec-Fetch-Site", "").strip().lower() == "cross-site"
+
+
+def cross_site_rejected() -> Response:
+    return Response("Cross-site form submissions are not allowed.", status_code=403, media_type="text/plain")
+
+
 def _denied_response(request: Request) -> Response:
     from app.web import templates  # deferred: app.web pulls in the whole template stack
 

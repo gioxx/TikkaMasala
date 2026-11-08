@@ -256,3 +256,15 @@ def test_migrate_cookie_token_unit():
     assert setup.migrate_cookie_token("cookie-tok-123456") is True
     assert setup.migrate_cookie_token("second-tok-123456") is False
     assert _stored_token() == "cookie-tok-123456"
+
+
+def test_setup_rejects_cross_site_post(client, fake_check):
+    response = client.post(
+        "/setup",
+        data={"account_id": GOOD, "api_token": "tok-csrf-123456"},
+        headers={"Sec-Fetch-Site": "cross-site"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 403
+    assert fake_check.calls == []
+    assert get_profile(DEFAULT_PROFILE_ID).api_token is None

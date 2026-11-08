@@ -15,6 +15,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app import credentials
+from app.access import cross_site_rejected, is_cross_site_request
 from app.cloudflare import CredentialsInvalid
 from app.config import API_TOKEN_COOKIE_NAME, DEMO_MODE
 from app.credentials import describe_profile_credentials, get_api_credentials, save_profile_credentials
@@ -117,6 +118,8 @@ async def setup_submit(
     account_id: str = Form(""),
     api_token: str = Form(""),
 ) -> Response:
+    if is_cross_site_request(request):
+        return cross_site_rejected()
     # Setup is for the first run only: once credentials work, changes go through Settings.
     if DEMO_MODE or not setup_required():
         return RedirectResponse("/", status_code=303)
