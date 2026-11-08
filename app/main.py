@@ -9,13 +9,26 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.access import AccessVerifier, access_guard, load_access_settings
 from app.backups import get_backup_retention_days
-from app.config import API_BASE, AUTO_BACKUP_TIMEZONE, BASE_DIR, DATA_DIR, DEMO_MODE, LOG_LEVEL
+from app.config import (
+    API_BASE,
+    AUTO_BACKUP_TIMEZONE,
+    BASE_DIR,
+    CF_ACCESS_AUD,
+    CF_ACCESS_TEAM_DOMAIN,
+    DATA_DIR,
+    DEMO_MODE,
+    LOG_LEVEL,
+)
 from app.notifications import get_notification_log_context, get_notification_status
 from app.routers import auto_backup, backups, dashboard, ingress, notifications
 from app.scheduler import auto_backup_scheduler, configure_auto_backup_job
 
 logger = logging.getLogger(__name__)
+
+# Raises AccessConfigError (and stops the app) when only one of the two variables is set.
+ACCESS_SETTINGS = load_access_settings(CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD)
 
 
 async def startup_event() -> None:
@@ -43,6 +56,13 @@ async def startup_event() -> None:
         notification_log_context["webhook_event_count"],
         notification_log_context["telegram_event_count"],
     )
+    if ACCESS_SETTINGS:
+        logger.info(
+            "Cloudflare Access enforcement is on (team_domain=%s). Requests without a valid Access token are rejected.",
+            ACCESS_SETTINGS.team_domain,
+        )
+    else:
+        logger.info("Cloudflare Access enforcement is off (CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD not set).")
     if not DEMO_MODE:
         if not auto_backup_scheduler.running:
             auto_backup_scheduler.start()
@@ -67,6 +87,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Tikka Masala", lifespan=lifespan)
+app.state.access_verifier = AccessVerifier(ACCESS_SETTINGS) if ACCESS_SETTINGS else None
+app.middleware("http")(access_guard)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 app.include_router(dashboard.router)
 app.include_router(auto_backup.router)

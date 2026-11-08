@@ -13,3 +13,5 @@ data/
 
 app/__pycache__/
 .tokensave
+
+.superpowers/

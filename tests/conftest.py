@@ -27,6 +27,8 @@ for _name in (
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
     "DEMO",
+    "CF_ACCESS_TEAM_DOMAIN",
+    "CF_ACCESS_AUD",
 ):
     os.environ.pop(_name, None)
 
