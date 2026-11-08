@@ -306,7 +306,7 @@ def test_ingress_snapshots_follow_active_account(client, configured_default, mak
         {"hostname": "far.example.com", "service": "http://10.0.0.2:80"},
     ])
     body = client.get("/ingress").text
-    assert "home.example.com" in body
+    assert 'class="wrap-anywhere">home.example.com</a>' in body
     assert "far.example.com" not in body
 
 

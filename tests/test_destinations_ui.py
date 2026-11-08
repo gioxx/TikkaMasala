@@ -98,7 +98,7 @@ def test_add_webhook_flow(client, posted):
     assert response.headers["location"] == ADDED
     text = client.get("/automation?destination=added").text
     section = _section(text)
-    assert "Ops" in section and "hooks.example.com" in section
+    assert "Ops" in section and '<span class="destination-hint">hooks.example.com</span>' in section
     assert "Destination added." in section
     assert "Automatic backup failed" in section
     assert "secret-path-xyz" not in text

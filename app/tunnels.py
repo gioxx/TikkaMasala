@@ -9,7 +9,7 @@ short time per (account, token).
 from __future__ import annotations
 
 import asyncio
-import hashlib
+import hmac
 import logging
 import re
 import time
@@ -55,12 +55,9 @@ KNOWN_STATUSES = ("healthy", "degraded", "down", "inactive")
 UNHEALTHY_STATUSES = ("degraded", "down")
 TUNNEL_ID_PATTERN = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\Z")
 
-# (account_id.lower(), sha256(token)) -> (stored at, monotonic seconds; tunnel list)
-_tunnel_list_cache: dict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = {}
-
-
-def _cache_key(creds: ApiCredentials) -> tuple[str, str]:
-    return creds.account_id.lower(), hashlib.sha256(creds.api_token.encode("utf-8")).hexdigest()
+# account_id.lower() -> (stored at, monotonic seconds; API token it was fetched with; tunnel list).
+# The token is kept only in memory and never logged; a different token is a cache miss.
+_tunnel_list_cache: dict[str, tuple[float, str, list[dict[str, Any]]]] = {}
 
 
 async def fetch_tunnel_list(creds: ApiCredentials, *, fresh: bool = False) -> list[dict[str, Any]]:
@@ -69,11 +66,15 @@ async def fetch_tunnel_list(creds: ApiCredentials, *, fresh: bool = False) -> li
     Only successful answers are cached. A Cloudflare call slower than
     ``HOME_TUNNEL_LIST_TIMEOUT_SECONDS`` becomes a 504 ``HTTPException``.
     """
-    key = _cache_key(creds)
+    key = creds.account_id.lower()
     if not fresh:
         cached = _tunnel_list_cache.get(key)
-        if cached is not None and time.monotonic() - cached[0] < TUNNEL_LIST_TTL_SECONDS:
-            return cached[1]
+        if (
+            cached is not None
+            and time.monotonic() - cached[0] < TUNNEL_LIST_TTL_SECONDS
+            and hmac.compare_digest(cached[1].encode("utf-8"), creds.api_token.encode("utf-8"))
+        ):
+            return cached[2]
     try:
         result = await asyncio.wait_for(
             list_tunnels(creds.account_id, creds.api_token), HOME_TUNNEL_LIST_TIMEOUT_SECONDS
@@ -83,7 +84,7 @@ async def fetch_tunnel_list(creds: ApiCredentials, *, fresh: bool = False) -> li
             status_code=504,
             detail=f"Cloudflare did not answer within {HOME_TUNNEL_LIST_TIMEOUT_SECONDS:g} seconds.",
         ) from exc
-    _tunnel_list_cache[key] = (time.monotonic(), result)
+    _tunnel_list_cache[key] = (time.monotonic(), creds.api_token, result)
     return result
 
 
