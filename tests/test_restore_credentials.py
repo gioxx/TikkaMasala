@@ -103,7 +103,7 @@ CROSS_SITE = {"Sec-Fetch-Site": "cross-site"}
 
 @pytest.fixture
 def run_calls(monkeypatch):
-    import app.routers.auto_backup as auto_backup
+    import app.routers.automation as automation
 
     recorded: list[tuple] = []
 
@@ -111,8 +111,8 @@ def run_calls(monkeypatch):
         recorded.append((args, kwargs))
         return {"status": "success", "tunnel_count": 0, "backup_count": 0, "error_count": 0}
 
-    monkeypatch.setattr(auto_backup, "DEMO_MODE", False)
-    monkeypatch.setattr(auto_backup, "run_auto_backup_job", fake_run)
+    monkeypatch.setattr(automation, "DEMO_MODE", False)
+    monkeypatch.setattr(automation, "run_auto_backup_job", fake_run)
     return recorded
 
 
@@ -127,7 +127,7 @@ def test_cross_site_restore_rejected(client, make_backup, calls):
 
 
 def test_cross_site_automation_post_rejected(client, run_calls):
-    response = client.post("/auto-backup/run", headers=CROSS_SITE)
+    response = client.post("/automation/run", headers=CROSS_SITE)
     assert response.status_code == 403
     assert run_calls == []
 
@@ -140,7 +140,7 @@ def test_same_origin_or_headerless_posts_allowed(client, make_backup, calls, run
     )
     assert response.status_code == 200
     assert len(calls["put"]) == 1
-    response = client.post("/auto-backup/run", headers=headers)
+    response = client.post("/automation/run", headers=headers)
     assert response.status_code == 200
     assert len(run_calls) == 1
 
@@ -148,3 +148,70 @@ def test_same_origin_or_headerless_posts_allowed(client, make_backup, calls, run
 def test_cross_site_get_and_healthz_unaffected(client):
     assert client.get("/healthz", headers=CROSS_SITE).status_code == 200
     assert client.get("/settings", headers=CROSS_SITE).status_code == 200
+
+
+# --- restore target helper -------------------------------------------------------------
+
+
+def test_resolve_restore_target_with_profile():
+    target = credentials.resolve_restore_target("ACC-1")
+    assert target.profile_id == DEFAULT_PROFILE_ID
+    assert target.profile_name == "Default"
+    assert target.credentials is not None and target.credentials.api_token == TOKEN
+    assert target.can_restore
+
+
+def test_resolve_restore_target_without_profile():
+    target = credentials.resolve_restore_target("acc-zzz")
+    assert target.profile_id is None
+    assert target.credentials is None
+    assert not target.can_restore
+
+
+def test_resolve_restore_target_profile_without_token():
+    update_profile(DEFAULT_PROFILE_ID, api_token=None)
+    target = credentials.resolve_restore_target("acc-1")
+    assert target.profile_id == DEFAULT_PROFILE_ID
+    assert target.credentials is None
+    assert not target.can_restore
+
+
+def test_preview_without_profile(client, make_backup, calls):
+    backup_id = make_backup(account_id="acc-zzz")
+    response = client.post(f"/backup/{backup_id}/restore", data={"tunnel_id": "tunnel-1", "mode": "preview"})
+    assert "No profile has credentials for account acc-zzz" in response.text
+    assert calls["fetch"] == []
+
+
+def test_detail_without_profile_has_no_restore_form(client, make_backup):
+    backup_id = make_backup(account_id="acc-zzz")
+    text = client.get(f"/backup/{backup_id}").text
+    assert f'action="/backup/{backup_id}/restore"' not in text
+    assert 'href="/settings"' in text
+    assert "Other account" in text
+
+
+def test_apply_records_restore(client, make_backup, calls):
+    from app.backups import get_restore_history
+
+    backup_id = make_backup()
+    client.post(f"/backup/{backup_id}/restore", data={"tunnel_id": "tunnel-1", "mode": "apply"})
+    record = get_restore_history(backup_id)[0]
+    assert record.account_id == "acc-1"
+    assert record.tunnel_id == "tunnel-1"
+
+
+def test_failed_restore_notifies_with_profile_account(client, make_backup, monkeypatch):
+    from fastapi import HTTPException
+
+    async def failing_put(*args):
+        raise HTTPException(status_code=502, detail="nope")
+
+    sent: list[tuple] = []
+    monkeypatch.setattr("app.routers.backups.cloudflare_put", failing_put)
+    monkeypatch.setattr("app.routers.backups.queue_notification", lambda *a, **k: sent.append((a, k)))
+    backup_id = make_backup()
+    client.post(f"/backup/{backup_id}/restore", data={"tunnel_id": "tunnel-1", "mode": "apply"})
+    assert sent[0][0][0] == "restore_failed"
+    assert sent[0][0][2]["account_id"] == "acc-1"
+    assert sent[0][0][2]["error"] == "nope"

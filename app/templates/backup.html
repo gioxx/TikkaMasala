@@ -23,10 +23,13 @@
           </svg>
           <span>Backup #{{ backup.id }}</span>
         </h1>
+        {% if created %}
+        <section class="notice success" role="status">Backup #{{ backup.id }} saved.</section>
+        {% endif %}
         <dl class="meta-grid">
           <div>
             <dt>Created</dt>
-            <dd class="meta-value">{{ backup.created_at }}</dd>
+            <dd class="meta-value"><time datetime="{{ backup.created_at }}" title="{{ backup.created_at }}">{{ backup.created_at|when }}</time></dd>
           </div>
           <div>
             <dt>Tunnel</dt>
@@ -37,8 +40,21 @@
             <dd class="meta-value wrap-anywhere"><code>{{ backup.tunnel_id }}</code></dd>
           </div>
           <div>
-            <dt>Account ID</dt>
-            <dd class="meta-value wrap-anywhere"><code>{{ backup.account_id }}</code></dd>
+            <dt>Account</dt>
+            <dd class="meta-value wrap-anywhere">
+              {% if restore_target.profile_name %}<span>{{ restore_target.profile_name }}</span>{% else %}<span>Other account</span>{% endif %}
+              <code>{{ backup.account_id }}</code>
+            </dd>
+          </div>
+          <div>
+            <dt>Origin</dt>
+            <dd class="meta-value">
+              {% if backup.origin == "automatic" %}
+              <span class="status-pill status-pill-compact status-alt">Automatic</span>
+              {% else %}
+              <span class="status-pill status-pill-compact status-muted">Manual</span>
+              {% endif %}
+            </dd>
           </div>
           <div>
             <dt>Routes</dt>
@@ -49,14 +65,16 @@
             <dd class="meta-value wrap-anywhere"><code>{{ backup.filename }}</code></dd>
           </div>
         </dl>
+        {% if backup.notes %}
+        <p class="backup-notes top-gap"><strong>Notes:</strong> {{ backup.notes }}</p>
+        {% endif %}
         <nav class="page-links top-gap" aria-label="On this page">
+          <a class="secondary-link-button secondary-link-button-small primary-link" href="/backup/{{ backup.id }}/download">Download JSON</a>
           <a class="secondary-link-button secondary-link-button-small" href="#restore-form">Restore</a>
           <a class="secondary-link-button secondary-link-button-small" href="#restore-history">Restore history</a>
-          {% if not demo_mode %}<a class="secondary-link-button secondary-link-button-small" href="/backups">All backups</a>{% endif %}
+          {% if not demo_mode %}<a class="secondary-link-button secondary-link-button-small" href="{{ '/backups' if restore_target.profile_id else '/backups?scope=other' }}">All backups</a>{% endif %}
+          {% if backup.origin == "automatic" %}<a class="secondary-link-button secondary-link-button-small" href="/automation/runs">Run history</a>{% endif %}
         </nav>
-        {% if backup.notes %}
-        <p><strong>Notes:</strong> {{ backup.notes }}</p>
-        {% endif %}
         {% if fragile_rules %}
         <section class="notice warn top-gap">
           <strong>Host-local origins detected.</strong>
@@ -198,8 +216,8 @@
           </table>
         </div>
         {% endif %}
-        {% if restore_profile_name %}
-        <p class="top-gap">Restores into account <code>{{ restore_account_id }}</code> (profile {{ restore_profile_name }}) with its saved API token.</p>
+        {% if restore_target.can_restore %}
+        <p class="top-gap">Restores into account <code>{{ restore_target.account_id }}</code> (profile {{ restore_target.profile_name }}) with its saved API token.</p>
         <form method="post" action="/backup/{{ backup.id }}/restore" class="grid form-grid">
           <label class="full-row">
             <span>Tunnel ID</span>
@@ -211,7 +229,7 @@
           </div>
         </form>
         {% else %}
-        <section class="notice error top-gap">No profile has credentials for account {{ restore_account_id }}. Add them in <a href="/settings">Settings</a> to restore this backup.</section>
+        <section class="notice error top-gap">No profile has credentials for account {{ restore_target.account_id }}. Add them in <a href="/settings">Settings</a> to restore this backup.</section>
         {% endif %}
       </section>
 

@@ -60,6 +60,19 @@ def _fake_tunnel_list(monkeypatch):
     app.tunnels.clear_tunnel_list_cache()
 
 
+@pytest.fixture(autouse=True)
+def _fresh_run_locks():
+    """Module-level asyncio locks and tasks belong to one event loop: never let them leak between tests."""
+    import app.background
+    import app.scheduler
+
+    app.scheduler._profile_run_locks.clear()
+    app.background._background_tasks.clear()
+    yield
+    app.scheduler._profile_run_locks.clear()
+    app.background._background_tasks.clear()
+
+
 @pytest.fixture(scope="session")
 def data_dir() -> Path:
     return _DATA_DIR
@@ -87,6 +100,8 @@ def make_backup(data_dir: Path):
         ingress: list[dict] | None = None,
         created_at: str = "2026-01-01T00:00:00+00:00",
         account_id: str = "acc-1",
+        notes: str = "",
+        origin: str = "manual",
     ) -> int:
         ingress = ingress if ingress is not None else [
             {"hostname": "app.example.com", "service": "http://10.0.0.5:8080"},
@@ -99,16 +114,16 @@ def make_backup(data_dir: Path):
             "tunnel_id": tunnel_id,
             "tunnel": {"id": tunnel_id, "name": tunnel_name},
             "configuration": {"config": {"ingress": ingress}},
-            "notes": "",
+            "notes": notes,
         }
         (data_dir / "backups" / filename).write_text(json.dumps(payload), encoding="utf-8")
         with closing(sqlite3.connect(data_dir / "app.db")) as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO backups (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO backups (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (created_at, account_id, tunnel_id, tunnel_name, len(ingress), filename, ""),
+                (created_at, account_id, tunnel_id, tunnel_name, len(ingress), filename, notes, origin),
             )
             conn.commit()
             backup_id = int(cursor.lastrowid)

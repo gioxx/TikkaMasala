@@ -41,7 +41,8 @@ Website: <https://tikkamasala.gioxx.org>
 - **Tunnels** home: four summary tiles (tunnels and their health, hostnames, automatic backup state, saved backups) and a live table with each tunnel's status, hostname count and last backup, plus a per-row **Back up** button and a **Back up all now** button
 - Open each tunnel's page in the Cloudflare dashboard (Networking → Tunnels) straight from the tunnel list
 - Quick-access links to Cloudflare Access Controls (Applications and Policies) below the tunnel table
-- Create JSON backups of one tunnel or of all tunnels at once
+- Create JSON backups of one tunnel or of all tunnels at once, or **Back up with a note** to attach a short note to one backup
+- Browse every saved backup in one **Backups** archive: **This profile** and **Other accounts** views, tunnel and origin (manual or automatic) filters, a notes column, archive statistics and the retention rule
 - Download saved snapshots
 - See every ingress rule of a snapshot (hostname, path, origin `service`, `originRequest` settings), with host-local origins such as `localhost` flagged
 - Restore a snapshot to the original tunnel or to another tunnel in the same account
@@ -51,10 +52,10 @@ Website: <https://tikkamasala.gioxx.org>
 - Track restore history per backup
 - Manage the saved credentials on a **Settings** page (token masked, replace, forget) without deleting backups
 - Switch between system, dark, and light theme
-- Schedule automatic backups for all tunnels or a selected subset of tunnels in the account
+- Schedule automatic backups for all tunnels or a selected subset of tunnels in the account from the **Automation** section (overview, per-tunnel schedule, run history), and edit the backup retention per profile
 - Set per-tunnel backup frequency (every run, once per week, once per month)
-- Send notifications through a generic webhook and/or Telegram
-- Customize the notification message for each event with plain text and dynamic placeholders
+- Send notifications through a generic webhook and/or Telegram (destinations from the environment are shown read-only on Automation, with a test button)
+- Customize the notification message for each event with plain text and dynamic placeholders under **Settings**
 - Run in demo mode without persisting authentication data, scheduler state, or notifications
 
 ## Requirements
@@ -200,9 +201,9 @@ A top bar gives access to five sections (it collapses to a menu button below 960
 
 - **Tunnels** (`/`): the home page. Four summary tiles, the live tunnel table (status, hostnames, last backup), per-row **Back up** and **Back up all now**
 - **Hostnames** (`/ingress`): every public hostname of every tunnel and its origin
-- **Backups** (`/backups`): the saved backups with archive statistics and retention (interim page, to be redesigned)
-- **Automation** (`/automation`): the scheduler, notification channels and message customization (interim page, to be redesigned)
-- **Settings** (`/settings`): credentials, Cloudflare Access status and version
+- **Backups** (`/backups`): the backup archive. **This profile** lists the backups of the active profile's account, **Other accounts** (shown when there are any) lists backups whose account no profile covers; both can be downloaded. Filter by tunnel and by origin (manual or automatic), page through the list, see notes, archive statistics and the retention rule. **Back up with a note** (`/backups/new`) saves one tunnel with an optional note of up to 500 characters
+- **Automation** (`/automation`): schedule, status, **Run now**, backup retention, the last runs and the notification destinations. Two sub-pages: **Tunnels** (`/automation/tunnels`, per-tunnel schedule) and **Run history** (`/automation/runs`)
+- **Settings** (`/settings`): credentials, Cloudflare Access status and version; **Notification messages** (`/settings/notifications`) customizes the message of each event
 
 ## Storage Layout
 
@@ -223,7 +224,7 @@ Tikka Masala saves the tunnel configuration returned by the Cloudflare Tunnel co
 - account ID
 - tunnel ID
 - tunnel name
-- notes
+- notes (set from **Back up with a note**; empty for other backups)
 
 It does not back up arbitrary account-wide Cloudflare settings.
 
@@ -257,14 +258,15 @@ The scheduler is built into the app and stores its configuration in the local SQ
 - enable or disable automatic backups
 - set a cron expression
 - run the job immediately with `Run now`
-- see the last run, next run, and recent execution history
+- see the last run, next run, and recent execution history (the full history is at `/automation/runs`)
+- set how long backups are kept (see Retention below)
 - open the **Advanced schedule** page to control which tunnels are backed up and how often
 
 By default, automatic backups use the timezone detected from the browser when you save the schedule. If you want a fixed server-side timezone for all users, set `AUTO_BACKUP_TIMEZONE`.
 
 ### Advanced schedule
 
-The **Advanced schedule** page (`/auto-backup/tunnel-filters`) lets you control backup scope and per-tunnel frequency:
+The **Advanced schedule** page (`/automation/tunnels`) lets you control backup scope and per-tunnel frequency:
 
 **Backup mode:**
 
@@ -283,9 +285,14 @@ Important notes:
 
 - automatic backups use the saved credentials (database, then environment)
 - each run creates normal backups, so automatic and manual backups share the same archive
-- if `BACKUP_RETENTION_DAYS` is set, old backup files and related database records are deleted automatically after new backups are created
+- old backup files and related database records are deleted automatically after new backups are created, according to the retention rule (see below)
 - retention cleanup removes both the JSON snapshot and its related restore history
+- a manual **Back up all now** or **Run now** that is still going after about 25 seconds keeps running on the server and the page says so; reload later to see fresh last-backup times. A restart of the app drops such a run. Only one run per profile happens at a time: a second one is refused (or, for the scheduler, recorded as skipped) while another runs
 - container logs include both Uvicorn access logs and application logs for startup, backup creation, restore, scheduler activity, cleanup, and most UI-triggered operations
+
+### Retention
+
+Each profile has its own retention on the **Automation** page: a whole number of days from 1 to 36500, or empty. Empty means the `BACKUP_RETENTION_DAYS` value for the Default profile and keep forever for any other profile. Saving does not delete anything at once: cleanup runs the next time a backup is saved. The Backups page shows the effective rule and where it comes from.
 
 ## Notifications
 
@@ -332,20 +339,20 @@ Webhook notifications send a JSON payload with:
 - timestamp
 - event-specific details
 
-Telegram notifications send the same information as a formatted plain-text message through the Telegram Bot API. By default Telegram messages are compact (title and message only); toggle **Compact Telegram notifications** off on the **Customize notification messages** page to also append the structured `key: value` details block (trigger, account_id, tunnel counts, skipped tunnels, etc.). The webhook channel is unaffected either way and always receives the full payload.
+Telegram notifications send the same information as a formatted plain-text message through the Telegram Bot API. By default Telegram messages are compact (title and message only); toggle **Compact Telegram notifications** off on the **Notification messages** page to also append the structured `key: value` details block (trigger, account_id, tunnel counts, skipped tunnels, etc.). The webhook channel is unaffected either way and always receives the full payload.
 
 When notifications are configured:
 
 - container logs show the active channels and event counts at startup
-- the **Automation** page shows a dedicated `Notifications` box with channel and event counts
+- the **Automation** page shows the destinations read-only: the webhook only by its host, Telegram as "chat ending in" the last four characters of the chat ID; the webhook path and the bot token are never shown
 - **Back up all now** sends one `manual_backup_*` notification per tunnel, like the per-row **Back up**
-- you can use `Send test notification` from the UI to verify webhook and/or Telegram delivery immediately
+- you can use `Send test notification` on the **Automation** page to verify webhook and/or Telegram delivery immediately
 - the test notification uses the `notification_test` event
 - notification results are shown directly inside the section that triggered them instead of at the top of the page
 
 ### Customizing notification messages
 
-Each event has a built-in default message. You can override it from the **Customize notification messages** page (`/notifications/messages`).
+Each event has a built-in default message. You can override it from the **Notification messages** page (`/settings/notifications`, linked from Settings).
 
 Messages support `{placeholder}` tokens that are replaced at runtime with event-specific values. Two tokens are always available regardless of the event:
 
@@ -390,9 +397,9 @@ In demo mode:
 - nothing is written to SQLite and no encryption key file is created
 - automatic backups are disabled
 - notifications are disabled
-- the backup archive is disabled
+- the backup archive and the Automation section are disabled (`/backups`, `/automation` and `/settings/notifications` send you back to Tunnels)
 
-Only the **Tunnels** and **Settings** sections are available. The per-row **Back up** button downloads the tunnel's JSON; there is no **Back up all now**.
+Only the **Tunnels** and **Settings** sections are available. The per-row **Back up** button downloads a snapshot of the tunnel's JSON without saving it anywhere (no file, no database row, no notification); there is no **Back up all now**.
 
 ## Cloudflare Access
 
@@ -433,9 +440,22 @@ Credentials and the encryption key:
 
 - a token still held in the old browser cookie is migrated into the database once, then the cookie is deleted (with `CLOUDFLARE_API_TOKEN` set, nothing is migrated and the cookie is just deleted; if saving fails, the cookie is kept and the migration retried later)
 - if `TOKEN_ENCRYPTION_KEY` is unset, a key is generated as `DATA_DIR/encryption.key` the first time one is needed; an existing `TOKEN_ENCRYPTION_KEY` keeps working unchanged
-- before downgrading to an older version, set `TOKEN_ENCRYPTION_KEY` to the content of `encryption.key`; otherwise the older version cannot read the saved token
+- downgrading means restoring `app.db.pre-v1.bak`; the token inside it is the one you had before the upgrade, readable with the `TOKEN_ENCRYPTION_KEY` you used then. Tokens saved after the upgrade (possibly encrypted with a generated `encryption.key`) are not in the backup file. Only if you keep the migrated database and still run an older version, set `TOKEN_ENCRYPTION_KEY` to the content of `encryption.key`, otherwise the older version cannot read the saved token
 
 Running a previous image on the migrated database without restoring `app.db.pre-v1.bak` is not supported: the older version finds no saved credentials or schedule, so the automatic schedule silently stops (values from environment variables still work). Restoring the file is required to downgrade.
+
+### Old URLs
+
+Some pages moved. The old addresses answer with a permanent redirect (308, query string kept, form posts keep working), so bookmarks and open tabs survive:
+
+| Old | New |
+|---|---|
+| `/auto-backup/runs` | `/automation/runs` |
+| `/auto-backup/tunnel-filters` | `/automation/tunnels` |
+| `/notifications/messages` | `/settings/notifications` |
+| `/auto-backup/settings`, `/auto-backup/run` (POST) | `/automation/schedule`, `/automation/run` |
+| `/notifications/test` (POST) | `/automation/notifications/test` |
+| `/notifications/messages/reset` (POST) | `/settings/notifications/reset` |
 
 ## Security Notes
 
@@ -453,7 +473,7 @@ Running a previous image on the migrated database without restoring `app.db.pre-
 - HTTP routes: [`app/routers/`](app/routers)
 - Hostnames overview: [`app/ingress_overview.py`](app/ingress_overview.py); live refresh uses [htmx](https://htmx.org) 2.0.4, vendored in [`app/static/vendor/`](app/static/vendor) (0BSD license)
 - Templates extend [`app/templates/base.html`](app/templates/base.html) (head, top navigation, footer); shared page behaviour lives in [`app/static/app.js`](app/static/app.js)
-- Page templates: [`tunnels.html`](app/templates/tunnels.html), [`backup.html`](app/templates/backup.html), [`scheduled_runs.html`](app/templates/scheduled_runs.html), [`tunnel_filters.html`](app/templates/tunnel_filters.html), [`notification_messages.html`](app/templates/notification_messages.html)
+- Page templates: [`tunnels.html`](app/templates/tunnels.html), [`backup.html`](app/templates/backup.html), [`backups.html`](app/templates/backups.html), [`backup_new.html`](app/templates/backup_new.html), [`automation.html`](app/templates/automation.html), [`scheduled_runs.html`](app/templates/scheduled_runs.html), [`tunnel_filters.html`](app/templates/tunnel_filters.html), [`notification_messages.html`](app/templates/notification_messages.html)
 - Tests: `pip install -r requirements-dev.txt && pytest`
 
 ## Credits

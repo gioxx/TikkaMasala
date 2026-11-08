@@ -106,7 +106,7 @@ def test_tiles_from_local_data_and_tunnel_list(configured_default, seeded, fake_
     tile = home.tile("tunnels")
     assert (tile.value, tile.detail, tile.tone, tile.href) == ("4", "1 degraded, 1 down", "warn", None)
     tile = home.tile("hostnames")
-    assert (tile.value, tile.detail, tile.tone, tile.href) == ("3", "1 host-local origin", "warn", "/ingress")
+    assert (tile.value, tile.detail, tile.tone, tile.href) == ("3", "1 host-local origin in this account", "warn", "/ingress")
     tile = home.tile("backups")
     assert (tile.value, tile.detail, tile.href) == ("2", "Kept until deleted", "/backups")
     tile = home.tile("auto_backup")
@@ -165,10 +165,10 @@ def test_hostnames_tile_warns_on_unreadable_snapshots():
             TunnelSource(tunnel_id=T2, tunnel_name="b", error="Snapshot file is missing."),
         ],
     )
-    tile = tunnels._hostnames_tile(overview)
+    tile = tunnels._hostnames_tile(overview, GOOD)
     assert (tile.value, tile.detail, tile.tone) == ("0", "1 snapshot unreadable", "warn")
     overview.tunnels.append(TunnelSource(tunnel_id=T3, tunnel_name="c", error="Snapshot file is corrupt."))
-    tile = tunnels._hostnames_tile(overview)
+    tile = tunnels._hostnames_tile(overview, GOOD)
     assert (tile.detail, tile.tone) == ("2 snapshots unreadable", "warn")
 
 
@@ -183,7 +183,7 @@ def test_hostnames_tile_unreadable_snapshot_end_to_end(configured_default, seede
 
     monkeypatch.setattr(tunnels, "snapshot_overview", broken)
     tile = _build().tile("hostnames")
-    assert (tile.value, tile.detail, tile.tone) == ("3", "1 host-local origin, 1 snapshot unreadable", "warn")
+    assert (tile.value, tile.detail, tile.tone) == ("3", "1 host-local origin in this account, 1 snapshot unreadable", "warn")
 
 
 def test_all_healthy_with_inactive(configured_default, fake_list):
@@ -311,7 +311,7 @@ def test_auto_backup_tile(monkeypatch, configured_default, fake_list, enabled, r
     elif value == "Failing":
         assert tile.detail == f"Last run {last_status} 2020-01-01"
     elif value == "Waiting":
-        assert tile.detail == "Last never, next not scheduled"
+        assert tile.detail == "No run yet, next not scheduled"
     else:
         assert tile.detail == "Last 2020-01-01, next not scheduled"
 
@@ -353,3 +353,10 @@ def test_tunnel_id_pattern():
     assert TUNNEL_ID_PATTERN.match(T1)
     for bad in ("t1", "../x", T1 + "x"):
         assert not TUNNEL_ID_PATTERN.match(bad)
+
+
+def test_hostnames_tile_says_it_counts_this_account(configured_default, fake_list, make_backup):
+    fake_list([])
+    assert _build().tile("hostnames").detail == "No snapshots in this account yet"
+    make_backup(T1, "Home", account_id=GOOD, ingress=[{"hostname": "a.example.com", "service": "http://10.0.0.1"}])
+    assert _build().tile("hostnames").detail == "No host-local origins in this account"

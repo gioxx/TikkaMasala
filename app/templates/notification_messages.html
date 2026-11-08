@@ -5,6 +5,7 @@
 
 {% block content %}
       <section class="card" id="notification-messages-section">
+        <p class="hint"><a href="/settings" class="secondary-link-button">Back to Settings</a></p>
         <div class="section-heading">
           <h2 class="heading-with-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
@@ -41,7 +42,7 @@
         <section class="notice error top-gap">An error occurred while saving. Please try again.</section>
         {% endif %}
 
-        <form method="post" action="/notifications/messages" class="stack top-gap" id="notification-messages-form">
+        <form method="post" action="/settings/notifications" class="stack top-gap" id="notification-messages-form">
 
           <section class="notice">
             <label class="checkbox-row">
@@ -99,7 +100,7 @@
 
         </form>
 
-        <form id="notification-messages-reset-form" method="post" action="/notifications/messages/reset" style="display:none"></form>
+        <form id="notification-messages-reset-form" method="post" action="/settings/notifications/reset" style="display:none"></form>
         <div class="form-actions" style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 2.5rem;">
           <button type="submit" form="notification-messages-form" class="auto-backup-primary" style="width: auto; flex: 1;">Save messages</button>
           <button type="button" class="secondary-button" id="reset-messages-btn">Reset all to defaults</button>

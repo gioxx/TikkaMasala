@@ -112,13 +112,16 @@ def test_profile_without_account_owns_nothing(make_backup, data_dir, profiles_en
 def test_status_for_profile_without_retention(profiles_env):
     other = profiles_env("acc-B")
     assert get_backup_retention_status(other)["enabled"] is False
+    assert get_backup_retention_status(other)["source"] == "none"
     assert get_backup_retention_status(DEFAULT_PROFILE_ID)["days"] == 30
+    assert get_backup_retention_status(DEFAULT_PROFILE_ID)["source"] == "environment"
 
 
 def test_default_status_names_the_env_variable(profiles_env, monkeypatch):
     monkeypatch.setattr("app.backups._env_retention_days", lambda: None)
     for pid in (DEFAULT_PROFILE_ID, None):
         assert "BACKUP_RETENTION_DAYS" in get_backup_retention_status(pid)["detail"]
+        assert get_backup_retention_status(pid)["source"] == "none"
     other = profiles_env("acc-B")
     assert "BACKUP_RETENTION_DAYS" not in get_backup_retention_status(other)["detail"]
 

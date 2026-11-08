@@ -145,6 +145,7 @@ def test_settings_demo_read_only(client, configured_default, monkeypatch, fake_c
     assert "read-only" in text
     assert 'action="/settings/profiles/1/credentials"' not in text
     assert 'action="/settings/profiles/1/clear-credentials"' not in text
+    assert 'href="/settings/notifications"' not in text
 
     response = client.post(
         "/settings/profiles/1/credentials",
@@ -213,7 +214,7 @@ def test_settings_links_and_version(client):
     from app.config import APP_VERSION
 
     text = client.get("/settings").text
-    assert 'href="/notifications/messages"' in text
+    assert 'href="/settings/notifications"' in text
     assert APP_VERSION in text
 
 
@@ -225,7 +226,7 @@ def test_settings_key_source(client, monkeypatch):
 
 
 def test_every_page_links_settings(client):
-    for path in ("/", "/ingress", "/auto-backup/runs", "/notifications/messages", "/auto-backup/tunnel-filters"):
+    for path in ("/", "/ingress", "/automation/runs", "/settings/notifications", "/automation/tunnels"):
         response = client.get(path)
         assert response.status_code == 200, path
         assert 'href="/settings"' in response.text, path

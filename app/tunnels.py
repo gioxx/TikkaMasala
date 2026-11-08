@@ -20,7 +20,13 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 
-from app.backups import count_backups_for_account, create_backup, get_backup_retention_status
+from app.backups import (
+    Snapshot,
+    count_backups_for_account,
+    create_backup,
+    get_backup_retention_status,
+    take_snapshot,
+)
 from app.cloudflare import list_tunnels
 from app.config import DEMO_MODE
 from app.credentials import (
@@ -34,7 +40,12 @@ from app.credentials import (
 from app.db import BackupRecord
 from app.ingress_overview import IngressOverview, build_overview, snapshot_overview
 from app.notifications import queue_notification, render_notification_message
-from app.scheduler import build_auto_backup_status, get_auto_backup_timezone
+from app.scheduler import (
+    RUN_IN_PROGRESS_MESSAGE,
+    build_auto_backup_status,
+    get_auto_backup_timezone,
+    profile_run_lock,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -196,23 +207,25 @@ def _tunnels_tile(
     return tile(str(len(tunnel_list)), detail, "ok")
 
 
-def _hostnames_tile(overview: IngressOverview) -> Tile:
+def _hostnames_tile(overview: IngressOverview, account_id: str | None) -> Tile:
+    """Counts the active account's snapshots only; the Hostnames page itself lists every account."""
+
     def tile(value: str, detail: str, tone: str) -> Tile:
         return Tile(key="hostnames", label="Hostnames", value=value, detail=detail, tone=tone, href="/ingress")
 
     if not overview.tunnels:
-        return tile("0", "No snapshots yet", "muted")
+        return tile("0", "No snapshots in this account yet" if account_id else "No snapshots yet", "muted")
     issues: list[str] = []
     fragile = overview.fragile_count
     if fragile:
-        issues.append(_plural(fragile, "host-local origin", "host-local origins"))
+        issues.append(_plural(fragile, "host-local origin", "host-local origins") + " in this account")
     unreadable = len(overview.tunnels_with_errors)
     if unreadable:
         # Missing, corrupt or unreadable latest snapshots: the counts above are partial.
         issues.append(_plural(unreadable, "snapshot unreadable", "snapshots unreadable"))
     if issues:
         return tile(str(overview.hostname_count), ", ".join(issues), "warn")
-    return tile(str(overview.hostname_count), "No host-local origins", "ok")
+    return tile(str(overview.hostname_count), "No host-local origins in this account", "ok")
 
 
 def _auto_backup_tile(profile_id: int) -> Tile:
@@ -232,7 +245,7 @@ def _auto_backup_tile(profile_id: int) -> Tile:
         return tile("Failing", f"Last run {last_status} {format_when(last_run_at)}", "error")
     next_run_at = status.get("next_run_at")
     next_text = f"next {format_when(next_run_at)}" if next_run_at else "next not scheduled"
-    detail = f"Last {format_when(last_run_at)}, {next_text}"
+    detail = f"Last {format_when(last_run_at)}, {next_text}" if last_run_at else f"No run yet, {next_text}"
     if last_status is None:
         return tile("Waiting", detail, "muted")
     return tile("OK", detail, "ok")
@@ -298,7 +311,7 @@ async def build_tunnels_home(profile_id: int, *, fresh: bool = False) -> Tunnels
 
     tiles = [
         _tunnels_tile(tunnel_list, list_error, credentials_message),
-        _hostnames_tile(overview),
+        _hostnames_tile(overview, account_id),
         _auto_backup_tile(profile_id),
         _backups_tile(profile_id, account_id),
     ]
@@ -315,8 +328,14 @@ async def build_tunnels_home(profile_id: int, *, fresh: bool = False) -> Tunnels
 # --- Manual backups from the Tunnels home ----------------------------------
 
 
-async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str) -> BackupRecord:
-    """Back up one tunnel now and queue the matching manual backup notification.
+def _unexpected_error(exc: Exception) -> str:
+    # Network errors, non-JSON answers, file write errors: report the type only, never the text
+    # (it could quote a request).
+    return f"Unexpected error ({type(exc).__name__})."
+
+
+async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str, notes: str | None = None) -> BackupRecord:
+    """Back up one tunnel now (with an optional note) and queue the matching manual backup notification.
 
     On failure queues ``manual_backup_failed`` and raises an ``HTTPException``: the original one, or a
     502 with a generic message for any other exception.
@@ -333,16 +352,14 @@ async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str) -> BackupRecord:
         )
 
     try:
-        backup = await create_backup(account_id, tunnel_id, creds.api_token, None)
+        backup = await create_backup(account_id, tunnel_id, creds.api_token, notes)
     except HTTPException as exc:
         logger.warning("Manual backup failed (tunnel_id=%s): %s", tunnel_id, exc.detail)
         queue_failed(str(exc.detail))
         raise
     except Exception as exc:
-        # Network errors, non-JSON answers, file write errors: report the type only, never the text
-        # (it could quote a request), and turn it into the usual failure path.
         logger.exception("Unexpected error during manual backup (account_id=%s, tunnel_id=%s).", account_id, tunnel_id)
-        error = f"Unexpected error ({type(exc).__name__})."
+        error = _unexpected_error(exc)
         queue_failed(error)
         raise HTTPException(status_code=502, detail=error) from exc
     logger.info(
@@ -368,6 +385,23 @@ async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str) -> BackupRecord:
     return backup
 
 
+async def snapshot_for_download(creds: ApiCredentials, tunnel_id: str) -> Snapshot:
+    """Fetch one tunnel's configuration for a download (demo mode): no file, no row, no notification.
+
+    Errors are raised as ``back_up_tunnel`` raises them: the original ``HTTPException``, or a 502 with a
+    generic message for any other exception.
+    """
+    logger.info("Snapshot download requested (account_id=%s, tunnel_id=%s).", creds.account_id, tunnel_id)
+    try:
+        return await take_snapshot(creds.account_id, tunnel_id, creds.api_token)
+    except HTTPException as exc:
+        logger.warning("Snapshot download failed (tunnel_id=%s): %s", tunnel_id, exc.detail)
+        raise
+    except Exception as exc:
+        logger.exception("Unexpected error during snapshot download (account_id=%s, tunnel_id=%s).", creds.account_id, tunnel_id)
+        raise HTTPException(status_code=502, detail=_unexpected_error(exc)) from exc
+
+
 def backup_saved_feedback(backup: BackupRecord) -> RowFeedback:
     return RowFeedback(ok=True, message=f"Backup #{backup.id} saved.", backup_id=backup.id)
 
@@ -379,15 +413,10 @@ class BulkOutcome:
     feedback: dict[str, RowFeedback]
 
 
-_bulk_locks: dict[int, asyncio.Lock] = {}
-
-
 def _bulk_lock(profile_id: int) -> asyncio.Lock:
-    """One lock per profile, so a second "Back up all now" is refused while one runs."""
-    lock = _bulk_locks.get(profile_id)
-    if lock is None:
-        lock = _bulk_locks[profile_id] = asyncio.Lock()
-    return lock
+    """The profile's run lock, shared with the scheduler: "Back up all now" is refused while
+    another bulk run, "Run now" or a scheduled run of the same profile holds it."""
+    return profile_run_lock(profile_id)
 
 
 async def back_up_all_tunnels(profile_id: int) -> BulkOutcome:
@@ -397,7 +426,7 @@ async def back_up_all_tunnels(profile_id: int) -> BulkOutcome:
     """
     lock = _bulk_lock(profile_id)
     if lock.locked():
-        return BulkOutcome("error", "Back up all is already running.", {})
+        return BulkOutcome("error", RUN_IN_PROGRESS_MESSAGE, {})
     async with lock:
         try:
             creds = require_api_credentials(profile_id)

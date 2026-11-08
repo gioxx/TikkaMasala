@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from contextlib import closing
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -16,8 +18,6 @@ from app.cloudflare import fetch_tunnel_configuration
 from app.config import (
     BACKUP_DIR,
     BACKUP_RETENTION_DAYS_RAW,
-    BACKUPS_PAGE_SIZE,
-    BACKUPS_PAGE_SIZE_OPTIONS,
     DB_PATH,
 )
 from app.credentials import get_saved_account_id
@@ -26,6 +26,23 @@ from app.notifications import queue_notification, render_notification_message
 from app.profiles import DEFAULT_PROFILE_ID, get_profile, list_profiles
 
 logger = logging.getLogger(__name__)
+
+
+RETENTION_MAX_DAYS = 36500
+RETENTION_INPUT_ERROR = "Retention must be a whole number of days from 1 to 36500, or empty to use the default."
+
+
+def parse_retention_days_input(raw: str) -> int | None:
+    """Parse the retention form value: empty means "use the default", else a whole number 1..36500."""
+    text = raw.strip()
+    if not text:
+        return None
+    if not re.fullmatch(r"[0-9]+", text):
+        raise ValueError(RETENTION_INPUT_ERROR)
+    days = int(text)
+    if not 1 <= days <= RETENTION_MAX_DAYS:
+        raise ValueError(RETENTION_INPUT_ERROR)
+    return days
 
 
 def _env_retention_days() -> int | None:
@@ -40,6 +57,17 @@ def _env_retention_days() -> int | None:
         logger.warning("Ignoring BACKUP_RETENTION_DAYS because it must be greater than zero: %s", BACKUP_RETENTION_DAYS_RAW)
         return None
     return days
+
+
+def _profile_value(profile_id: int | None) -> int | None:
+    """The retention set on the profile itself (valid values only)."""
+    if profile_id is None:
+        return None
+    try:
+        stored = get_profile(profile_id).retention_days
+    except LookupError:
+        return None
+    return stored if stored is not None and stored > 0 else None
 
 
 def get_backup_retention_days(profile_id: int | None) -> int | None:
@@ -72,13 +100,37 @@ def get_last_backup_time_for_tunnel(tunnel_id: str) -> datetime | None:
     return None
 
 
-async def create_backup(
-    account_id: str,
-    tunnel_id: str,
-    api_token: str,
-    notes: str | None = None,
-    origin: str = "manual",
-) -> BackupRecord:
+NOTES_MAX_LENGTH = 500
+
+
+def clean_notes(raw: str | None) -> str | None:
+    """A backup note as stored: stripped, with ``\n`` line ends; ``None`` when empty.
+
+    Raises ``ValueError`` with a user-facing message when longer than ``NOTES_MAX_LENGTH``.
+    """
+    if raw is None:
+        return None
+    notes = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not notes:
+        return None
+    if len(notes) > NOTES_MAX_LENGTH:
+        raise ValueError(f"Notes can be at most {NOTES_MAX_LENGTH} characters.")
+    return notes
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    """A tunnel's configuration fetched from Cloudflare, ready to save or download; nothing written yet."""
+
+    payload: dict[str, Any]
+    created_at: str
+    tunnel_name: str
+    route_count: int
+    filename: str
+
+
+async def take_snapshot(account_id: str, tunnel_id: str, api_token: str, notes: str | None = None) -> Snapshot:
+    """Fetch one tunnel and its configuration and build the backup payload; writes nothing."""
     tunnel_data, config_data = await fetch_tunnel_configuration(account_id, tunnel_id, api_token)
     tunnel = tunnel_data.get("result", {})
     config = config_data.get("result", {})
@@ -86,7 +138,6 @@ async def create_backup(
     created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     tunnel_name = tunnel.get("name") or "Unknown tunnel"
     ingress = config.get("config", {}).get("ingress", [])
-    route_count = len(ingress)
     filename = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}_{uuid.uuid4().hex[:12]}.json"
 
     payload = {
@@ -97,8 +148,23 @@ async def create_backup(
         "configuration": config,
         "notes": notes or "",
     }
+    return Snapshot(
+        payload=payload,
+        created_at=created_at,
+        tunnel_name=tunnel_name,
+        route_count=len(ingress),
+        filename=filename,
+    )
 
-    file_path = BACKUP_DIR / filename
+
+def save_snapshot(snapshot: Snapshot, origin: str = "manual") -> BackupRecord:
+    """Write the snapshot's JSON file and its database row, then apply retention."""
+    payload = snapshot.payload
+    account_id = payload["account_id"]
+    tunnel_id = payload["tunnel_id"]
+    stored_notes = payload.get("notes") or ""
+
+    file_path = BACKUP_DIR / snapshot.filename
     with file_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, ensure_ascii=False)
 
@@ -108,24 +174,45 @@ async def create_backup(
             INSERT INTO backups (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes or "", origin),
+            (
+                snapshot.created_at,
+                account_id,
+                tunnel_id,
+                snapshot.tunnel_name,
+                snapshot.route_count,
+                snapshot.filename,
+                stored_notes,
+                origin,
+            ),
         )
         conn.commit()
         backup_id = cursor.lastrowid
 
-    purge_expired_backups(datetime.fromisoformat(created_at))
+    purge_expired_backups(datetime.fromisoformat(snapshot.created_at))
 
     return BackupRecord(
         id=backup_id,
-        created_at=created_at,
+        created_at=snapshot.created_at,
         account_id=account_id,
         tunnel_id=tunnel_id,
-        tunnel_name=tunnel_name,
-        route_count=route_count,
-        filename=filename,
-        notes=notes,
+        tunnel_name=snapshot.tunnel_name,
+        route_count=snapshot.route_count,
+        filename=snapshot.filename,
+        notes=stored_notes or None,
         origin=origin,
     )
+
+
+async def create_backup(
+    account_id: str,
+    tunnel_id: str,
+    api_token: str,
+    notes: str | None = None,
+    origin: str = "manual",
+) -> BackupRecord:
+    """Fetch a tunnel's configuration and save it as a backup (``take_snapshot`` + ``save_snapshot``)."""
+    snapshot = await take_snapshot(account_id, tunnel_id, api_token, notes)
+    return save_snapshot(snapshot, origin)
 
 
 def _purge_group(
@@ -211,43 +298,6 @@ def count_backups_for_account(account_id: str) -> int:
     return int(row[0])
 
 
-def get_backups_page(page: int, page_size: int = BACKUPS_PAGE_SIZE) -> tuple[list[BackupRecord], dict[str, int | bool]]:
-    page = max(page, 1)
-    page_size = page_size if page_size in BACKUPS_PAGE_SIZE_OPTIONS else BACKUPS_PAGE_SIZE
-    offset = (page - 1) * page_size
-
-    with closing(db()) as conn:
-        total_count = int(conn.execute("SELECT COUNT(*) FROM backups").fetchone()[0])
-        rows = conn.execute(
-            """
-            SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin
-            FROM backups
-            ORDER BY id DESC
-            LIMIT ? OFFSET ?
-            """,
-            (page_size, offset),
-        ).fetchall()
-
-    backups = [BackupRecord(**dict(row)) for row in rows]
-    total_pages = max((total_count + page_size - 1) // page_size, 1)
-    current_page = min(page, total_pages)
-    start_index = offset + 1 if total_count and backups else 0
-    end_index = offset + len(backups)
-
-    return backups, {
-        "current_page": current_page,
-        "page_size": page_size,
-        "total_count": total_count,
-        "total_pages": total_pages,
-        "has_previous": current_page > 1,
-        "has_next": current_page < total_pages,
-        "previous_page": current_page - 1,
-        "next_page": current_page + 1,
-        "start_index": start_index,
-        "end_index": end_index,
-    }
-
-
 def get_database_stats() -> dict[str, Any]:
     with closing(db()) as conn:
         backup_stats = conn.execute(
@@ -289,6 +339,15 @@ def get_database_stats() -> dict[str, Any]:
 
 def get_backup_retention_status(profile_id: int | None) -> dict[str, Any]:
     retention_days = get_backup_retention_days(profile_id)
+    uses_env = profile_id is None or profile_id == DEFAULT_PROFILE_ID
+    default_days = _env_retention_days() if uses_env else None
+    if retention_days is None:
+        source, label = "none", "Kept until deleted (no retention set)"
+    elif retention_days == default_days and not _profile_value(profile_id):
+        source, label = "environment", f"Kept for {retention_days} days (from BACKUP_RETENTION_DAYS)"
+    else:
+        source, label = "profile", f"Kept for {retention_days} days (set on this profile)"
+    extra = {"source": source, "label": label, "default_days": default_days}
     if retention_days is None:
         if profile_id is None or profile_id == DEFAULT_PROFILE_ID:
             detail = "BACKUP_RETENTION_DAYS is not currently set, so Tikka Masala will not delete old backups automatically."
@@ -299,6 +358,7 @@ def get_backup_retention_status(profile_id: int | None) -> dict[str, Any]:
             "days": None,
             "summary": "Full archive retention is active. Backups are kept until you remove them manually.",
             "detail": detail,
+            **extra,
         }
 
     return {
@@ -306,6 +366,7 @@ def get_backup_retention_status(profile_id: int | None) -> dict[str, Any]:
         "days": retention_days,
         "summary": f"Automatic retention is active. Backups older than {retention_days} day(s) are deleted when new backups are created.",
         "detail": "Cleanup removes both the JSON snapshot and its related restore history from the database.",
+        **extra,
     }
 
 

@@ -22,8 +22,8 @@ def test_index_renders(client):
     assert "/static/app.js" in body or "smoothScrollToY" in body
 
 
-def test_backups_lists_saved_backup(client, make_backup):
-    backup_id = make_backup(tunnel_name="Index Tunnel")
+def test_backups_lists_saved_backup(client, configured_default, make_backup):
+    backup_id = make_backup(tunnel_name="Index Tunnel", account_id=configured_default.account_id)
     response = client.get("/backups")
     assert response.status_code == 200
     assert f"/backup/{backup_id}" in response.text
@@ -36,14 +36,14 @@ def test_backups_pagination_params(client):
 
 
 def test_scheduled_runs_page(client):
-    response = client.get("/auto-backup/runs")
+    response = client.get("/automation/runs")
     assert response.status_code == 200
     assert "Automatic Backup Archive" in response.text
-    assert client.get("/auto-backup/runs?page_size=all").status_code == 200
+    assert client.get("/automation/runs?page_size=all").status_code == 200
 
 
 def test_notification_messages_page(client):
-    response = client.get("/notifications/messages")
+    response = client.get("/settings/notifications")
     assert response.status_code == 200
     assert "Notification Messages" in response.text
     assert "manual_backup_success" in response.text
@@ -51,21 +51,21 @@ def test_notification_messages_page(client):
 
 def test_notification_messages_save_and_reset(client):
     response = client.post(
-        "/notifications/messages",
+        "/settings/notifications",
         data={"msg_restore_success": "Custom restore {backup_id}"},
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert "Custom restore {backup_id}" in client.get("/notifications/messages").text
+    assert "Custom restore {backup_id}" in client.get("/settings/notifications").text
 
-    response = client.post("/notifications/messages/reset", follow_redirects=False)
+    response = client.post("/settings/notifications/reset", follow_redirects=False)
     assert response.status_code == 303
-    assert "Custom restore {backup_id}" not in client.get("/notifications/messages").text
+    assert "Custom restore {backup_id}" not in client.get("/settings/notifications").text
 
 
 def test_tunnel_filters_page_without_credentials(client):
     # No server-side credentials: the page must render without calling Cloudflare.
-    response = client.get("/auto-backup/tunnel-filters")
+    response = client.get("/automation/tunnels")
     assert response.status_code == 200
     assert "Advanced Backup Schedule" in response.text
 
@@ -100,21 +100,21 @@ def test_backup_missing_returns_404(client):
 
 def test_auto_backup_settings_rejects_enable_without_credentials(client):
     response = client.post(
-        "/auto-backup/settings",
+        "/automation/schedule",
         data={"enabled": "on", "cron_expression": "0 3 * * *"},
     )
-    assert response.status_code == 200
+    assert response.status_code == 400
     assert "require a server-side Account ID" in response.text
 
 
 def test_auto_backup_settings_rejects_bad_cron(client):
-    response = client.post("/auto-backup/settings", data={"cron_expression": "not a cron"})
-    assert response.status_code == 200
+    response = client.post("/automation/schedule", data={"cron_expression": "not a cron"})
+    assert response.status_code == 400
     assert "Invalid cron expression" in response.text
 
 
 def test_notifications_test_without_channels(client):
-    response = client.post("/notifications/test")
+    response = client.post("/automation/notifications/test")
     assert response.status_code == 200
     assert "no configured channel found" in response.text
 

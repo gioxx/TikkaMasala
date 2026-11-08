@@ -11,10 +11,10 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.access import ACCESS_LOGOUT_PATH, access_identity
+from app.archive import archive_url, build_archive_page, parse_archive_query
 from app.backups import (
     get_backup,
     get_backup_retention_status,
-    get_backups_page,
     get_database_stats,
     get_restore_history,
     load_backup_json,
@@ -30,10 +30,10 @@ from app.config import (
 )
 from app.credentials import (
     DEMO_NO_CREDENTIALS_MESSAGE,
-    find_profile_for_account,
-    get_api_credentials,
+    resolve_restore_target,
 )
 from app.ingress import IngressDiff, extract_ingress, fragile_rules, origin_request_delta
+from app.notifications import env_notification_destinations
 from app.profiles import current_profile_id, get_profile
 from app.scheduler import (
     build_auto_backup_status,
@@ -79,25 +79,9 @@ templates.env.globals["access_identity"] = access_identity
 templates.env.globals["access_logout_path"] = ACCESS_LOGOUT_PATH
 templates.env.globals["origin_request_delta"] = origin_request_delta
 templates.env.globals["nav_sections"] = nav_sections
+templates.env.globals["archive_url"] = archive_url
 # Short, human times in the scheduler timezone ("today 03:00", "3 days ago").
 templates.env.filters["when"] = lambda value: format_when(value)
-
-
-def get_requested_backup_page(request: Request) -> int:
-    raw_page = (request.query_params.get("page") or "1").strip()
-    try:
-        return max(int(raw_page), 1)
-    except ValueError:
-        return 1
-
-
-def get_requested_backup_page_size(request: Request) -> int:
-    raw_page_size = (request.query_params.get("page_size") or str(BACKUPS_PAGE_SIZE)).strip()
-    try:
-        page_size = int(raw_page_size)
-    except ValueError:
-        return BACKUPS_PAGE_SIZE
-    return page_size if page_size in BACKUPS_PAGE_SIZE_OPTIONS else BACKUPS_PAGE_SIZE
 
 
 def get_requested_scheduled_runs_page(request: Request) -> int:
@@ -153,42 +137,56 @@ def render_tunnels_page(
 
 
 def render_backups_page(request: Request) -> HTMLResponse:
-    backups, backup_pagination = get_backups_page(
-        get_requested_backup_page(request),
-        get_requested_backup_page_size(request),
-    )
+    """The backup archive of the active profile (or of other accounts), filtered and paginated."""
+    profile_id = current_profile_id(request)
+    archive = build_archive_page(profile_id, parse_archive_query(request.query_params))
     return templates.TemplateResponse(
         request,
         "backups.html",
         {
-            "backups": backups,
-            "backup_pagination": backup_pagination,
+            "archive": archive,
+            "profile_name": get_profile(profile_id).name,
+            "default_page_size": BACKUPS_PAGE_SIZE,
             "backup_page_size_options": sorted(BACKUPS_PAGE_SIZE_OPTIONS),
             "database_stats": get_database_stats(),
-            "backup_retention": get_backup_retention_status(current_profile_id(request)),
+            "backup_retention": get_backup_retention_status(profile_id),
+            "other_retention": get_backup_retention_status(None),
             "demo_mode": DEMO_MODE,
         },
     )
 
 
+def _profile_retention_value(profile_id: int) -> int | None:
+    try:
+        value = get_profile(profile_id).retention_days
+    except LookupError:
+        return None
+    return value if value is not None and value > 0 else None
+
+
 def render_automation_page(
     request: Request,
-    message: str | None = None,
-    error: str | None = None,
-    success_target: str | None = None,
+    *,
+    notice: tuple[str, str, str] | None = None,
+    retention_input: str | None = None,
+    status_code: int = 200,
 ) -> HTMLResponse:
+    """The Automation overview. ``notice`` is ``(section, tone, message)``; the section names the card
+    the notice sits in (``schedule``, ``run``, ``retention``, ``notifications``)."""
     profile_id = current_profile_id(request)
     return templates.TemplateResponse(
         request,
         "automation.html",
         {
-            "message": message,
-            "error": error,
-            "success_target": success_target,
             "auto_backup": build_auto_backup_status(profile_id),
             "backup_retention": get_backup_retention_status(profile_id),
+            "destinations": env_notification_destinations(),
+            "notice": notice,
+            "retention_input": retention_input,
+            "retention_value": _profile_retention_value(profile_id),
             "demo_mode": DEMO_MODE,
         },
+        status_code=status_code,
     )
 
 
@@ -200,15 +198,13 @@ def render_backup_page(
     ingress_diff: IngressDiff | None = None,
     settings_delta: list[tuple[str, Any, Any]] | None = None,
     form_tunnel_id: str | None = None,
+    created: bool = False,
 ) -> HTMLResponse:
     backup = get_backup(backup_id)
     content = load_backup_json(backup_id)
     restores = get_restore_history(backup_id)
     ingress_rules = extract_ingress(content)
-    restore_profile_id = find_profile_for_account(backup.account_id)
-    restore_profile_name = None
-    if restore_profile_id is not None and get_api_credentials(restore_profile_id) is not None:
-        restore_profile_name = get_profile(restore_profile_id).name
+    restore_target = resolve_restore_target(backup.account_id)
     return templates.TemplateResponse(
         request,
         "backup.html",
@@ -222,8 +218,8 @@ def render_backup_page(
             "settings_delta": settings_delta,
             "message": message,
             "error": error,
-            "restore_profile_name": restore_profile_name,
-            "restore_account_id": backup.account_id,
+            "restore_target": restore_target,
+            "created": created,
             "form_tunnel_id": form_tunnel_id,
             "demo_mode": DEMO_MODE,
         },

@@ -619,7 +619,7 @@
         <div class="shot shot-scroll">
           <img src="img/dashboard.webp" width="2560" height="8942" loading="lazy" alt="Tikka Masala screenshot">
         </div>
-        <p class="shot-caption"><strong>Tunnels page.</strong> Four summary tiles (tunnels and their health, hostnames, automatic backup state, saved backups) and a live table with each tunnel's status, hostname count and last backup, a per-row Back up button, and Back up all now. The top bar leads to Hostnames, Backups, Automation (scheduler, recent runs, notification channels) and Settings. (Scroll inside the image.)</p>
+        <p class="shot-caption"><strong>Tunnels page.</strong> Four summary tiles (tunnels and their health, hostnames, automatic backup state, saved backups) and a live table with each tunnel's status, hostname count and last backup, a per-row Back up button, and Back up all now. The top bar leads to Hostnames, Backups (archive with filters and notes), Automation (schedule, retention, run history, notification destinations) and Settings. (Scroll inside the image.)</p>
       </div>
       <div>
         <div class="shot-phone">
@@ -849,23 +849,25 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
         <p>Previewing does not apply anything or record restore history; the account ID, tunnel ID, and API token you entered stay filled in so you can review the diff and then press <strong>Restore backup</strong>.</p>
 
         <h3 id="doc-scheduling">Automatic backups</h3>
-        <p>The scheduler is built into the app and stores its configuration in the local SQLite database. From the Automation page you can enable or disable automatic backups, set a cron expression, run the job immediately with <strong>Run now</strong>, and see the last run, next run, and recent execution history.</p>
+        <p>The scheduler is built into the app and stores its configuration in the local SQLite database. From the Automation page you can enable or disable automatic backups, set a cron expression, run the job immediately with <strong>Run now</strong>, set the retention, and see the last run, next run, and recent execution history (full history at <code>/automation/runs</code>).</p>
         <p>By default, automatic backups use the timezone detected from the browser when you save the schedule. Set <code>AUTO_BACKUP_TIMEZONE</code> for a fixed server-side timezone for all users.</p>
         <h4>Advanced schedule</h4>
-        <p>The <strong>Advanced schedule</strong> page (<code>/auto-backup/tunnel-filters</code>) controls backup scope and per-tunnel frequency.</p>
+        <p>The <strong>Advanced schedule</strong> page (<code>/automation/tunnels</code>) controls backup scope and per-tunnel frequency.</p>
         <ul>
           <li><strong>All tunnels</strong> (default): every tunnel in the account is backed up on each run, with optional per-tunnel frequency throttling.</li>
           <li><strong>Selected tunnels only</strong>: only the tunnels you explicitly check are included in each run.</li>
         </ul>
         <p>Per-tunnel frequency: <strong>Every run</strong> (default), <strong>Once per week</strong> (skipped if a backup exists within the last 7 days) or <strong>Once per month</strong> (skipped if a backup exists within the last 30 days). This lets you run the scheduler daily while backing up low-priority tunnels only once a week.</p>
-        <div class="callout">Automatic backups require the saved server-side credentials (database, then environment). Automatic and manual backups share the same archive. If <code>BACKUP_RETENTION_DAYS</code> is set, old backup files and related database records (including restore history) are deleted automatically after new backups are created.</div>
+        <div class="callout">Automatic backups require the saved server-side credentials (database, then environment). Automatic and manual backups share the same archive. Old backup files and related database records (including restore history) are deleted automatically after new backups are created, using the retention set per profile on the Automation page (1 to 36500 days; empty means <code>BACKUP_RETENTION_DAYS</code> for Default, otherwise keep forever).</div>
+        <h4>Backup archive</h4>
+        <p>The <strong>Backups</strong> page lists every saved backup, with <strong>This profile</strong> and <strong>Other accounts</strong> views, tunnel and origin (manual or automatic) filters, a notes column, and archive statistics. <strong>Back up with a note</strong> saves one tunnel with a note of up to 500 characters.</p>
 
         <h3 id="doc-notifications">Notifications</h3>
         <p>Tikka Masala can send server-side notifications through a generic webhook and/or Telegram. Set <code>NOTIFICATION_WEBHOOK_URL</code> / <code>NOTIFICATION_WEBHOOK_EVENTS</code> and/or <code>TELEGRAM_BOT_TOKEN</code> / <code>TELEGRAM_CHAT_ID</code> / <code>TELEGRAM_NOTIFICATION_EVENTS</code>.</p>
         <p>Supported events: <code>notification_test</code>, <code>manual_backup_success</code>, <code>manual_backup_failed</code>, <code>auto_backup_success</code>, <code>auto_backup_partial</code>, <code>auto_backup_failed</code>, <code>restore_success</code>, <code>restore_failed</code>, <code>retention_cleanup</code>. If a channel's events variable is empty, the default set is enabled: <code>auto_backup_success</code>, <code>auto_backup_partial</code>, <code>auto_backup_failed</code>, <code>restore_failed</code>, <code>retention_cleanup</code>.</p>
-        <p>Webhook notifications send a JSON payload with app name and version, event name, message, timestamp, and event-specific details. Telegram sends the same information as a plain-text message, compact by default (title and message only); uncheck <strong>Compact Telegram notifications</strong> on the <strong>Customize notification messages</strong> page to append the <code>key: value</code> details block. Use <strong>Send test notification</strong> from the UI to verify delivery.</p>
+        <p>Webhook notifications send a JSON payload with app name and version, event name, message, timestamp, and event-specific details. Telegram sends the same information as a plain-text message, compact by default (title and message only); uncheck <strong>Compact Telegram notifications</strong> on the <strong>Notification messages</strong> page to append the <code>key: value</code> details block. Notification destinations from the environment are shown read-only on the Automation page (the webhook by its host only, Telegram by the end of the chat ID); use <strong>Send test notification</strong> there to verify delivery.</p>
         <h4>Customizing notification messages</h4>
-        <p>Each event has a built-in default message. Override it from <code>/notifications/messages</code>. Messages support <code>{placeholder}</code> tokens replaced at runtime; <code>{version}</code> and <code>{timestamp}</code> are always available.</p>
+        <p>Each event has a built-in default message. Override it from <code>/settings/notifications</code>. Messages support <code>{placeholder}</code> tokens replaced at runtime; <code>{version}</code> and <code>{timestamp}</code> are always available.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Event</th><th>Available tokens</th></tr></thead>
@@ -883,7 +885,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
         <p>For <code>auto_backup_*</code> events: <code>{tunnel_count}</code> is every tunnel discovered on the account, <code>{processed_count}</code> is <code>backup_count</code> + <code>error_count</code>, <code>{skipped_count}</code> is tunnels skipped by scheduling rules, and <code>{backed_up_tunnels}</code> / <code>{skipped_tunnels}</code> are comma-separated tunnel name lists (or <code>-</code> if none). Leaving a field empty restores the built-in default; unknown tokens are left as-is.</p>
 
         <h3 id="doc-demo">Demo mode</h3>
-        <p>Set <code>DEMO=true</code> to try the UI without persisting auth data or enabling server-side automation: credentials come only from the environment (no setup screen, Settings is read-only), nothing is written to SQLite and no key file is created, automatic backups, notifications and the backup archive are disabled. Only Tunnels and Settings are available; the per-row Back up button downloads the tunnel's JSON.</p>
+        <p>Set <code>DEMO=true</code> to try the UI without persisting auth data or enabling server-side automation: credentials come only from the environment (no setup screen, Settings is read-only), nothing is written to SQLite and no key file is created, automatic backups, notifications and the backup archive are disabled. Only Tunnels and Settings are available; the per-row Back up button downloads a snapshot of the tunnel's JSON without saving it.</p>
 
         <h3 id="doc-security">Security</h3>
         <ul>

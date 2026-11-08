@@ -24,9 +24,10 @@ PAGES = [
     ("/backups", "backups"),
     ("/automation", "automation"),
     ("/settings", "settings"),
-    ("/auto-backup/runs", "automation"),
-    ("/auto-backup/tunnel-filters", "automation"),
-    ("/notifications/messages", "settings"),
+    ("/backups/new", "backups"),
+    ("/automation/runs", "automation"),
+    ("/automation/tunnels", "automation"),
+    ("/settings/notifications", "settings"),
 ]
 ACTIVE = re.compile(r'<a class="topnav-link" data-nav="(\w+)"[^>]*aria-current="page"')
 

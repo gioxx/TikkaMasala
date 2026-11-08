@@ -250,3 +250,11 @@ def test_partial_region_with_feedback_and_notice(configured_default, seeded, fak
     assert '<span class="row-feedback row-feedback-ok"><a href="/backup/42">Backup #42 created.</a></span>' in text
     assert '<span class="row-feedback row-feedback-error">Nope.</span>' in text
     assert f'<tr id="tunnel-row-{T3}" class="tunnel-row">' in text
+
+
+def test_home_escapes_tunnel_names(client, configured_default, fake_list):
+    fake_list([{"id": T1, "name": "<img src=x onerror=alert(1)>", "status": "healthy"}])
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "&lt;img src=x" in response.text
+    assert "<img src=x" not in response.text

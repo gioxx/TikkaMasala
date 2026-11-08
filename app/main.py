@@ -24,7 +24,7 @@ from app.config import (
 )
 from app.notifications import get_notification_log_context, get_notification_status
 from app.profiles import DEFAULT_PROFILE_ID
-from app.routers import auto_backup, backups, dashboard, ingress, notifications, settings
+from app.routers import automation, backups, dashboard, ingress, legacy, notifications, settings
 from app.scheduler import auto_backup_scheduler, configure_all_auto_backup_jobs
 
 logger = logging.getLogger(__name__)
@@ -98,11 +98,13 @@ app.middleware("http")(access_guard)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 app.include_router(setup.router)
 app.include_router(dashboard.router)
-app.include_router(auto_backup.router)
+app.include_router(automation.router)
 app.include_router(notifications.router)
 app.include_router(backups.router)
 app.include_router(ingress.router)
 app.include_router(settings.router)
+# Old URLs last: they only redirect to the routes above.
+app.include_router(legacy.router)
 
 
 @app.get("/healthz")

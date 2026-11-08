@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+import json
 
-from app.config import BACKUP_DIR, DEMO_MODE
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+
+from app.background import finish_or_continue
+from app.config import DEMO_MODE
 from app.credentials import require_api_credentials
 from app.profiles import current_profile_id
 from app.tunnels import (
@@ -15,10 +18,13 @@ from app.tunnels import (
     backup_saved_feedback,
     build_tunnels_home,
     is_valid_tunnel_id,
+    snapshot_for_download,
 )
 from app.web import render_tunnels_page
 
 router = APIRouter()
+
+BACKGROUND_NOTICE = "Back up all continues in the background. Reload the page to see each tunnel's last backup."
 
 
 def _is_htmx(request: Request) -> bool:
@@ -47,7 +53,10 @@ async def index(request: Request) -> HTMLResponse:
 async def backup_all_action(request: Request) -> Response:
     if DEMO_MODE:
         return RedirectResponse("/", status_code=303)
-    outcome = await back_up_all_tunnels(current_profile_id(request))
+    profile_id = current_profile_id(request)
+    done, outcome = await finish_or_continue(back_up_all_tunnels(profile_id), name=f"backup-all-{profile_id}")
+    if not done or outcome is None:
+        return await _render_home(request, notice=("muted", BACKGROUND_NOTICE))
     return await _render_home(request, feedback=outcome.feedback, notice=(outcome.tone, outcome.message))
 
 
@@ -62,10 +71,19 @@ async def backup_tunnel_action(request: Request, tunnel_id: str) -> Response:
         creds = require_api_credentials(current_profile_id(request))
     except HTTPException as exc:
         return await _render_home(request, notice=("error", str(exc.detail)))
+    if DEMO_MODE:
+        # Demo: hand the snapshot over as a download; nothing is written and nothing is notified.
+        try:
+            snapshot = await snapshot_for_download(creds, tunnel_id)
+        except HTTPException as exc:
+            return await _render_home(request, feedback={tunnel_id: RowFeedback(ok=False, message=str(exc.detail))})
+        return Response(
+            json.dumps(snapshot.payload, indent=2, ensure_ascii=False),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{snapshot.filename}"'},
+        )
     try:
         backup = await back_up_tunnel(creds, tunnel_id)
     except HTTPException as exc:
         return await _render_home(request, feedback={tunnel_id: RowFeedback(ok=False, message=str(exc.detail))})
-    if DEMO_MODE:
-        return FileResponse(path=BACKUP_DIR / backup.filename, filename=backup.filename, media_type="application/json")
     return await _render_home(request, feedback={tunnel_id: backup_saved_feedback(backup)})
