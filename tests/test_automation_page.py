@@ -251,3 +251,26 @@ def test_index_no_longer_has_moved_panels(client):
     text = client.get("/").text
     for panel_id in ("auto-backup-section", "saved-backups-section", "notifications-section"):
         assert f'id="{panel_id}"' not in text
+
+
+@pytest.mark.parametrize("url", ["https://[hooks/x", "https://hooks.example.com:notaport/x"])
+def test_malformed_webhook_url_does_not_break_page(client, monkeypatch, url):
+    import app.notifications as notifications
+
+    monkeypatch.setattr(notifications, "NOTIFICATION_WEBHOOK_URL", url)
+    response = client.get("/automation")
+    assert response.status_code == 200
+    webhook = notifications.env_notification_destinations()[0]
+    assert webhook.configured is True
+
+
+def test_env_destinations_hide_userinfo_and_query(client, monkeypatch):
+    import app.notifications as notifications
+
+    monkeypatch.setattr(
+        notifications, "NOTIFICATION_WEBHOOK_URL", "https://user:pw@hooks.example.com/T0/secret-path-abc?token=q"
+    )
+    text = client.get("/automation").text
+    assert "hooks.example.com" in text
+    for secret in ("user:pw", "pw@", "secret-path-abc", "token=q"):
+        assert secret not in text

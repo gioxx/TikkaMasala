@@ -156,6 +156,13 @@ def render_backups_page(request: Request) -> HTMLResponse:
     )
 
 
+def _profile_retention_value(profile_id: int) -> int | None:
+    try:
+        return get_profile(profile_id).retention_days
+    except LookupError:
+        return None
+
+
 def render_automation_page(
     request: Request,
     *,
@@ -175,6 +182,7 @@ def render_automation_page(
             "destinations": env_notification_destinations(),
             "notice": notice,
             "retention_input": retention_input,
+            "retention_value": _profile_retention_value(profile_id),
             "demo_mode": DEMO_MODE,
         },
         status_code=status_code,

@@ -37,11 +37,6 @@
               {% else %}
               <span class="status-pill status-warn status-pill-compact">Needs credentials</span>
               {% endif %}
-              {% if backup_retention.enabled %}
-              <a href="/backups#backup-retention-status" class="status-pill status-alt status-pill-compact">Keep {{ backup_retention.days }} day(s)</a>
-              {% else %}
-              <a href="/backups#backup-retention-status" class="status-pill status-match status-pill-compact">Keep all backups</a>
-              {% endif %}
             </div>
           </div>
           <p class="hint">Recurring backups of this profile's tunnels, with the credentials saved in <a href="/settings">Settings</a> or set in the environment.</p>
@@ -137,6 +132,34 @@
             </form>
           </section>
         </div>
+      </section>
+
+      <section class="card" id="retention-section">
+        <div class="section-heading">
+          <h2 class="heading-with-icon">
+            <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M4 7l16 0" />
+              <path d="M10 11l0 6" />
+              <path d="M14 11l0 6" />
+              <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
+              <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
+            </svg>
+            <span>Retention</span>
+          </h2>
+          <p class="hint" id="backup-retention-status">{{ backup_retention.label }}</p>
+        </div>
+        {{ notice_for(notice, "retention") }}
+        <form method="post" action="/automation/retention" class="stack">
+          <label>
+            <span>Keep backups for (days)</span>
+            <input type="number" name="retention_days" min="1" max="36500" step="1" inputmode="numeric"
+              value="{{ retention_input if retention_input is not none else (retention_value or '') }}"
+              placeholder="{% if backup_retention.default_days %}Default: {{ backup_retention.default_days }} days{% else %}Default: keep forever{% endif %}">
+          </label>
+          <p class="hint">Leave empty to use the default. Cleanup runs when the next backup is saved.</p>
+          <button type="submit" class="auto-backup-primary auto-backup-footer-button">Save retention</button>
+        </form>
       </section>
 
       <section class="card" id="runs-section">

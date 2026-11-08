@@ -111,6 +111,14 @@ class EnvDestination:
     env_names: str
 
 
+def _webhook_host(url: str) -> str | None:
+    """The host of a webhook URL, or None when the URL cannot be parsed (never the path or query)."""
+    try:
+        return urlsplit(url).hostname
+    except ValueError:
+        return None
+
+
 def env_notification_destinations() -> list[EnvDestination]:
     """The webhook and Telegram destinations as the UI may show them.
 
@@ -126,7 +134,7 @@ def env_notification_destinations() -> list[EnvDestination]:
             kind="webhook",
             label="Webhook",
             configured=webhook_configured,
-            target_hint=urlsplit(NOTIFICATION_WEBHOOK_URL).hostname if webhook_configured else None,
+            target_hint=_webhook_host(NOTIFICATION_WEBHOOK_URL) if webhook_configured else None,
             events=sorted(humanize_notification_event(event) for event in webhook_events),
             env_names="NOTIFICATION_WEBHOOK_URL, NOTIFICATION_WEBHOOK_EVENTS",
         ),

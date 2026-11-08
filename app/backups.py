@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from contextlib import closing
 from dataclasses import dataclass
@@ -27,6 +28,23 @@ from app.profiles import DEFAULT_PROFILE_ID, get_profile, list_profiles
 logger = logging.getLogger(__name__)
 
 
+RETENTION_MAX_DAYS = 36500
+RETENTION_INPUT_ERROR = "Retention must be a whole number of days from 1 to 36500, or empty to use the default."
+
+
+def parse_retention_days_input(raw: str) -> int | None:
+    """Parse the retention form value: empty means "use the default", else a whole number 1..36500."""
+    text = raw.strip()
+    if not text:
+        return None
+    if not re.fullmatch(r"[0-9]+", text):
+        raise ValueError(RETENTION_INPUT_ERROR)
+    days = int(text)
+    if not 1 <= days <= RETENTION_MAX_DAYS:
+        raise ValueError(RETENTION_INPUT_ERROR)
+    return days
+
+
 def _env_retention_days() -> int | None:
     if not BACKUP_RETENTION_DAYS_RAW:
         return None
@@ -39,6 +57,17 @@ def _env_retention_days() -> int | None:
         logger.warning("Ignoring BACKUP_RETENTION_DAYS because it must be greater than zero: %s", BACKUP_RETENTION_DAYS_RAW)
         return None
     return days
+
+
+def _profile_value(profile_id: int | None) -> int | None:
+    """The retention set on the profile itself (valid values only)."""
+    if profile_id is None:
+        return None
+    try:
+        stored = get_profile(profile_id).retention_days
+    except LookupError:
+        return None
+    return stored if stored is not None and stored > 0 else None
 
 
 def get_backup_retention_days(profile_id: int | None) -> int | None:
@@ -310,6 +339,15 @@ def get_database_stats() -> dict[str, Any]:
 
 def get_backup_retention_status(profile_id: int | None) -> dict[str, Any]:
     retention_days = get_backup_retention_days(profile_id)
+    uses_env = profile_id is None or profile_id == DEFAULT_PROFILE_ID
+    default_days = _env_retention_days() if uses_env else None
+    if retention_days is None:
+        source, label = "none", "Kept until deleted (no retention set)"
+    elif retention_days == default_days and not _profile_value(profile_id):
+        source, label = "environment", f"Kept for {retention_days} days (from BACKUP_RETENTION_DAYS)"
+    else:
+        source, label = "profile", f"Kept for {retention_days} days (set on this profile)"
+    extra = {"source": source, "label": label, "default_days": default_days}
     if retention_days is None:
         if profile_id is None or profile_id == DEFAULT_PROFILE_ID:
             detail = "BACKUP_RETENTION_DAYS is not currently set, so Tikka Masala will not delete old backups automatically."
@@ -320,6 +358,7 @@ def get_backup_retention_status(profile_id: int | None) -> dict[str, Any]:
             "days": None,
             "summary": "Full archive retention is active. Backups are kept until you remove them manually.",
             "detail": detail,
+            **extra,
         }
 
     return {
@@ -327,6 +366,7 @@ def get_backup_retention_status(profile_id: int | None) -> dict[str, Any]:
         "days": retention_days,
         "summary": f"Automatic retention is active. Backups older than {retention_days} day(s) are deleted when new backups are created.",
         "detail": "Cleanup removes both the JSON snapshot and its related restore history from the database.",
+        **extra,
     }
 
 

@@ -9,11 +9,12 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.background import finish_or_continue
+from app.backups import RETENTION_INPUT_ERROR, get_backup_retention_status, parse_retention_days_input
 from app.cloudflare import list_tunnels
 from app.config import AUTO_BACKUP_TIMEZONE, DEFAULT_AUTO_BACKUP_CRON, DEMO_MODE
 from app.credentials import get_saved_account_id, get_server_api_token
 from app.notifications import deliver_notification, get_notification_status, render_notification_message
-from app.profiles import current_profile_id
+from app.profiles import current_profile_id, update_profile
 from app.scheduler import (
     TUNNEL_FREQUENCY_OPTIONS,
     configure_all_auto_backup_jobs,
@@ -102,6 +103,33 @@ async def automation_schedule_action(
     )
     message = "Automatic backups enabled." if enabled_flag else "Automatic backups disabled."
     return render_automation_page(request, notice=("schedule", "success", message))
+
+
+@router.post("/automation/retention", response_class=HTMLResponse)
+async def automation_retention_action(request: Request, retention_days: str = Form(default="")) -> HTMLResponse:
+    if DEMO_MODE:
+        return _home()
+    profile_id = current_profile_id(request)
+    try:
+        value = parse_retention_days_input(retention_days)
+    except ValueError:
+        return render_automation_page(
+            request,
+            notice=("retention", "error", RETENTION_INPUT_ERROR),
+            retention_input=retention_days,
+            status_code=400,
+        )
+    update_profile(profile_id, retention_days=value)
+    logger.info("Backup retention of profile %s set to %s.", profile_id, value if value is not None else "default")
+    if value is None:
+        label = get_backup_retention_status(profile_id)["label"]
+        message = f"Retention reset to the default: {label}."
+    else:
+        message = (
+            f"Backups of this profile are now kept for {value} days. "
+            "Older ones are removed when the next backup is saved."
+        )
+    return render_automation_page(request, notice=("retention", "success", message))
 
 
 def _run_notice(result: dict[str, Any]) -> tuple[str, str, str]:
