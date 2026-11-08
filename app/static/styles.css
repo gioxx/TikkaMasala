@@ -499,6 +499,14 @@ body.has-floating-nav { --floating-nav-offset: 3.2rem; }
   border-color: var(--status-warn-border);
   color: var(--status-warn-text);
 }
+details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+  width: fit-content;
+}
+details > summary:hover { color: var(--accent); }
+details.forget-credentials > summary { color: var(--danger-text); }
 .origin-delta {
   margin-top: 0.35rem;
   font-size: 0.8rem;
@@ -1176,7 +1184,8 @@ tbody tr:hover {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+summary:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

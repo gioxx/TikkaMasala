@@ -235,3 +235,35 @@ def test_every_page_links_settings(client):
 def test_backup_page_links_settings(client, make_backup):
     backup_id = make_backup()
     assert 'href="/settings"' in client.get(f"/backup/{backup_id}").text
+
+
+def test_settings_forget_needs_confirmation(client, configured_default):
+    text = client.get("/settings").text
+    start = text.index('<details class="forget-credentials')
+    block = text[start:text.index("</details>", start)]
+    assert "Forget saved credentials…" in block
+    assert "only once" in block
+    assert 'action="/settings/profiles/1/clear-credentials"' in block
+
+
+def test_settings_clear_falls_back_to_env(client, configured_default, monkeypatch):
+    monkeypatch.setattr(credentials, "DEFAULT_ACCOUNT_ID", GOOD)
+    monkeypatch.setattr(credentials, "DEFAULT_API_TOKEN", "env-token-123456")
+    response = client.post("/settings/profiles/1/clear-credentials", follow_redirects=False)
+    assert response.status_code == 303
+    text = client.get("/settings?cleared=1").text
+    assert "from environment" in text
+    assert "from database" not in text
+
+
+@pytest.mark.setup_gate
+def test_settings_clear_without_env_goes_to_setup(client, configured_default, monkeypatch):
+    import app.setup as setup
+
+    monkeypatch.setattr(setup, "DEMO_MODE", False)
+    monkeypatch.setattr(credentials, "DEMO_MODE", False)
+    response = client.post("/settings/profiles/1/clear-credentials", follow_redirects=False)
+    assert response.status_code == 303
+    response = client.get("/settings", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/setup"

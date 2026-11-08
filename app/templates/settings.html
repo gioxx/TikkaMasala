@@ -85,9 +85,13 @@
             </form>
           </details>
           {% if profile.has_saved_values %}
-          <form method="post" action="/settings/profiles/{{ pid }}/clear-credentials" class="actions top-gap">
-            <button type="submit" class="secondary-button">Forget saved credentials</button>
-          </form>
+          <details class="forget-credentials top-gap">
+            <summary>Forget saved credentials…</summary>
+            <p class="notice warn top-gap">This removes the Account ID and API token saved in the database. Cloudflare shows a token only once, so keep a copy if you need it again. Without values in environment variables you will be sent to setup.</p>
+            <form method="post" action="/settings/profiles/{{ pid }}/clear-credentials" class="actions top-gap">
+              <button type="submit" class="danger">Forget saved credentials</button>
+            </form>
+          </details>
           {% endif %}
           {% endif %}
         </section>
