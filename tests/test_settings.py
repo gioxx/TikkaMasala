@@ -226,7 +226,7 @@ def test_settings_key_source(client, monkeypatch):
 
 
 def test_every_page_links_settings(client):
-    for path in ("/", "/ingress", "/auto-backup/runs", "/notifications/messages", "/auto-backup/tunnel-filters"):
+    for path in ("/", "/ingress", "/automation/runs", "/notifications/messages", "/automation/tunnels"):
         response = client.get(path)
         assert response.status_code == 200, path
         assert 'href="/settings"' in response.text, path

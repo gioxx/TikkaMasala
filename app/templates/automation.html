@@ -12,6 +12,8 @@
 {% block main_attrs %} data-notice-target="{{ notice[0] if notice else '' }}" data-auto-backup-timezone="{{ auto_backup.timezone_name }}" data-auto-backup-timezone-source="{{ auto_backup.timezone_source }}"{% endblock %}
 
 {% block content %}
+      {% set automation_tab = "overview" %}
+      {% include "partials/automation_subnav.html" %}
       {% if not demo_mode %}
       {% set prereqs = auto_backup.prereqs %}
       <section class="card" id="auto-backup-section">
@@ -119,9 +121,9 @@
                 <dt>Tunnels</dt>
                 <dd>
                   {% if auto_backup.tunnel_schedule_mode == "selected" %}
-                  <a href="/auto-backup/tunnel-filters" class="status-pill status-alt status-pill-compact">{{ auto_backup.tunnel_schedule_count }} selected tunnel(s)</a>
+                  <a href="/automation/tunnels" class="status-pill status-alt status-pill-compact">{{ auto_backup.tunnel_schedule_count }} selected tunnel(s)</a>
                   {% else %}
-                  <a href="/auto-backup/tunnel-filters" class="status-pill status-match status-pill-compact">All tunnels{% if auto_backup.tunnel_schedule_count %} · {{ auto_backup.tunnel_schedule_count }} override(s){% endif %}</a>
+                  <a href="/automation/tunnels" class="status-pill status-match status-pill-compact">All tunnels{% if auto_backup.tunnel_schedule_count %} · {{ auto_backup.tunnel_schedule_count }} override(s){% endif %}</a>
                   {% endif %}
                 </dd>
               </div>
@@ -175,7 +177,7 @@
             </h2>
             <p class="hint">The five most recent automatic backup runs of this profile.</p>
           </div>
-          <a href="/auto-backup/runs" class="secondary-link-button">Full run history</a>
+          <a href="/automation/runs" class="secondary-link-button">Full run history</a>
         </div>
         {% if auto_backup.recent_runs %}
         <div class="table-wrap">

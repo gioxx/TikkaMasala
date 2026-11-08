@@ -852,7 +852,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
         <p>The scheduler is built into the app and stores its configuration in the local SQLite database. From the Automation page you can enable or disable automatic backups, set a cron expression, run the job immediately with <strong>Run now</strong>, and see the last run, next run, and recent execution history.</p>
         <p>By default, automatic backups use the timezone detected from the browser when you save the schedule. Set <code>AUTO_BACKUP_TIMEZONE</code> for a fixed server-side timezone for all users.</p>
         <h4>Advanced schedule</h4>
-        <p>The <strong>Advanced schedule</strong> page (<code>/auto-backup/tunnel-filters</code>) controls backup scope and per-tunnel frequency.</p>
+        <p>The <strong>Advanced schedule</strong> page (<code>/automation/tunnels</code>) controls backup scope and per-tunnel frequency.</p>
         <ul>
           <li><strong>All tunnels</strong> (default): every tunnel in the account is backed up on each run, with optional per-tunnel frequency throttling.</li>
           <li><strong>Selected tunnels only</strong>: only the tunnels you explicitly check are included in each run.</li>

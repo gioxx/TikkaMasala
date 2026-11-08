@@ -12,6 +12,8 @@ LEGACY = [
     ("/auto-backup/settings", "/automation/schedule"),
     ("/auto-backup/run", "/automation/run"),
     ("/notifications/test", "/automation/notifications/test"),
+    ("/auto-backup/tunnel-filters", "/automation/tunnels"),
+    ("/auto-backup/runs", "/automation/runs"),
 ]
 
 
@@ -24,6 +26,12 @@ def test_legacy_get_and_post_redirect(client, old, new):
         response = client.request(method, old + "?x=1", follow_redirects=False)
         assert response.status_code == 308, method
         assert response.headers["location"] == new + "?x=1", method
+
+
+def test_legacy_runs_keeps_query(client):
+    response = client.get("/auto-backup/runs?page=2&page_size=all", follow_redirects=False)
+    assert response.status_code == 308
+    assert response.headers["location"] == "/automation/runs?page=2&page_size=all"
 
 
 def test_legacy_post_follows_to_schedule(client, configured_default, monkeypatch):

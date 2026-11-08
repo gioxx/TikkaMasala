@@ -260,7 +260,7 @@ By default, automatic backups use the timezone detected from the browser when yo
 
 ### Advanced schedule
 
-The **Advanced schedule** page (`/auto-backup/tunnel-filters`) lets you control backup scope and per-tunnel frequency:
+The **Advanced schedule** page (`/automation/tunnels`) lets you control backup scope and per-tunnel frequency:
 
 **Backup mode:**
 

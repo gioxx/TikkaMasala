@@ -241,10 +241,10 @@ def test_cross_site_run_rejected(client, monkeypatch):
     assert calls == []
 
 
-def test_tunnel_filters_save_redirects_to_automation(client):
-    response = client.post("/auto-backup/tunnel-filters", data={"mode": "all"}, follow_redirects=False)
+def test_tunnel_filters_save_redirects_to_tunnels(client):
+    response = client.post("/automation/tunnels", data={"mode": "all"}, follow_redirects=False)
     assert response.status_code == 303
-    assert response.headers["location"] == "/automation#auto-backup-section"
+    assert response.headers["location"] == "/automation/tunnels?saved=1"
 
 
 def test_index_no_longer_has_moved_panels(client):

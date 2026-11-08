@@ -4,6 +4,8 @@
 {% block title %}Tikka Masala · Automatic Backup Archive{% endblock %}
 
 {% block content %}
+      {% set automation_tab = "runs" %}
+      {% include "partials/automation_subnav.html" %}
       {% if demo_mode %}
       <section class="demo-banner">
         <p>Demo mode is active.</p>
@@ -82,7 +84,7 @@
           <div class="pagination-summary">
             Showing {{ scheduled_runs_pagination.start_index }}-{{ scheduled_runs_pagination.end_index }} of {{ scheduled_runs_pagination.total_count }} run(s)
           </div>
-          <form method="get" action="/auto-backup/runs" class="page-size-form">
+          <form method="get" action="/automation/runs" class="page-size-form">
             <input type="hidden" name="page" value="1">
             <label class="page-size-label">
               <span>Per page</span>
@@ -97,7 +99,7 @@
           {% if scheduled_runs_pagination.total_pages > 1 %}
           <div class="pagination-actions">
             {% if scheduled_runs_pagination.has_previous %}
-            <a href="/auto-backup/runs?page={{ scheduled_runs_pagination.previous_page }}&page_size={{ scheduled_runs_pagination.page_size_param }}#runs-archive" class="secondary-link-button">Previous</a>
+            <a href="{{ '/automation/runs?page=%s&page_size=%s' | format(scheduled_runs_pagination.previous_page, scheduled_runs_pagination.page_size_param) }}#runs-archive" class="secondary-link-button">Previous</a>
             {% else %}
             <span class="secondary-link-button is-disabled" aria-disabled="true">Previous</span>
             {% endif %}
@@ -105,7 +107,7 @@
             <span class="pagination-current">Page {{ scheduled_runs_pagination.current_page }} of {{ scheduled_runs_pagination.total_pages }}</span>
 
             {% if scheduled_runs_pagination.has_next %}
-            <a href="/auto-backup/runs?page={{ scheduled_runs_pagination.next_page }}&page_size={{ scheduled_runs_pagination.page_size_param }}#runs-archive" class="secondary-link-button">Next</a>
+            <a href="{{ '/automation/runs?page=%s&page_size=%s' | format(scheduled_runs_pagination.next_page, scheduled_runs_pagination.page_size_param) }}#runs-archive" class="secondary-link-button">Next</a>
             {% else %}
             <span class="secondary-link-button is-disabled" aria-disabled="true">Next</span>
             {% endif %}

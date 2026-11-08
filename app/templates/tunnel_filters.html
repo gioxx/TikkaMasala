@@ -4,6 +4,11 @@
 {% block title %}Tikka Masala · Advanced Backup Schedule{% endblock %}
 
 {% block content %}
+      {% set automation_tab = "tunnels" %}
+      {% include "partials/automation_subnav.html" %}
+      {% if notice %}
+      <p class="notice {{ notice[0] }}" role="status">{{ notice[1] }}</p>
+      {% endif %}
       <section class="card" id="tunnel-filters-section">
         <div class="section-heading">
           <h2 class="heading-with-icon">
@@ -31,7 +36,7 @@
         {% if not prereqs.ready or load_error %}
         {% else %}
 
-        <form method="post" action="/auto-backup/tunnel-filters" class="stack top-gap" id="tunnel-filters-form">
+        <form method="post" action="/automation/tunnels" class="stack top-gap" id="tunnel-filters-form">
 
           <fieldset class="inline-fieldset">
             <legend>Backup mode</legend>

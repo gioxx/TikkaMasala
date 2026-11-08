@@ -1,0 +1,6 @@
+{# Set automation_tab to "overview", "tunnels" or "runs" before including. #}
+<nav class="subnav subnav-page" aria-label="Automation">
+  <a href="/automation"{% if automation_tab == "overview" %} aria-current="page"{% endif %}>Overview</a>
+  <a href="/automation/tunnels"{% if automation_tab == "tunnels" %} aria-current="page"{% endif %}>Tunnels</a>
+  <a href="/automation/runs"{% if automation_tab == "runs" %} aria-current="page"{% endif %}>Run history</a>
+</nav>

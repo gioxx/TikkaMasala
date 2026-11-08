@@ -10,11 +10,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.background import finish_or_continue
 from app.backups import RETENTION_INPUT_ERROR, get_backup_retention_status, parse_retention_days_input
-from app.cloudflare import list_tunnels
 from app.config import AUTO_BACKUP_TIMEZONE, DEFAULT_AUTO_BACKUP_CRON, DEMO_MODE
-from app.credentials import get_saved_account_id, get_server_api_token
+from app.credentials import get_api_credentials
 from app.notifications import deliver_notification, get_notification_status, render_notification_message
 from app.profiles import current_profile_id, update_profile
+from app.tunnels import fetch_tunnel_list
 from app.scheduler import (
     TUNNEL_FREQUENCY_OPTIONS,
     configure_all_auto_backup_jobs,
@@ -234,25 +234,31 @@ async def automation_notifications_test_action(request: Request) -> HTMLResponse
     )
 
 
-@router.get("/auto-backup/tunnel-filters", response_class=HTMLResponse)
-async def auto_backup_tunnel_filters_page(request: Request) -> HTMLResponse:
+def _tunnels_notice(request: Request) -> tuple[str, str] | None:
+    if request.query_params.get("saved") == "1":
+        return ("success", "Advanced schedule saved.")
+    if request.query_params.get("error") == "1":
+        return ("error", "The advanced schedule could not be saved. Please try again.")
+    return None
+
+
+@router.get("/automation/tunnels", response_class=HTMLResponse)
+async def automation_tunnels_page(request: Request) -> HTMLResponse:
     if DEMO_MODE:
-        return RedirectResponse(url="/", status_code=303)
+        return _home()
     profile_id = current_profile_id(request)
     prereqs = get_auto_backup_prerequisites(profile_id)
     tunnels: list[dict[str, Any]] = []
     load_error: str | None = None
-    if prereqs["ready"]:
-        account_id = get_saved_account_id(profile_id)
-        api_token = get_server_api_token(profile_id)
+    creds = get_api_credentials(profile_id) if prereqs["ready"] else None
+    if creds is not None:
         try:
-            tunnels = await list_tunnels(account_id, api_token)  # type: ignore[arg-type]
+            tunnels = await fetch_tunnel_list(creds)
         except HTTPException as exc:
             load_error = f"Could not load tunnels: {exc.detail}"
         except Exception:
-            logger.exception("Unexpected error loading tunnels for tunnel-filters page.")
+            logger.exception("Unexpected error loading tunnels for the tunnel schedule page.")
             load_error = "Unexpected error loading tunnels from Cloudflare API."
-    current_schedule = get_auto_backup_tunnel_schedule(profile_id)
     return templates.TemplateResponse(
         request,
         "tunnel_filters.html",
@@ -260,17 +266,18 @@ async def auto_backup_tunnel_filters_page(request: Request) -> HTMLResponse:
             "tunnels": tunnels,
             "load_error": load_error,
             "prereqs": prereqs,
-            "schedule": current_schedule,
+            "schedule": get_auto_backup_tunnel_schedule(profile_id),
             "frequency_options": TUNNEL_FREQUENCY_OPTIONS,
+            "notice": _tunnels_notice(request),
             "demo_mode": DEMO_MODE,
         },
     )
 
 
-@router.post("/auto-backup/tunnel-filters", response_class=HTMLResponse)
-async def auto_backup_tunnel_filters_action(request: Request) -> HTMLResponse:
+@router.post("/automation/tunnels", response_class=HTMLResponse)
+async def automation_tunnels_action(request: Request) -> HTMLResponse:
     if DEMO_MODE:
-        return RedirectResponse(url="/", status_code=303)
+        return _home()
     try:
         form = await request.form()
         mode = str(form.get("mode", "all")).strip()
@@ -301,12 +308,14 @@ async def auto_backup_tunnel_filters_action(request: Request) -> HTMLResponse:
             mode,
             len(tunnels_cfg),
         )
-        return RedirectResponse(url="/automation#auto-backup-section", status_code=303)
+        return RedirectResponse(url="/automation/tunnels?saved=1", status_code=303)
     except Exception:
         logger.exception("Unexpected error saving tunnel backup schedule.")
-        return RedirectResponse(url="/auto-backup/tunnel-filters?error=1", status_code=303)
+        return RedirectResponse(url="/automation/tunnels?error=1", status_code=303)
 
 
-@router.get("/auto-backup/runs", response_class=HTMLResponse)
-async def auto_backup_runs(request: Request) -> HTMLResponse:
+@router.get("/automation/runs", response_class=HTMLResponse)
+async def automation_runs_page(request: Request) -> HTMLResponse:
+    if DEMO_MODE:
+        return _home()
     return render_scheduled_runs_page(request)

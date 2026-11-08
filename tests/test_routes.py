@@ -36,10 +36,10 @@ def test_backups_pagination_params(client):
 
 
 def test_scheduled_runs_page(client):
-    response = client.get("/auto-backup/runs")
+    response = client.get("/automation/runs")
     assert response.status_code == 200
     assert "Automatic Backup Archive" in response.text
-    assert client.get("/auto-backup/runs?page_size=all").status_code == 200
+    assert client.get("/automation/runs?page_size=all").status_code == 200
 
 
 def test_notification_messages_page(client):
@@ -65,7 +65,7 @@ def test_notification_messages_save_and_reset(client):
 
 def test_tunnel_filters_page_without_credentials(client):
     # No server-side credentials: the page must render without calling Cloudflare.
-    response = client.get("/auto-backup/tunnel-filters")
+    response = client.get("/automation/tunnels")
     assert response.status_code == 200
     assert "Advanced Backup Schedule" in response.text
 

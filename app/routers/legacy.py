@@ -18,6 +18,8 @@ LEGACY_REDIRECTS: dict[str, str] = {
     "/auto-backup/settings": "/automation/schedule",
     "/auto-backup/run": "/automation/run",
     "/notifications/test": "/automation/notifications/test",
+    "/auto-backup/tunnel-filters": "/automation/tunnels",
+    "/auto-backup/runs": "/automation/runs",
 }
 
 
