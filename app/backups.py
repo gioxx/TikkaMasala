@@ -59,7 +59,7 @@ def _env_retention_days() -> int | None:
     return days
 
 
-def _profile_value(profile_id: int | None) -> int | None:
+def get_profile_retention_value(profile_id: int | None) -> int | None:
     """The retention set on the profile itself (valid values only)."""
     if profile_id is None:
         return None
@@ -101,6 +101,8 @@ def get_last_backup_time_for_tunnel(tunnel_id: str) -> datetime | None:
 
 
 NOTES_MAX_LENGTH = 500
+# C0 controls except \n and \t, DEL, and the bidi controls U+202A-U+202E and U+2066-U+2069.
+_UNSAFE_NOTE_CHARS = re.compile("[\x00-\x08\x0b-\x1f\x7f\u202a-\u202e\u2066-\u2069]")
 
 
 def clean_notes(raw: str | None) -> str | None:
@@ -110,7 +112,8 @@ def clean_notes(raw: str | None) -> str | None:
     """
     if raw is None:
         return None
-    notes = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
+    notes = raw.replace("\r\n", "\n").replace("\r", "\n")
+    notes = _UNSAFE_NOTE_CHARS.sub("", notes).strip()
     if not notes:
         return None
     if len(notes) > NOTES_MAX_LENGTH:
@@ -397,7 +400,7 @@ def get_backup_retention_status(profile_id: int | None) -> dict[str, Any]:
     default_days = _env_retention_days() if uses_env else None
     if retention_days is None:
         source, label = "none", "Kept until deleted (no retention set)"
-    elif retention_days == default_days and not _profile_value(profile_id):
+    elif retention_days == default_days and not get_profile_retention_value(profile_id):
         source, label = "environment", f"Kept for {retention_days} days (from BACKUP_RETENTION_DAYS)"
     else:
         source, label = "profile", f"Kept for {retention_days} days (set on this profile)"

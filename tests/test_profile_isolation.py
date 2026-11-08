@@ -64,6 +64,22 @@ def test_hostnames_tile_counts_active_account_only(client, configured_default, s
     assert (tile.value, tile.detail) == ("1", "1 host-local origin in this account")
 
 
+def test_hostnames_tile_client_direction(client, configured_default, second_profile, make_backup):
+    make_backup("t-a", "alphadefault", account_id=GOOD, ingress=[{"hostname": "a.example.com", "service": "http://localhost:1"}])
+    make_backup(
+        "t-c",
+        "bravoclient",
+        account_id=CLIENT,
+        ingress=[
+            {"hostname": "c1.example.com", "service": "http://localhost:3"},
+            {"hostname": "c2.example.com", "service": "http://localhost:4"},
+        ],
+    )
+    tunnels.clear_tunnel_list_cache()
+    tile = asyncio.run(tunnels.build_tunnels_home(second_profile.id)).tile("hostnames")
+    assert (tile.value, tile.detail) == ("2", "2 host-local origins in this account")
+
+
 def test_ingress_snapshot_follows_active_profile(client, configured_default, second_profile, make_backup):
     make_backup("t-home", "Home", account_id=GOOD, ingress=[{"hostname": "home.example.com", "service": "http://10.0.0.1"}])
     make_backup(
@@ -82,15 +98,18 @@ def test_ingress_snapshot_follows_active_profile(client, configured_default, sec
 
 
 def test_backups_archive_per_profile(client, configured_default, second_profile, make_backup):
-    make_backup("t-home", "Home", account_id=GOOD)
-    make_backup("t-client", "Site", account_id=CLIENT)
-    make_backup("t-old", "Old", account_id=OTHER)
-    assert "Default (1)" in client.get("/backups").text
+    make_backup("t-home", "alphadefault", account_id=GOOD)
+    make_backup("t-client", "bravoclient", account_id=CLIENT)
+    make_backup("t-old", "charlieold", account_id=OTHER)
+    default_page = client.get("/backups").text
+    assert "Default (1)" in default_page
+    assert "alphadefault" in default_page and "bravoclient" not in default_page
     use_profile(client, second_profile.id)
     page = client.get("/backups").text
     assert "Client (1)" in page
+    assert "bravoclient" in page and "alphadefault" not in page
     other = client.get("/backups?scope=other").text
-    assert "Old" in other and "Home" not in other and "Site" not in other
+    assert "charlieold" in other and "alphadefault" not in other and "bravoclient" not in other
 
 
 def test_schedule_and_retention_write_active_profile(client, configured_default, second_profile, monkeypatch):
@@ -105,6 +124,45 @@ def test_schedule_and_retention_write_active_profile(client, configured_default,
     assert client.post("/automation/retention", data={"retention_days": "30"}).status_code == 200
     assert get_profile(second_profile.id).retention_days == 30
     assert get_profile(DEFAULT_PROFILE_ID).retention_days == default_before.retention_days
+
+
+def test_schedule_and_retention_as_default_leave_client_unchanged(
+    client, configured_default, second_profile, monkeypatch
+):
+    monkeypatch.setattr("app.routers.automation.configure_auto_backup_job", lambda profile_id: None)
+    before = get_profile(second_profile.id)
+    assert client.post("/automation/schedule", data={"cron_expression": "0 6 * * *"}).status_code == 200
+    assert client.post("/automation/retention", data={"retention_days": "12"}).status_code == 200
+    assert get_profile(DEFAULT_PROFILE_ID).auto_backup_cron == "0 6 * * *"
+    assert get_profile(DEFAULT_PROFILE_ID).retention_days == 12
+    after = get_profile(second_profile.id)
+    assert (after.auto_backup_cron, after.retention_days) == (before.auto_backup_cron, before.retention_days)
+    update_profile(DEFAULT_PROFILE_ID, retention_days=None)
+
+
+def test_ingress_live_uses_active_profile_credentials(client, configured_default, second_profile, monkeypatch):
+    import app.routers.ingress as ingress_router
+    from app.ingress_overview import IngressOverview
+
+    calls: list[tuple] = []
+
+    async def fake_live(account_id, api_token):
+        calls.append((account_id, api_token))
+        return IngressOverview(source="live")
+
+    monkeypatch.setattr(ingress_router, "live_overview", fake_live)
+    use_profile(client, second_profile.id)
+    assert client.get("/ingress?source=live").status_code == 200
+    assert calls == [(CLIENT, CLIENT_TOKEN)]
+
+
+def test_ingress_snapshot_without_account_shows_nothing(client, second_profile, make_backup):
+    make_backup("t-home", "alphadefault", account_id=GOOD, ingress=[{"hostname": "home.example.com", "service": "http://10.0.0.1"}])
+    make_backup("t-old", "charlieold", account_id=OTHER, ingress=[{"hostname": "old.example.com", "service": "http://10.0.0.3"}])
+    update_profile(second_profile.id, account_id=None)
+    use_profile(client, second_profile.id)
+    page = client.get("/ingress").text
+    assert "home.example.com" not in page and "old.example.com" not in page
 
 
 def test_run_history_per_profile(client, second_profile, data_dir):

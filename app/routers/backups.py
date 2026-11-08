@@ -58,6 +58,7 @@ async def _render_new_backup_page(
                 ),
                 key=lambda tunnel: (tunnel["name"].casefold(), tunnel["id"]),
             )
+    chosen = (selected_tunnel or "").strip().lower()
     return templates.TemplateResponse(
         request,
         "backup_new.html",
@@ -65,7 +66,7 @@ async def _render_new_backup_page(
             "credentials_missing": creds is None,
             "list_error": list_error,
             "tunnels": tunnels,
-            "selected_tunnel": (selected_tunnel or "").strip().lower() or None,
+            "selected_tunnel": chosen if is_valid_tunnel_id(chosen) else None,
             "form_notes": form_notes,
             "notes_max_length": NOTES_MAX_LENGTH,
             "error": error,

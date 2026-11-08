@@ -361,3 +361,80 @@ def test_cross_site_rejected(client):
     )
     assert response.status_code == 403
     assert list_destinations(DEFAULT_PROFILE_ID) == []
+
+
+def test_secret_input_blocks_password_managers(client):
+    for path in ("/automation/destinations/new", "/automation/destinations/new?kind=telegram"):
+        text = client.get(path).text
+        field = re.search(r'<input type="password" name="secret"[^>]*>', text, re.S).group(0)
+        assert 'autocomplete="new-password"' in field
+        assert "data-1p-ignore" in field and 'data-lpignore="true"' in field
+
+
+def test_invalid_secret_rerender(client):
+    response = client.post(
+        "/automation/destinations",
+        data={"kind": "webhook", "label": "Ops", "secret": "not a url secret-leak", "events": ["restore_failed"]},
+    )
+    assert response.status_code == 400
+    assert "secret-leak" not in response.text
+    field = re.search(r'<input type="password" name="secret"[^>]*>', response.text, re.S).group(0)
+    assert 'aria-invalid="true"' in field
+    assert 'value=""' in field
+    assert list_destinations(DEFAULT_PROFILE_ID) == []
+
+
+def test_telegram_edit_page_never_contains_token(client):
+    view = create_destination(
+        DEFAULT_PROFILE_ID,
+        DestinationInput(
+            kind="telegram", label="Chat", secret=BOT, chat_id="-100123", events=("restore_failed",), enabled=True
+        ),
+    )
+    text = client.get(f"/automation/destinations/{view.id}/edit").text
+    assert BOT not in text
+    assert "AAH-secret" not in text
+    assert "Leave empty to keep the saved token" in text
+
+
+def test_ticked_events_survive_400_rerender(client):
+    chosen = ["restore_failed", "auto_backup_failed"]
+    response = client.post(
+        "/automation/destinations",
+        data={"kind": "webhook", "label": "", "secret": "x" * 3, "events": chosen, "enabled": "on"},
+    )
+    assert response.status_code == 400
+    ticked = re.findall(r'<input type="checkbox" name="events" value="([^"]+)"\s+checked', response.text)
+    assert sorted(ticked) == sorted(chosen)
+
+
+def test_events_fieldset_not_aria_invalid(client):
+    response = client.post(
+        "/automation/destinations", data={"kind": "webhook", "label": "Ops", "secret": HOOK, "events": []}
+    )
+    assert response.status_code == 400
+    assert "Pick at least one event." in response.text
+    fieldset = re.search(r"<fieldset[^>]*>", response.text).group(0)
+    assert "aria-invalid" not in fieldset
+    assert 'aria-describedby="destination-error"' in fieldset
+
+
+def test_destination_controls_have_accessible_names(client):
+    create_destination(DEFAULT_PROFILE_ID, _hook(label="Ops room"))
+    section = _section(client.get("/automation").text)
+    assert 'Test<span class="sr-only"> Ops room</span>' in section
+    assert 'Edit<span class="sr-only"> Ops room</span>' in section
+    assert 'Delete…<span class="sr-only"> Ops room</span>' in section
+
+
+@pytest.mark.parametrize(
+    "method,path",
+    [
+        ("get", "/automation/destinations/abc/edit"),
+        ("post", "/automation/destinations/abc"),
+        ("post", "/automation/destinations/abc/delete"),
+        ("post", "/automation/destinations/abc/test"),
+    ],
+)
+def test_non_integer_destination_id_is_404(client, method, path):
+    assert getattr(client, method)(path).status_code == 404

@@ -151,7 +151,7 @@ async def destination_create_action(
     return _back("added")
 
 
-@router.get("/automation/destinations/{destination_id}/edit", response_class=HTMLResponse)
+@router.get("/automation/destinations/{destination_id:int}/edit", response_class=HTMLResponse)
 async def destination_edit_page(request: Request, destination_id: int) -> Response:
     if DEMO_MODE:
         return _home()
@@ -167,7 +167,7 @@ async def destination_edit_page(request: Request, destination_id: int) -> Respon
     )
 
 
-@router.post("/automation/destinations/{destination_id}", response_class=HTMLResponse)
+@router.post("/automation/destinations/{destination_id:int}", response_class=HTMLResponse)
 async def destination_update_action(
     request: Request,
     destination_id: int,
@@ -205,7 +205,7 @@ async def destination_update_action(
     return _back("saved")
 
 
-@router.post("/automation/destinations/{destination_id}/delete")
+@router.post("/automation/destinations/{destination_id:int}/delete")
 async def destination_delete_action(request: Request, destination_id: int) -> Response:
     if DEMO_MODE:
         return _home()
@@ -253,7 +253,7 @@ async def destination_env_test_action(request: Request, kind: str) -> Response:
     return await _send_test(request, profile_id, key, target.label)
 
 
-@router.post("/automation/destinations/{destination_id}/test", response_class=HTMLResponse)
+@router.post("/automation/destinations/{destination_id:int}/test", response_class=HTMLResponse)
 async def destination_test_action(request: Request, destination_id: int) -> Response:
     if DEMO_MODE:
         return _home()

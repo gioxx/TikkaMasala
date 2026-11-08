@@ -37,7 +37,7 @@
           </label>
           <label>
             <span>{{ "Bot token" if is_telegram else "Webhook URL" }}</span>
-            <input type="password" name="secret" value="" autocomplete="off" spellcheck="false"
+            <input type="password" name="secret" value="" autocomplete="new-password" data-1p-ignore data-lpignore="true" spellcheck="false"
               {% if destination %}placeholder="Leave empty to keep the saved {{ 'token' if is_telegram else 'URL' }}"{% else %}required placeholder="{{ '123456789:AA…' if is_telegram else 'https://' }}"{% endif %}
               {% if error_field == "secret" %} aria-invalid="true" aria-describedby="destination-error"{% endif %}>
           </label>
@@ -47,7 +47,7 @@
             <input type="text" name="chat_id" value="{{ chat_id }}" placeholder="-1001234567890 or @channelname" required spellcheck="false"{% if error_field == "chat_id" %} aria-invalid="true" aria-describedby="destination-error"{% endif %}>
           </label>
           {% endif %}
-          <fieldset{% if error_field == "events" %} aria-invalid="true" aria-describedby="destination-error"{% endif %}>
+          <fieldset{% if error_field == "events" %} aria-describedby="destination-error"{% endif %}>
             <legend>Events</legend>
             <div class="checkbox-grid">
               {% for value, text, checked in event_options %}

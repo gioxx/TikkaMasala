@@ -286,11 +286,11 @@
             <p class="destination-events">{{ event_labels | join(", ") if event_labels else "Tests only: no event selected." }}</p>
             <div class="destination-actions">
               <form method="post" action="/automation/destinations/{{ destination.id }}/test">
-                <button type="submit" class="secondary-button"{% if not destination.enabled or destination.unreadable %} disabled{% endif %}>Test</button>
+                <button type="submit" class="secondary-button"{% if not destination.enabled or destination.unreadable %} disabled{% endif %}>Test<span class="sr-only"> {{ destination.label }}</span></button>
               </form>
-              <a href="/automation/destinations/{{ destination.id }}/edit" class="secondary-link-button">Edit</a>
+              <a href="/automation/destinations/{{ destination.id }}/edit" class="secondary-link-button">Edit<span class="sr-only"> {{ destination.label }}</span></a>
               <details class="destination-delete">
-                <summary>Delete…</summary>
+                <summary>Delete…<span class="sr-only"> {{ destination.label }}</span></summary>
                 <form method="post" action="/automation/destinations/{{ destination.id }}/delete" class="top-gap">
                   <p class="hint">Remove {{ destination.label }}? This cannot be undone.</p>
                   <button type="submit" class="danger">Delete destination</button>

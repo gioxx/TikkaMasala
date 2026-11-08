@@ -16,6 +16,7 @@ from app.backups import (
     get_backup,
     get_backup_retention_status,
     get_database_stats,
+    get_profile_retention_value,
     get_restore_history,
     load_backup_json,
 )
@@ -182,14 +183,6 @@ def render_backups_page(request: Request) -> HTMLResponse:
     )
 
 
-def _profile_retention_value(profile_id: int) -> int | None:
-    try:
-        value = get_profile(profile_id).retention_days
-    except LookupError:
-        return None
-    return value if value is not None and value > 0 else None
-
-
 _DESTINATION_NOTICES = {
     "added": "Destination added.",
     "saved": "Destination saved.",
@@ -235,7 +228,7 @@ def render_automation_page(
             "can_test_all": can_test_all,
             "notice": notice,
             "retention_input": retention_input,
-            "retention_value": _profile_retention_value(profile_id),
+            "retention_value": get_profile_retention_value(profile_id),
             "demo_mode": DEMO_MODE,
         },
         status_code=status_code,

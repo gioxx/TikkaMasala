@@ -125,8 +125,8 @@ def test_live_overview_reports_listing_failure(monkeypatch):
     assert "Invalid API token" in overview.error
 
 
-def test_ingress_page_snapshot(client, make_backup):
-    make_backup(tunnel_id="page-1", tunnel_name="PageTunnel", ingress=[
+def test_ingress_page_snapshot(client, configured_default, make_backup):
+    make_backup(account_id=configured_default.account_id, tunnel_id="page-1", tunnel_name="PageTunnel", ingress=[
         {"hostname": "page.example.com", "service": "http://localhost:8080"},
         {"service": "http_status:404"},
     ])
@@ -191,8 +191,8 @@ def test_snapshot_rows_use_backup_account(make_backup):
     assert row.account_id == "acc-1"
 
 
-def test_pathed_rule_without_hostname_is_not_catch_all(client, make_backup):
-    make_backup(tunnel_id="path-1", tunnel_name="Paths", ingress=[
+def test_pathed_rule_without_hostname_is_not_catch_all(client, configured_default, make_backup):
+    make_backup(account_id=configured_default.account_id, tunnel_id="path-1", tunnel_name="Paths", ingress=[
         {"path": "^/health", "service": "http://10.0.0.3:9000"},
         {"service": "http_status:404"},
     ])
@@ -243,8 +243,8 @@ def test_list_tunnels_single_page_without_result_info(monkeypatch):
 # --- local review follow-ups -------------------------------------------------
 
 
-def test_origin_settings_tooltip_is_escaped(client, make_backup):
-    make_backup(tunnel_id="esc-1", tunnel_name="Esc", ingress=[
+def test_origin_settings_tooltip_is_escaped(client, configured_default, make_backup):
+    make_backup(account_id=configured_default.account_id, tunnel_id="esc-1", tunnel_name="Esc", ingress=[
         {"hostname": "esc.example.com", "service": "http://a", "originRequest": {"httpHostHeader": 'x" onmouseover="alert(1)'}},
         {"service": "http_status:404"},
     ])
@@ -276,9 +276,9 @@ def test_list_tunnels_excludes_deleted(monkeypatch):
     assert "is_deleted=false" in paths[0]
 
 
-def test_snapshot_shared_warning_suggests_live_check(client, make_backup):
-    make_backup(tunnel_id="dup-a", tunnel_name="DupA", ingress=[{"hostname": "dup.example.com", "service": "http://a"}])
-    make_backup(tunnel_id="dup-b", tunnel_name="DupB", ingress=[{"hostname": "dup.example.com", "service": "http://b"}])
+def test_snapshot_shared_warning_suggests_live_check(client, configured_default, make_backup):
+    make_backup(account_id=configured_default.account_id, tunnel_id="dup-a", tunnel_name="DupA", ingress=[{"hostname": "dup.example.com", "service": "http://a"}])
+    make_backup(account_id=configured_default.account_id, tunnel_id="dup-b", tunnel_name="DupB", ingress=[{"hostname": "dup.example.com", "service": "http://b"}])
     body = client.get("/ingress").text
     assert "<strong>Hostname served by more than one tunnel.</strong>" in body
     assert "also in DupB" in body
