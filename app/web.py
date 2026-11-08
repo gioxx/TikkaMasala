@@ -30,8 +30,7 @@ from app.config import (
 )
 from app.credentials import (
     DEMO_NO_CREDENTIALS_MESSAGE,
-    find_profile_for_account,
-    get_api_credentials,
+    resolve_restore_target,
 )
 from app.ingress import IngressDiff, extract_ingress, fragile_rules, origin_request_delta
 from app.profiles import current_profile_id, get_profile
@@ -185,15 +184,13 @@ def render_backup_page(
     ingress_diff: IngressDiff | None = None,
     settings_delta: list[tuple[str, Any, Any]] | None = None,
     form_tunnel_id: str | None = None,
+    created: bool = False,
 ) -> HTMLResponse:
     backup = get_backup(backup_id)
     content = load_backup_json(backup_id)
     restores = get_restore_history(backup_id)
     ingress_rules = extract_ingress(content)
-    restore_profile_id = find_profile_for_account(backup.account_id)
-    restore_profile_name = None
-    if restore_profile_id is not None and get_api_credentials(restore_profile_id) is not None:
-        restore_profile_name = get_profile(restore_profile_id).name
+    restore_target = resolve_restore_target(backup.account_id)
     return templates.TemplateResponse(
         request,
         "backup.html",
@@ -207,8 +204,8 @@ def render_backup_page(
             "settings_delta": settings_delta,
             "message": message,
             "error": error,
-            "restore_profile_name": restore_profile_name,
-            "restore_account_id": backup.account_id,
+            "restore_target": restore_target,
+            "created": created,
             "form_tunnel_id": form_tunnel_id,
             "demo_mode": DEMO_MODE,
         },

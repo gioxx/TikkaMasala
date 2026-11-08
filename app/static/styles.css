@@ -742,6 +742,13 @@ details.forget-credentials > summary { color: var(--danger-text); }
   font-size: 0.82rem;
 }
 .page-links { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.secondary-link-button.primary-link {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+.secondary-link-button.primary-link:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.backup-notes { margin: 0; overflow-wrap: anywhere; }
 .secondary-link-button.is-disabled {
   opacity: 0.5;
   pointer-events: none;

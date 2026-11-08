@@ -248,3 +248,30 @@ async def save_profile_credentials(
     update_profile(profile_id, **fields)
     logger.info("Credentials of profile %s saved (account_id=%s).", profile_id, resulting_account)
     return True
+
+
+@dataclass(frozen=True)
+class RestoreTarget:
+    """Who can restore a backup of ``account_id``: the owning profile and its credentials, if any."""
+
+    account_id: str
+    profile_id: int | None
+    profile_name: str | None
+    credentials: ApiCredentials | None
+
+    @property
+    def can_restore(self) -> bool:
+        return self.credentials is not None
+
+
+def resolve_restore_target(account_id: str) -> RestoreTarget:
+    """The profile that covers ``account_id`` and its effective credentials (``None`` when incomplete)."""
+    profile_id = find_profile_for_account(account_id)
+    if profile_id is None:
+        return RestoreTarget(account_id=account_id, profile_id=None, profile_name=None, credentials=None)
+    return RestoreTarget(
+        account_id=account_id,
+        profile_id=profile_id,
+        profile_name=get_profile(profile_id).name,
+        credentials=get_api_credentials(profile_id),
+    )

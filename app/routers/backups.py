@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from app.backups import get_backup, load_backup_json, record_restore
 from app.cloudflare import cloudflare_put, fetch_tunnel_configuration
 from app.config import BACKUP_DIR, DEMO_MODE
-from app.credentials import find_profile_for_account, get_api_credentials
+from app.credentials import resolve_restore_target
 from app.ingress import config_settings_delta, diff_ingress, extract_ingress
 from app.notifications import queue_notification, render_notification_message
 from app.web import render_backup_page, render_backups_page
@@ -28,10 +28,10 @@ async def backups_page(request: Request) -> HTMLResponse:
 
 
 @router.get("/backup/{backup_id}", response_class=HTMLResponse)
-async def backup_details(request: Request, backup_id: int) -> HTMLResponse:
+async def backup_details(request: Request, backup_id: int, created: str | None = None) -> HTMLResponse:
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
-    return render_backup_page(request, backup_id)
+    return render_backup_page(request, backup_id, created=created == "1")
 
 
 @router.get("/backup/{backup_id}/download", response_model=None)
@@ -56,14 +56,13 @@ async def restore_backup(
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
     backup = get_backup(backup_id)
-    account_id = backup.account_id
-    profile_id = find_profile_for_account(account_id)
-    credentials = get_api_credentials(profile_id) if profile_id is not None else None
+    target = resolve_restore_target(backup.account_id)
+    credentials = target.credentials
     if credentials is None:
         return render_backup_page(
             request,
             backup_id,
-            error=f"No profile has credentials for account {account_id}. Add them in Settings to restore this backup.",
+            error=f"No profile has credentials for account {backup.account_id}. Add them in Settings to restore this backup.",
             form_tunnel_id=tunnel_id.strip() or None,
         )
     account_id = credentials.account_id
