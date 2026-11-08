@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.cloudflare import list_tunnels
 from app.config import AUTO_BACKUP_TIMEZONE, DEFAULT_AUTO_BACKUP_CRON, DEMO_MODE
 from app.credentials import get_saved_account_id, get_server_api_token
+from app.profiles import current_profile_id
 from app.scheduler import (
     TUNNEL_FREQUENCY_OPTIONS,
     configure_auto_backup_job,
@@ -128,8 +129,9 @@ async def auto_backup_tunnel_filters_page(request: Request) -> HTMLResponse:
     tunnels: list[dict[str, Any]] = []
     load_error: str | None = None
     if prereqs["ready"]:
-        account_id = get_saved_account_id()
-        api_token = get_server_api_token()
+        profile_id = current_profile_id(request)
+        account_id = get_saved_account_id(profile_id)
+        api_token = get_server_api_token(profile_id)
         try:
             tunnels = await list_tunnels(account_id, api_token)  # type: ignore[arg-type]
         except HTTPException as exc:

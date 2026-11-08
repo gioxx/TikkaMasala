@@ -31,6 +31,7 @@ from app.credentials import (
 )
 from app.db import ScheduledRunRecord, db, get_setting, set_setting
 from app.notifications import get_notification_status, queue_notification, render_notification_message
+from app.profiles import DEFAULT_PROFILE_ID
 
 logger = logging.getLogger(__name__)
 auto_backup_scheduler = AsyncIOScheduler(timezone="UTC")
@@ -130,10 +131,10 @@ def validate_cron_expression(cron_expression: str) -> str:
 
 
 def get_auto_backup_prerequisites() -> dict[str, Any]:
-    account_id = get_saved_account_id()
-    account_source = get_account_id_source()
-    api_token = get_server_api_token()
-    api_token_source = get_server_api_token_source()
+    account_id = get_saved_account_id(DEFAULT_PROFILE_ID)
+    account_source = get_account_id_source(DEFAULT_PROFILE_ID)
+    api_token = get_server_api_token(DEFAULT_PROFILE_ID)
+    api_token_source = get_server_api_token_source(DEFAULT_PROFILE_ID)
     missing_items: list[str] = []
     if not account_id:
         missing_items.append("Server-side Account ID")
@@ -390,15 +391,15 @@ async def run_auto_backup_job(trigger: str = "schedule") -> dict[str, Any]:
     if auto_backup_lock.locked():
         logger.info("Automatic backup run skipped because another run is already in progress.")
         details = json.dumps({"message": "Skipped because another automatic backup is already running."}, ensure_ascii=False)
-        run_id = create_scheduled_run(get_saved_account_id() or "unknown", "skipped", details)
+        run_id = create_scheduled_run(get_saved_account_id(DEFAULT_PROFILE_ID) or "unknown", "skipped", details)
         complete_scheduled_run(run_id, "skipped", 0, 0, 0, details)
         set_setting("auto_backup_last_run_at", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
         set_setting("auto_backup_last_status", "skipped")
         return {"status": "skipped", "tunnel_count": 0, "backup_count": 0, "error_count": 0}
 
     async with auto_backup_lock:
-        account_id = get_saved_account_id()
-        api_token = get_server_api_token()
+        account_id = get_saved_account_id(DEFAULT_PROFILE_ID)
+        api_token = get_server_api_token(DEFAULT_PROFILE_ID)
         if not account_id or not api_token:
             logger.warning("Automatic backup run skipped because server-side credentials are missing.")
             details = json.dumps(
