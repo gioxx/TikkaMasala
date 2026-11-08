@@ -23,6 +23,7 @@ Website: <https://tikkamasala.gioxx.org>
 - [Run Without Docker](#run-without-docker)
 - [First Run and Credentials](#first-run-and-credentials)
 - [Navigation](#navigation)
+- [Profiles](#profiles)
 - [Storage Layout](#storage-layout)
 - [What Gets Backed Up](#what-gets-backed-up)
 - [Restore Behavior](#restore-behavior)
@@ -47,7 +48,8 @@ Website: <https://tikkamasala.gioxx.org>
 - See every ingress rule of a snapshot (hostname, path, origin `service`, `originRequest` settings), with host-local origins such as `localhost` flagged
 - Restore a snapshot to the original tunnel or to another tunnel
 - Preview a restore as an ingress diff against the tunnel's live configuration before applying it
-- See every public hostname of every tunnel and the origin it points to on one **Hostnames** page (`/ingress`): read from the latest snapshot of each tunnel, or live from the Cloudflare API, with filtering and warnings for host-local origins and hostnames served by more than one tunnel
+- See every public hostname of every tunnel and the origin it points to on one **Hostnames** page (`/ingress`) for the active profile: read from the latest snapshot of each tunnel, or live from the Cloudflare API, with filtering and warnings for host-local origins and hostnames served by more than one tunnel
+- Manage several Cloudflare accounts as **profiles**, each with its own credentials, schedule, retention and notification destinations, and switch between them from the top bar
 - Keep local metadata in SQLite
 - Track restore history per backup
 - Manage the saved credentials on a **Settings** page (token masked, replace, forget) without deleting backups
@@ -167,7 +169,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080
 
 If `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` are both set in the environment, there is nothing to configure: setup is skipped and the app uses them.
 
-Otherwise the first page you open is a **setup screen** (`/setup`). Enter your Account ID and an API token; the app checks them against Cloudflare (token verification and a tunnel listing) and saves them only if the check passes. The token is stored encrypted in `app.db` and is never shown again in clear.
+Otherwise the first page you open is a **setup screen** (`/setup`). Enter your Account ID and an API token (the token can be left empty when a readable one is already saved); the app checks them against Cloudflare (token verification and a tunnel listing) and saves them only if the check passes. The token is stored encrypted in `app.db` and is never shown again in clear.
 
 After setup, credentials are managed on the **Settings** page (`/settings`):
 
@@ -200,10 +202,24 @@ For backup-only usage, you can reduce the token to read-only permissions later.
 A top bar gives access to five sections (it collapses to a menu button below 960px):
 
 - **Tunnels** (`/`): the home page. Four summary tiles, the live tunnel table (status, hostnames, last backup), per-row **Back up** and **Back up all now**
-- **Hostnames** (`/ingress`): every public hostname of every tunnel and its origin
+- **Hostnames** (`/ingress`): every public hostname of every tunnel of the active profile's account and its origin
 - **Backups** (`/backups`): the backup archive. **This profile** lists the backups of the active profile's account, **Other accounts** (shown when there are any) lists backups whose account no profile covers; both can be downloaded. Filter by tunnel and by origin (manual or automatic), page through the list, see notes, archive statistics and the retention rule. **Back up with a note** (`/backups/new`) saves one tunnel with an optional note of up to 500 characters
 - **Automation** (`/automation`): schedule, status, **Run now**, backup retention, the last runs and the notification destinations. Two sub-pages: **Tunnels** (`/automation/tunnels`, per-tunnel schedule) and **Run history** (`/automation/runs`)
 - **Settings** (`/settings`): credentials, Cloudflare Access status and version; **Notification messages** (`/settings/notifications`) customizes the message of each event
+
+With two or more profiles, a **profile switcher** appears in the top bar (a dropdown and a **Switch** button). The choice is kept in a `tm_profile` cookie in your browser, so each browser can look at a different profile. Switching from a page that belongs to the previous profile (a backup page, a destination edit page, a filtered archive) lands on the section's list instead. With a single profile there is no switcher.
+
+## Profiles
+
+A profile is one Cloudflare account: an Account ID and an API token, plus its own automatic backup schedule, retention and notification destinations. The profile that exists from the start is named **Default**. If `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` are set, they feed only that first profile.
+
+Manage profiles under **Settings → Profiles**:
+
+- **Add** a profile with a name and the Account ID and token of another account. The credentials are checked against Cloudflare before the profile is created. Names must be unique, and an Account ID that another profile already uses is refused
+- **Rename** a profile at any time
+- **Remove** a profile (Default cannot be removed). Its saved credentials, schedule, notification destinations and automatic backup run history are removed with it. Its backups are **kept** unless you tick **Also delete its backups** and confirm the count shown; kept backups move to **Other accounts** in the archive and fall under the retention for other accounts, so they can be purged the next time a backup is saved. The removal page names that retention before you confirm. A profile cannot be removed while one of its backup runs is going
+
+Everything else follows the active profile: Tunnels, Hostnames, Backups (**This profile**), Automation and the notification destinations.
 
 ## Storage Layout
 
@@ -260,6 +276,8 @@ The scheduler is built into the app and stores its configuration in the local SQ
 
 By default, automatic backups use the timezone detected from the browser when you save the schedule. If you want a fixed server-side timezone for all users, set `AUTO_BACKUP_TIMEZONE`.
 
+Each profile has its own schedule (its own cron expression, enabled state and run history) on its own Automation page, while the timezone setting is global. Profiles never block each other: a run of one profile does not delay or skip the run of another.
+
 ### Advanced schedule
 
 The **Advanced schedule** page (`/automation/tunnels`) lets you control backup scope and per-tunnel frequency:
@@ -284,6 +302,7 @@ Important notes:
 - old backup files and related database records are deleted automatically after new backups are created, according to the retention rule (see below)
 - retention cleanup removes both the JSON snapshot and its related restore history
 - a manual **Back up all now** or **Run now** that is still going after about 25 seconds keeps running on the server and the page says so; reload later to see fresh last-backup times. A restart of the app drops such a run. Only one run per profile happens at a time: a second one is refused (or, for the scheduler, recorded as skipped) while another runs
+- the per-row **Back up** and **Back up with a note** (a single tunnel) do not take that run lock, so pressing one while a run of the same profile is going can save a duplicate snapshot of that tunnel
 - container logs include both Uvicorn access logs and application logs for startup, backup creation, restore, scheduler activity, cleanup, and most UI-triggered operations
 
 ### Retention
@@ -298,6 +317,8 @@ Tikka Masala can send server-side notifications through:
 - Telegram
 
 You can use either channel on its own or enable both at the same time.
+
+Notification destinations belong to a profile. Add, edit, enable, disable and delete them on the **Automation** page of that profile (a webhook URL, or a Telegram bot token and chat ID, and the events to send). URLs and bot tokens are stored encrypted and never shown again, only masked. A new destination sends the default event set unless you choose others: `auto_backup_success`, `auto_backup_partial`, `auto_backup_failed`, `restore_failed` and `retention_cleanup`. An event is delivered only to the destinations of the profile it belongs to. Destinations set through environment variables belong to the Default profile only and are read-only.
 
 Each profile has its own destinations. On **Automation → Notification destinations**, use **Add webhook** or **Add Telegram**, pick the events, and save: the webhook URL or bot token is stored encrypted and never shown again (leave the field empty when editing to keep it). Each destination can be disabled, edited, deleted and tested on its own. A destination only receives the events of its profile.
 
@@ -338,7 +359,7 @@ Webhook notifications send a JSON payload with:
 - event-specific details
 - the profile the event belongs to (`"profile": {"id": …, "name": …}`; retention cleanup of backups no profile covers uses `null` and `Other accounts`)
 
-Telegram notifications send the same information as a formatted plain-text message through the Telegram Bot API. By default Telegram messages are compact (title and message only); toggle **Compact Telegram notifications** off on the **Notification messages** page to also append the structured `key: value` details block (trigger, account_id, tunnel counts, skipped tunnels, etc.). The webhook channel is unaffected either way and always receives the full payload.
+Telegram notifications send the same information as a formatted plain-text message through the Telegram Bot API. By default Telegram messages are compact (title and message only); toggle **Compact Telegram notifications** off on the **Notification messages** page to also append the structured `key: value` details block (trigger, account_id, tunnel counts, skipped tunnels, etc.). The webhook channel is unaffected either way and always receives the full payload, which includes a `profile` field with the profile's `id` and `name` (`id` is `null` and the name is `Other accounts` for backups no profile covers).
 
 When notifications are configured:
 
@@ -399,6 +420,7 @@ In demo mode:
 - nothing is written to SQLite and no encryption key file is created
 - automatic backups are disabled
 - notifications are disabled
+- there is a single profile and no profile switcher; adding, renaming and removing profiles is disabled
 - the backup archive and the Automation section are disabled (`/backups`, `/automation` and `/settings/notifications` send you back to Tunnels)
 
 Only the **Tunnels** and **Settings** sections are available. The per-row **Back up** button downloads a snapshot of the tunnel's JSON without saving it anywhere (no file, no database row, no notification); there is no **Back up all now**.
@@ -467,6 +489,8 @@ Some pages moved. The old addresses answer with a permanent redirect (308, query
 - Requests that change data (any method other than GET, HEAD or OPTIONS) are rejected when the browser marks them as cross-site.
 - When `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are set, every request except `/healthz` must carry a valid Cloudflare Access token. See [Cloudflare Access](#cloudflare-access).
 - Older plaintext tokens already present in the database are upgraded to encrypted form the first time they are read successfully.
+- Webhook URLs and Telegram bot tokens saved as destinations are stored encrypted and shown only masked (the webhook by its host, Telegram by the end of the chat ID).
+- Upgrade note: older versions logged outgoing HTTP requests at INFO through the `httpx` logger, which wrote the Telegram bot token (part of the Bot API URL) to the container logs. The `httpx` logger is now set to WARNING, so new logs no longer contain it. If you shared or kept logs written while Telegram notifications were enabled, rotate the bot token with BotFather.
 
 ## Project Notes
 

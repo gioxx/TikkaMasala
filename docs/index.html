@@ -732,6 +732,7 @@ docker rm -f tikkamasala   <span class="comment"># data stays in ./data</span>
         <a href="#doc-env">Environment variables</a>
         <a href="#doc-running">Running the app</a>
         <a href="#doc-prefill">First run &amp; credentials</a>
+        <a href="#doc-profiles">Profiles</a>
         <a href="#doc-storage">Storage layout</a>
         <a href="#doc-backups">What gets backed up</a>
         <a href="#doc-restore">Restore</a>
@@ -820,6 +821,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
         <p>Precedence is per field: database, then environment. Environment values are shown read-only, with a <strong>Save a different value</strong> option. Every page, the scheduler and restore use these server-side credentials; the browser holds none.</p>
         <div class="callout">Upgrading from a version that kept the token in a browser cookie: the cookie is migrated into the database once and then deleted (with <code>CLOUDFLARE_API_TOKEN</code> set, it is only deleted). If the saved token can't be decrypted (for example <code>encryption.key</code> was removed), the app returns to the setup screen so you can save a new one.</div>
 
+        <h3 id="doc-profiles">Profiles</h3>
+        <p>A profile is one Cloudflare account (Account ID and API token) with its own automatic backup schedule, retention and notification destinations. The first one is named <strong>Default</strong>; <code>CLOUDFLARE_ACCOUNT_ID</code> and <code>CLOUDFLARE_API_TOKEN</code> feed only that one. Add, rename and remove profiles under <strong>Settings &rarr; Profiles</strong>: credentials are checked before a profile is created, names are unique and an Account ID already used by another profile is refused.</p>
+        <p>With two or more profiles a <strong>profile switcher</strong> (dropdown and <strong>Switch</strong> button) appears in the top bar; the choice is kept in a <code>tm_profile</code> cookie in your browser. Tunnels, Hostnames, Backups, Automation and notification destinations all follow the active profile. With one profile there is no switcher.</p>
+        <p>Removing a profile deletes its credentials, schedule, destinations and run history, and keeps its backups unless you tick <strong>Also delete its backups</strong> and confirm the count. Kept backups move to <strong>Other accounts</strong> and fall under the retention for other accounts, so they can be purged the next time a backup is saved. Default cannot be removed.</p>
+
         <h3 id="doc-storage">Storage layout</h3>
         <p>Everything is stored under <code>DATA_DIR</code>, which defaults to <code>/data</code> in the container and typically maps to <code>./data</code> on the host:</p>
         <ul>
@@ -850,7 +856,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
 
         <h3 id="doc-scheduling">Automatic backups</h3>
         <p>The scheduler is built into the app and stores its configuration in the local SQLite database. From the Automation page you can enable or disable automatic backups, set a cron expression, run the job immediately with <strong>Run now</strong>, set the retention, and see the last run, next run, and recent execution history (full history at <code>/automation/runs</code>).</p>
-        <p>By default, automatic backups use the timezone detected from the browser when you save the schedule. Set <code>AUTO_BACKUP_TIMEZONE</code> for a fixed server-side timezone for all users.</p>
+        <p>By default, automatic backups use the timezone detected from the browser when you save the schedule. Set <code>AUTO_BACKUP_TIMEZONE</code> for a fixed server-side timezone for all users. Each profile has its own schedule and run history; the timezone is global, and profiles never block each other.</p>
         <h4>Advanced schedule</h4>
         <p>The <strong>Advanced schedule</strong> page (<code>/automation/tunnels</code>) controls backup scope and per-tunnel frequency.</p>
         <ul>
@@ -858,7 +864,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
           <li><strong>Selected tunnels only</strong>: only the tunnels you explicitly check are included in each run.</li>
         </ul>
         <p>Per-tunnel frequency: <strong>Every run</strong> (default), <strong>Once per week</strong> (skipped if a backup exists within the last 7 days) or <strong>Once per month</strong> (skipped if a backup exists within the last 30 days). This lets you run the scheduler daily while backing up low-priority tunnels only once a week.</p>
-        <div class="callout">Automatic backups require the saved server-side credentials (database, then environment). Automatic and manual backups share the same archive. Old backup files and related database records (including restore history) are deleted automatically after new backups are created, using the retention set per profile on the Automation page (1 to 36500 days; empty means <code>BACKUP_RETENTION_DAYS</code> for Default, otherwise keep forever).</div>
+        <div class="callout">Automatic backups require the saved server-side credentials (database, then environment). Automatic and manual backups share the same archive. A single-tunnel Back up does not take the profile's run lock, so pressing it during a run can save a duplicate snapshot. Old backup files and related database records (including restore history) are deleted automatically after new backups are created, using the retention set per profile on the Automation page (1 to 36500 days; empty means <code>BACKUP_RETENTION_DAYS</code> for Default, otherwise keep forever).</div>
         <h4>Backup archive</h4>
         <p>The <strong>Backups</strong> page lists every saved backup, with <strong>This profile</strong> and <strong>Other accounts</strong> views, tunnel and origin (manual or automatic) filters, a notes column, and archive statistics. <strong>Back up with a note</strong> saves one tunnel with a note of up to 500 characters.</p>
 
@@ -866,8 +872,9 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
         <p>Tikka Masala can send server-side notifications through a generic webhook and/or Telegram. Set <code>NOTIFICATION_WEBHOOK_URL</code> / <code>NOTIFICATION_WEBHOOK_EVENTS</code> and/or <code>TELEGRAM_BOT_TOKEN</code> / <code>TELEGRAM_CHAT_ID</code> / <code>TELEGRAM_NOTIFICATION_EVENTS</code>.</p>
         <p>Supported events: <code>notification_test</code>, <code>manual_backup_success</code>, <code>manual_backup_failed</code>, <code>auto_backup_success</code>, <code>auto_backup_partial</code>, <code>auto_backup_failed</code>, <code>restore_success</code>, <code>restore_failed</code>, <code>retention_cleanup</code>. If a channel's events variable is empty, the default set is enabled: <code>auto_backup_success</code>, <code>auto_backup_partial</code>, <code>auto_backup_failed</code>, <code>restore_failed</code>, <code>retention_cleanup</code>.</p>
         <p>Webhook notifications send a JSON payload with app name and version, event name, message, timestamp, and event-specific details. Telegram sends the same information as a plain-text message, compact by default (title and message only); uncheck <strong>Compact Telegram notifications</strong> on the <strong>Notification messages</strong> page to append the <code>key: value</code> details block. Notification destinations from the environment are shown read-only on the Automation page (the webhook by its host only, Telegram by the end of the chat ID); use <strong>Send test notification</strong> there to verify delivery.</p>
+        <p>Destinations can also be added per profile on the Automation page (a webhook URL, or a Telegram bot token and chat ID, with the events to send). Their secrets are stored encrypted and shown only masked, each has its own <strong>Test</strong> button, and an event goes only to the destinations of its profile. Destinations from the environment belong to Default and are read-only. The webhook payload carries a <code>profile</code> field (<code>id</code> and <code>name</code>).</p>
         <h4>Customizing notification messages</h4>
-        <p>Each event has a built-in default message. Override it from <code>/settings/notifications</code>. Messages support <code>{placeholder}</code> tokens replaced at runtime; <code>{version}</code> and <code>{timestamp}</code> are always available.</p>
+        <p>Each event has a built-in default message. Override it from <code>/settings/notifications</code>. Messages support <code>{placeholder}</code> tokens replaced at runtime; <code>{version}</code>, <code>{timestamp}</code> and <code>{profile}</code> are always available. With more than one profile the built-in default messages start with <code>[profile name]</code>.</p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Event</th><th>Available tokens</th></tr></thead>
@@ -885,7 +892,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
         <p>For <code>auto_backup_*</code> events: <code>{tunnel_count}</code> is every tunnel discovered on the account, <code>{processed_count}</code> is <code>backup_count</code> + <code>error_count</code>, <code>{skipped_count}</code> is tunnels skipped by scheduling rules, and <code>{backed_up_tunnels}</code> / <code>{skipped_tunnels}</code> are comma-separated tunnel name lists (or <code>-</code> if none). Leaving a field empty restores the built-in default; unknown tokens are left as-is.</p>
 
         <h3 id="doc-demo">Demo mode</h3>
-        <p>Set <code>DEMO=true</code> to try the UI without persisting auth data or enabling server-side automation: credentials come only from the environment (no setup screen, Settings is read-only), nothing is written to SQLite and no key file is created, automatic backups, notifications and the backup archive are disabled. Only Tunnels and Settings are available; the per-row Back up button downloads a snapshot of the tunnel's JSON without saving it.</p>
+        <p>Set <code>DEMO=true</code> to try the UI without persisting auth data or enabling server-side automation: credentials come only from the environment (no setup screen, Settings is read-only), nothing is written to SQLite and no key file is created, automatic backups, notifications and the backup archive are disabled, and there is a single profile with no switcher. Only Tunnels and Settings are available; the per-row Back up button downloads a snapshot of the tunnel's JSON without saving it.</p>
 
         <h3 id="doc-security">Security</h3>
         <ul>
@@ -893,6 +900,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
           <li>The key comes from <code>TOKEN_ENCRYPTION_KEY</code> or from <code>DATA_DIR/encryption.key</code> (mode <code>0600</code>, never overwritten).</li>
           <li>Credentials are validated against Cloudflare before saving.</li>
           <li>Plaintext tokens saved by older versions are upgraded to encrypted form the first time they are read.</li>
+          <li>Notification webhook URLs and Telegram bot tokens are stored encrypted and shown only masked. Older versions could write the Telegram bot token to the container logs at INFO level (the <code>httpx</code> logger, now set to WARNING): rotate the bot token if such logs were shared.</li>
         </ul>
         <div class="callout">The web UI has no built-in authentication, and it can restore tunnel configurations with your token. Keep port 8080 on a trusted network, or put it behind a reverse proxy with authentication (Cloudflare Access works well).</div>
 
