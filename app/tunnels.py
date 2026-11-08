@@ -20,7 +20,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 
-from app.backups import count_backups_for_account, get_backup_retention_status
+from app.backups import count_backups_for_account, create_backup, get_backup_retention_status
 from app.cloudflare import list_tunnels
 from app.config import DEMO_MODE
 from app.credentials import (
@@ -29,8 +29,11 @@ from app.credentials import (
     ApiCredentials,
     get_api_credentials,
     get_saved_account_id,
+    require_api_credentials,
 )
+from app.db import BackupRecord
 from app.ingress_overview import IngressOverview, build_overview, snapshot_overview
+from app.notifications import queue_notification, render_notification_message
 from app.scheduler import build_auto_backup_status, get_auto_backup_timezone
 
 logger = logging.getLogger(__name__)
@@ -39,7 +42,7 @@ TUNNEL_LIST_TTL_SECONDS = 30.0
 HOME_TUNNEL_LIST_TIMEOUT_SECONDS = 8.0
 KNOWN_STATUSES = ("healthy", "degraded", "down", "inactive")
 UNHEALTHY_STATUSES = ("degraded", "down")
-TUNNEL_ID_PATTERN = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+TUNNEL_ID_PATTERN = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\Z")
 
 # (account_id.lower(), sha256(token)) -> (stored at, monotonic seconds; tunnel list)
 _tunnel_list_cache: dict[tuple[str, str], tuple[float, list[dict[str, Any]]]] = {}
@@ -71,6 +74,11 @@ async def fetch_tunnel_list(creds: ApiCredentials, *, fresh: bool = False) -> li
         ) from exc
     _tunnel_list_cache[key] = (time.monotonic(), result)
     return result
+
+
+def is_valid_tunnel_id(value: str) -> bool:
+    """True for a UUID-shaped tunnel ID; the whole string must match (no trailing newline)."""
+    return TUNNEL_ID_PATTERN.fullmatch(value) is not None
 
 
 def clear_tunnel_list_cache() -> None:
@@ -290,4 +298,121 @@ async def build_tunnels_home(profile_id: int, *, fresh: bool = False) -> Tunnels
         rows=rows,
         list_error=list_error,
         credentials_message=credentials_message,
+    )
+
+
+# --- Manual backups from the Tunnels home ----------------------------------
+
+
+async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str) -> BackupRecord:
+    """Back up one tunnel now and queue the matching manual backup notification.
+
+    Re-raises the ``HTTPException`` of a failed backup after queuing ``manual_backup_failed``.
+    """
+    account_id = creds.account_id
+    logger.info("Manual backup requested (account_id=%s, tunnel_id=%s).", account_id, tunnel_id)
+    try:
+        backup = await create_backup(account_id, tunnel_id, creds.api_token, None)
+    except HTTPException as exc:
+        logger.warning("Manual backup failed (tunnel_id=%s): %s", tunnel_id, exc.detail)
+        failed_details = {"account_id": account_id, "tunnel_id": tunnel_id, "error": str(exc.detail)}
+        queue_notification(
+            "manual_backup_failed",
+            render_notification_message("manual_backup_failed", failed_details),
+            failed_details,
+            level="warning",
+        )
+        raise
+    logger.info(
+        "Manual backup created successfully (backup_id=%s, account_id=%s, tunnel_id=%s, tunnel_name=%s).",
+        backup.id,
+        account_id,
+        tunnel_id,
+        backup.tunnel_name,
+    )
+    success_details = {
+        "backup_id": backup.id,
+        "account_id": account_id,
+        "tunnel_id": tunnel_id,
+        "tunnel_name": backup.tunnel_name,
+        "route_count": backup.route_count,
+    }
+    queue_notification(
+        "manual_backup_success",
+        render_notification_message("manual_backup_success", success_details),
+        success_details,
+        level="info",
+    )
+    return backup
+
+
+def backup_saved_feedback(backup: BackupRecord) -> RowFeedback:
+    return RowFeedback(ok=True, message=f"Backup #{backup.id} saved.", backup_id=backup.id)
+
+
+@dataclass(frozen=True)
+class BulkOutcome:
+    tone: str  # "success" | "error" | "muted"
+    message: str
+    feedback: dict[str, RowFeedback]
+
+
+_bulk_locks: dict[int, asyncio.Lock] = {}
+
+
+def _bulk_lock(profile_id: int) -> asyncio.Lock:
+    """One lock per profile, so a second "Back up all now" is refused while one runs."""
+    lock = _bulk_locks.get(profile_id)
+    if lock is None:
+        lock = _bulk_locks[profile_id] = asyncio.Lock()
+    return lock
+
+
+async def back_up_all_tunnels(profile_id: int) -> BulkOutcome:
+    """Back up every tunnel of a fresh list, one at a time, ignoring the Automation filters.
+
+    Manual origin, no ``scheduled_runs`` row; one manual backup notification per tunnel.
+    """
+    lock = _bulk_lock(profile_id)
+    if lock.locked():
+        return BulkOutcome("error", "Back up all is already running.", {})
+    async with lock:
+        try:
+            creds = require_api_credentials(profile_id)
+        except HTTPException as exc:
+            return BulkOutcome("error", str(exc.detail), {})
+        try:
+            raw_list = await fetch_tunnel_list(creds, fresh=True)
+        except HTTPException as exc:
+            return BulkOutcome("error", f"Could not list tunnels: {exc.detail}", {})
+        except Exception:
+            logger.exception("Unexpected error while listing tunnels (account_id=%s).", creds.account_id)
+            return BulkOutcome("error", "Could not list tunnels: unexpected error.", {})
+        # The list may be the cached object itself: read it, never change it.
+        targets = [
+            (str(tunnel["id"]), str(tunnel.get("name") or "Unknown tunnel"))
+            for tunnel in raw_list
+            if isinstance(tunnel, dict) and tunnel.get("id")
+        ]
+        if not targets:
+            return BulkOutcome("muted", "No tunnels to back up.", {})
+
+        feedback: dict[str, RowFeedback] = {}
+        failures: list[str] = []
+        for tunnel_id, name in targets:
+            try:
+                backup = await back_up_tunnel(creds, tunnel_id)
+            except HTTPException as exc:
+                feedback[tunnel_id] = RowFeedback(ok=False, message=str(exc.detail))
+                failures.append(f"{name} ({exc.detail})")
+            else:
+                feedback[tunnel_id] = backup_saved_feedback(backup)
+
+    total = len(targets)
+    if not failures:
+        message = "Backed up 1 tunnel." if total == 1 else f"Backed up all {total} tunnels."
+        return BulkOutcome("success", message, feedback)
+    done = total - len(failures)
+    return BulkOutcome(
+        "error", f"Backed up {done} of {total} tunnels. Failed: {'; '.join(failures)}.", feedback
     )

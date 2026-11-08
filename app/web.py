@@ -140,6 +140,7 @@ def render_tunnels_page(
             "home": home,
             "feedback": feedback or {},
             "notice": notice,
+            "live_oob": partial,
             "demo_mode": DEMO_MODE,
             "demo_no_credentials_message": DEMO_NO_CREDENTIALS_MESSAGE,
         },

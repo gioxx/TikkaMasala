@@ -12,5 +12,7 @@
       </section>
       {% endif %}
 
+      {#- Persistent live region outside #tunnels-home: htmx actions fill it out of band, so screen readers announce the outcome. -#}
+      <div id="tunnels-live" class="sr-only" role="status" aria-live="polite"></div>
 {% include "partials/tunnels_home.html" %}
 {% endblock %}

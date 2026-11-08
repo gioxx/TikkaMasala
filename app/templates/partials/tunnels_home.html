@@ -114,3 +114,9 @@
           {% endif %}
         </section>
       </div>
+{%- if live_oob %}
+      <div id="tunnels-live" hx-swap-oob="innerHTML">
+        {%- if notice %}{{ notice[1] }}{% endif -%}
+        {%- for row in home.rows if feedback.get(row.tunnel_id) and not notice %}{{ " " if not loop.first }}{{ row.name }}: {{ feedback[row.tunnel_id].message }}{% endfor -%}
+      </div>
+{%- endif %}
