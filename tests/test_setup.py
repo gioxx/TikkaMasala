@@ -250,6 +250,62 @@ def test_cookie_never_logged(client, caplog):
     assert "cookie-tok-123456" not in caplog.text
 
 
+def _assert_cookie_kept(response) -> None:
+    assert "cf_api_token" not in response.headers.get("set-cookie", "")
+
+
+def test_cookie_kept_when_migration_fails_then_retried(client, monkeypatch, caplog):
+    """A broken key must not cost the browser its only copy of the token."""
+    caplog.set_level(logging.DEBUG)
+    update_profile(DEFAULT_PROFILE_ID, account_id=GOOD)
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", "not-a-fernet-key")
+    client.cookies.set("cf_api_token", "cookie-tok-123456")
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 303
+    assert get_profile(DEFAULT_PROFILE_ID).api_token is None
+    _assert_cookie_kept(response)
+    assert "cookie-tok-123456" not in caplog.text
+
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", "")
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 200
+    assert _stored_token() == "cookie-tok-123456"
+    _assert_cookie_deleted(response)
+
+
+def test_cookie_kept_when_key_file_unusable(client, monkeypatch, tmp_path: Path):
+    key_dir = tmp_path / "key-is-a-dir"
+    key_dir.mkdir()
+    monkeypatch.setattr(encryption, "ENCRYPTION_KEY_FILE", key_dir)
+    client.cookies.set("cf_api_token", "cookie-tok-123456")
+    response = client.get("/", follow_redirects=False)
+    assert get_profile(DEFAULT_PROFILE_ID).api_token is None
+    _assert_cookie_kept(response)
+
+
+def test_cookie_deleted_when_migration_fails_but_env_token_exists(client, monkeypatch):
+    monkeypatch.setattr(credentials, "DEFAULT_ACCOUNT_ID", GOOD)
+    monkeypatch.setattr(credentials, "DEFAULT_API_TOKEN", "env-tok-123456")
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", "not-a-fernet-key")
+    client.cookies.set("cf_api_token", "cookie-tok-123456")
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 200
+    assert get_profile(DEFAULT_PROFILE_ID).api_token is None
+    _assert_cookie_deleted(response)
+
+
+def test_settle_cookie_token_unit(monkeypatch):
+    update_profile(DEFAULT_PROFILE_ID, account_id=GOOD)
+    assert setup.settle_cookie_token("  ") is True
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", "not-a-fernet-key")
+    assert setup.settle_cookie_token("cookie-tok-123456") is False
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", "")
+    assert setup.settle_cookie_token("cookie-tok-123456") is True
+    # A readable saved token already exists: nothing is lost by dropping another cookie.
+    assert setup.settle_cookie_token("second-tok-123456") is True
+    assert _stored_token() == "cookie-tok-123456"
+
+
 def test_migrate_cookie_token_unit():
     update_profile(DEFAULT_PROFILE_ID, account_id=GOOD)
     assert setup.migrate_cookie_token("  ") is False

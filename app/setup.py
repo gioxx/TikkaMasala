@@ -58,6 +58,26 @@ def migrate_cookie_token(token: str) -> bool:
     return True
 
 
+def _default_has_usable_token() -> bool:
+    """Whether the Default profile already has a token besides the cookie (env or readable DB copy)."""
+    return bool(credentials._env_api_token(DEFAULT_PROFILE_ID) or credentials._read_stored_api_token(DEFAULT_PROFILE_ID))
+
+
+def settle_cookie_token(token: str) -> bool:
+    """Try to migrate the legacy cookie token; return whether the cookie can now be deleted.
+
+    The cookie is only dropped when it is no longer the sole copy of the token: it was
+    migrated, another usable token exists for Default, demo mode ignores it, or it is empty.
+    When migration fails (e.g. a broken encryption key) the cookie is kept so a later
+    request retries once the key is fixed.
+    """
+    if migrate_cookie_token(token):
+        return True
+    if DEMO_MODE or not (token or "").strip():
+        return True
+    return _default_has_usable_token()
+
+
 def _is_exempt(path: str) -> bool:
     return path in GATE_EXEMPT_PATHS or path.startswith(GATE_EXEMPT_PREFIXES)
 
@@ -73,13 +93,12 @@ async def credentials_guard(request: Request, call_next: Callable[[Request], Awa
     if _is_exempt(request.url.path):
         return await call_next(request)
     cookie_token = request.cookies.get(API_TOKEN_COOKIE_NAME)
-    if cookie_token is not None:
-        migrate_cookie_token(cookie_token)
+    drop_cookie = cookie_token is not None and settle_cookie_token(cookie_token)
     if setup_required():
         response = _setup_redirect(request)
     else:
         response = await call_next(request)
-    if cookie_token is not None:
+    if drop_cookie:
         response.delete_cookie(API_TOKEN_COOKIE_NAME, samesite="lax")
     return response
 

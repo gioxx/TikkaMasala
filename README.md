@@ -178,7 +178,7 @@ Precedence is per field: the saved database value first, then the environment. I
 
 Every page, the scheduler and restore use these saved server-side credentials; no credentials live in the browser. Restoring a backup uses the credentials of the profile that owns the backup's account.
 
-Upgrading from a version that kept the token in a browser cookie: the first request that still carries the cookie saves the token into the database (when none is saved yet) and then deletes the cookie. Nothing needs to be re-entered. When `CLOUDFLARE_API_TOKEN` is set, the cookie is only deleted: the environment token keeps being used.
+Upgrading from a version that kept the token in a browser cookie: the first request that still carries the cookie saves the token into the database (when none is saved yet) and then deletes the cookie. Nothing needs to be re-entered. When `CLOUDFLARE_API_TOKEN` is set, the cookie is only deleted: the environment token keeps being used. If the token cannot be saved (for example the encryption key is invalid or its file cannot be written), the cookie is kept and the migration is retried on a later request once the key is fixed.
 
 If the saved token cannot be decrypted (for example `encryption.key` was removed), the app sends you back to the setup screen, which explains it; saving a new token replaces the unreadable one.
 
@@ -404,7 +404,7 @@ To roll back:
 
 Credentials and the encryption key:
 
-- a token still held in the old browser cookie is migrated into the database once, then the cookie is deleted (with `CLOUDFLARE_API_TOKEN` set, nothing is migrated and the cookie is just deleted)
+- a token still held in the old browser cookie is migrated into the database once, then the cookie is deleted (with `CLOUDFLARE_API_TOKEN` set, nothing is migrated and the cookie is just deleted; if saving fails, the cookie is kept and the migration retried later)
 - if `TOKEN_ENCRYPTION_KEY` is unset, a key is generated as `DATA_DIR/encryption.key` the first time one is needed; an existing `TOKEN_ENCRYPTION_KEY` keeps working unchanged
 - before downgrading to an older version, set `TOKEN_ENCRYPTION_KEY` to the content of `encryption.key`; otherwise the older version cannot read the saved token
 
