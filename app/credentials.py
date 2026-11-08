@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from fastapi import HTTPException
 
@@ -104,7 +104,7 @@ def clear_saved_credentials(profile_id: int) -> None:
 @dataclass(frozen=True)
 class ApiCredentials:
     account_id: str
-    api_token: str
+    api_token: str = field(repr=False)
 
 
 def get_api_credentials(profile_id: int) -> ApiCredentials | None:

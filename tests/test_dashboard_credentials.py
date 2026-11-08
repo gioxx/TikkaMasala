@@ -132,3 +132,15 @@ def test_ingress_live_uses_saved_credentials(client, configured_default, monkeyp
     response = client.get("/ingress?source=live")
     assert response.status_code == 200
     assert calls == [(configured_default.account_id, "test-token-0000-wxyz")]
+
+
+def test_api_credentials_repr_hides_token():
+    creds = credentials.ApiCredentials(account_id=GOOD, api_token="secret-tok-123456")
+    assert "secret-tok-123456" not in repr(creds)
+    assert GOOD in repr(creds)
+
+
+def test_dashboard_never_renders_token(client, configured_default):
+    text = client.get("/").text
+    assert configured_default.account_id in text
+    assert configured_default.api_token not in text

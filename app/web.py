@@ -112,7 +112,7 @@ def render_index_page(
             "database_stats": get_database_stats(),
             "backup_retention": get_backup_retention_status(profile_id),
             "tunnels": tunnels,
-            "credentials": credentials,
+            "credentials_account_id": credentials.account_id if credentials is not None else None,
             "demo_missing_credentials": DEMO_MODE and credentials is None,
             "demo_no_credentials_message": DEMO_NO_CREDENTIALS_MESSAGE,
             "auto_backup": build_auto_backup_status(profile_id),

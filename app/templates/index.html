@@ -42,8 +42,8 @@
               <span>How to use Tikka Masala</span>
             </h2>
             <p class="hint">Use this section when you need the setup steps.</p>
-            {% if credentials %}
-            <p class="hint">Connected to account <code>{{ credentials.account_id }}</code>. Manage credentials in <a href="/settings">Settings</a>.</p>
+            {% if credentials_account_id %}
+            <p class="hint">Connected to account <code>{{ credentials_account_id }}</code>. Manage credentials in <a href="/settings">Settings</a>.</p>
             {% elif not demo_mode %}
             <p class="hint">No credentials configured. Add them in <a href="/settings">Settings</a>.</p>
             {% endif %}
@@ -158,9 +158,9 @@
                     >
                       Use
                     </button>
-                    {% if credentials %}
+                    {% if credentials_account_id %}
                     <a
-                      href="https://dash.cloudflare.com/{{ credentials.account_id }}/tunnels/{{ tunnel.id }}/overview"
+                      href="https://dash.cloudflare.com/{{ credentials_account_id }}/tunnels/{{ tunnel.id }}/overview"
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label="Open Cloudflare admin page for tunnel {{ tunnel.name or tunnel.id }}"
@@ -175,15 +175,15 @@
             </tbody>
           </table>
         </div>
-        {% if credentials %}
+        {% if credentials_account_id %}
         <div class="inline-actions top-gap">
           <a
-            href="https://dash.cloudflare.com/{{ credentials.account_id }}/one/access-controls/apps"
+            href="https://dash.cloudflare.com/{{ credentials_account_id }}/one/access-controls/apps"
             target="_blank"
             rel="noopener noreferrer"
           >Access Controls: Applications</a>
           <a
-            href="https://dash.cloudflare.com/{{ credentials.account_id }}/one/access-controls/policies"
+            href="https://dash.cloudflare.com/{{ credentials_account_id }}/one/access-controls/policies"
             target="_blank"
             rel="noopener noreferrer"
           >Access Controls: Policies</a>
