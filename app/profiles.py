@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import unicodedata
 from collections.abc import Awaitable, Callable
 from contextlib import closing
 from datetime import datetime, timezone
@@ -18,13 +19,19 @@ from app.migrations import DEFAULT_PROFILE_ID
 __all__ = [
     "ACTIVE_PROFILE_COOKIE",
     "ACTIVE_PROFILE_MAX_AGE",
+    "DEFAULT_NOT_REMOVABLE",
     "DEFAULT_PROFILE_ID",
+    "PROFILE_NAME_MAX",
+    "RESERVED_PROFILE_NAMES",
     "create_profile",
     "current_profile_id",
+    "delete_profile_rows",
     "get_profile",
     "list_profiles",
+    "normalize_profile_name",
     "parse_profile_id",
     "profile_exists",
+    "rename_profile",
     "set_active_profile_cookie",
     "stale_profile_cookie_guard",
     "switch_destination",
@@ -81,9 +88,12 @@ def get_profile(profile_id: int) -> ProfileRecord:
     return _to_record(row)
 
 
-def list_profiles() -> list[ProfileRecord]:
-    with closing(db()) as conn:
-        rows = conn.execute(f"{_SELECT} ORDER BY id").fetchall()
+def list_profiles(conn: sqlite3.Connection | None = None) -> list[ProfileRecord]:
+    """Every profile in id order; reads through ``conn`` when given (e.g. inside a transaction)."""
+    if conn is not None:
+        return [_to_record(row) for row in conn.execute(f"{_SELECT} ORDER BY id").fetchall()]
+    with closing(db()) as own:
+        rows = own.execute(f"{_SELECT} ORDER BY id").fetchall()
     return [_to_record(row) for row in rows]
 
 
@@ -109,15 +119,84 @@ def update_profile(profile_id: int, **fields: Any) -> None:
         raise LookupError(f"Profile {profile_id} does not exist.")
 
 
-def create_profile(name: str) -> ProfileRecord:
+def create_profile(
+    name: str, *, account_id: str | None = None, api_token: str | None = None
+) -> ProfileRecord:
+    """Insert a profile. ``api_token`` is stored as given: the caller encrypts it first."""
     with closing(db()) as conn:
         cursor = conn.execute(
-            "INSERT INTO profiles (name, created_at) VALUES (?, ?)",
-            (name, datetime.now(timezone.utc).isoformat()),
+            "INSERT INTO profiles (name, account_id, api_token, created_at) VALUES (?, ?, ?, ?)",
+            (name, account_id, api_token, datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()
         profile_id = int(cursor.lastrowid)
     return get_profile(profile_id)
+
+
+PROFILE_NAME_MAX = 40
+# "Other accounts" names the Backups tab of backups no profile covers.
+RESERVED_PROFILE_NAMES = frozenset({"other accounts"})
+# Bidirectional formatting characters: they can make a name read differently from what it is.
+_BIDI_CONTROLS = frozenset("\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069")
+
+
+def _is_control_character(ch: str) -> bool:
+    return unicodedata.category(ch) in {"Cc", "Zl", "Zp"} or ch in _BIDI_CONTROLS
+
+
+def normalize_profile_name(raw: str, *, exclude_id: int | None = None) -> str:
+    """A profile name as stored: stripped and checked. Raises ``ValueError`` with a user-facing message."""
+    name = (raw or "").strip()
+    if not name:
+        raise ValueError("Enter a profile name.")
+    if len(name) > PROFILE_NAME_MAX:
+        raise ValueError(f"Profile names can be at most {PROFILE_NAME_MAX} characters.")
+    if any(_is_control_character(ch) for ch in name):
+        raise ValueError("Profile names cannot contain control characters.")
+    folded = name.casefold()
+    if folded in RESERVED_PROFILE_NAMES:
+        raise ValueError("That name is reserved.")
+    for profile in list_profiles():
+        if profile.id != exclude_id and profile.name.casefold() == folded:
+            raise ValueError(f"A profile named '{profile.name}' already exists.")
+    return name
+
+
+def rename_profile(profile_id: int, name: str) -> ProfileRecord:
+    """Give a profile a new name (checked like a new one). ``LookupError`` when the profile is missing."""
+    get_profile(profile_id)
+    update_profile(profile_id, name=normalize_profile_name(name, exclude_id=profile_id))
+    return get_profile(profile_id)
+
+
+DEFAULT_NOT_REMOVABLE = "The first profile cannot be removed: environment variables and setup belong to it."
+
+
+def delete_profile_rows_in(conn: sqlite3.Connection, profile_id: int) -> None:
+    """Delete a profile's destinations, run history and row through ``conn``; the caller commits.
+
+    ``ValueError(DEFAULT_NOT_REMOVABLE)`` for Default, ``LookupError`` when the profile is missing.
+    """
+    if profile_id == DEFAULT_PROFILE_ID:
+        raise ValueError(DEFAULT_NOT_REMOVABLE)
+    conn.execute("DELETE FROM notification_destinations WHERE profile_id = ?", (profile_id,))
+    conn.execute("DELETE FROM scheduled_runs WHERE profile_id = ?", (profile_id,))
+    cursor = conn.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
+    if cursor.rowcount == 0:
+        raise LookupError(f"Profile {profile_id} does not exist.")
+
+
+def delete_profile_rows(profile_id: int) -> None:
+    """Delete a profile with its destinations and run history, in one transaction."""
+    if profile_id == DEFAULT_PROFILE_ID:
+        raise ValueError(DEFAULT_NOT_REMOVABLE)
+    with closing(db()) as conn:
+        try:
+            delete_profile_rows_in(conn, profile_id)
+        except BaseException:
+            conn.rollback()
+            raise
+        conn.commit()
 
 
 def profile_exists(profile_id: int) -> bool:

@@ -298,6 +298,46 @@ def count_backups_for_account(account_id: str) -> int:
     return int(row[0])
 
 
+def delete_backup_rows_for_account_in(conn, account_id: str) -> list[str]:
+    """Delete the ``backups`` and ``restores`` rows of one account through ``conn`` (the caller commits).
+
+    The Account ID is compared case-insensitively. Returns the filenames of the deleted backups, so
+    the caller removes the files once the transaction has committed.
+    """
+    rows = conn.execute(
+        "SELECT id, filename FROM backups WHERE lower(account_id) = lower(?) ORDER BY id",
+        (account_id,),
+    ).fetchall()
+    for row in rows:
+        conn.execute("DELETE FROM restores WHERE backup_id = ?", (int(row["id"]),))
+        conn.execute("DELETE FROM backups WHERE id = ?", (int(row["id"]),))
+    return [str(row["filename"]) for row in rows]
+
+
+def remove_backup_files(filenames: list[str]) -> None:
+    """Unlink backup JSON files; a missing file is fine, any other error is logged and skipped."""
+    for filename in filenames:
+        file_path = BACKUP_DIR / filename
+        try:
+            file_path.unlink(missing_ok=True)
+        except OSError:
+            logger.exception("Failed to remove backup file: %s", file_path)
+
+
+def delete_backups_for_account(account_id: str) -> int:
+    """Delete every backup of one account (rows in one transaction, then files). Returns the row count."""
+    with closing(db()) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            filenames = delete_backup_rows_for_account_in(conn, account_id)
+        except BaseException:
+            conn.rollback()
+            raise
+        conn.commit()
+    remove_backup_files(filenames)
+    return len(filenames)
+
+
 def get_database_stats() -> dict[str, Any]:
     with closing(db()) as conn:
         backup_stats = conn.execute(

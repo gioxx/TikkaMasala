@@ -17,7 +17,14 @@ from app.config import (
 )
 from app.db import ProfileRecord
 from app.encryption import EncryptionKeyError, encrypt_secret, read_secret
-from app.profiles import DEFAULT_PROFILE_ID, get_profile, list_profiles, update_profile
+from app.profiles import (
+    DEFAULT_PROFILE_ID,
+    create_profile,
+    get_profile,
+    list_profiles,
+    normalize_profile_name,
+    update_profile,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +190,7 @@ def describe_profile_credentials(profile_id: int) -> ProfileCredentialsView:
     )
 
 
-def _effective_account_id_of(profile: ProfileRecord) -> str:
+def effective_account_id_of(profile: ProfileRecord) -> str:
     """Same precedence as ``get_saved_account_id``, from an already loaded row."""
     if DEMO_MODE:
         return _env_account_id(profile.id)
@@ -196,9 +203,19 @@ def find_profile_for_account(account_id: str) -> int | None:
     if not target:
         return None
     for profile in list_profiles():
-        if _effective_account_id_of(profile).casefold() == target:
+        if effective_account_id_of(profile).casefold() == target:
             return profile.id
     return None
+
+
+def ensure_account_unused(account_id: str, *, exclude_profile_id: int | None) -> None:
+    """``CredentialsInvalid`` when another profile's effective Account ID matches (case-insensitive)."""
+    target = account_id.strip().casefold()
+    if not target:
+        return
+    for other in list_profiles():
+        if other.id != exclude_profile_id and effective_account_id_of(other).casefold() == target:
+            raise CredentialsInvalid(f"Account ID {account_id} is already used by profile '{other.name}'.")
 
 
 async def save_profile_credentials(
@@ -228,12 +245,7 @@ async def save_profile_credentials(
     if not resulting_account or not resulting_token:
         raise CredentialsInvalid("Both an Account ID and an API token are required.")
 
-    target = resulting_account.casefold()
-    for other in list_profiles():
-        if other.id != profile_id and _effective_account_id_of(other).casefold() == target:
-            raise CredentialsInvalid(
-                f"Account ID {resulting_account} is already used by profile '{other.name}'."
-            )
+    ensure_account_unused(resulting_account, exclude_profile_id=profile_id)
 
     await cloudflare.check_credentials(resulting_account, resulting_token)
 
@@ -248,6 +260,41 @@ async def save_profile_credentials(
     update_profile(profile_id, **fields)
     logger.info("Credentials of profile %s saved (account_id=%s).", profile_id, resulting_account)
     return True
+
+
+async def create_profile_with_credentials(name: str, account_id: str, api_token: str) -> ProfileRecord:
+    """Add a profile with working credentials. Everything is checked before the row is inserted.
+
+    Raises ``CredentialsInvalid`` with a user-facing message. The new profile starts with
+    automatic backups off.
+    """
+    if DEMO_MODE:
+        raise CredentialsInvalid("Profiles cannot be added in demo mode.")
+    try:
+        normalized_name = normalize_profile_name(name)
+    except ValueError as exc:
+        raise CredentialsInvalid(str(exc)) from exc
+    account = (account_id or "").strip()
+    token = (api_token or "").strip()
+    if not account or not token:
+        raise CredentialsInvalid("Both an Account ID and an API token are required.")
+    ensure_account_unused(account, exclude_profile_id=None)
+
+    await cloudflare.check_credentials(account, token)
+
+    # The Cloudflare check awaited: another request may have taken the name or the account meanwhile.
+    try:
+        normalized_name = normalize_profile_name(normalized_name)
+    except ValueError as exc:
+        raise CredentialsInvalid(str(exc)) from exc
+    ensure_account_unused(account, exclude_profile_id=None)
+    try:
+        encrypted = encrypt_secret(token)
+    except EncryptionKeyError as exc:
+        raise CredentialsInvalid(f"The API token cannot be saved: {exc}") from exc
+    profile = create_profile(normalized_name, account_id=account, api_token=encrypted)
+    logger.info("Profile %s created (account_id=%s).", profile.id, account)
+    return profile
 
 
 @dataclass(frozen=True)
