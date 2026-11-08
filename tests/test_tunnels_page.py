@@ -213,6 +213,12 @@ def test_css_phone_layout(client):
     block = _media_block(css, "max-width: 640px")
     assert re.search(r"\.tiles\s*\{[^}]*repeat\(2", block)
     assert ".tunnel-table .col-hostnames" in block
+    # Status words and column headers are hidden visually only, never removed (WCAG 1.4.1).
+    for rule in re.findall(r"([^{}]+)\{([^}]*)\}", block):
+        selectors, body = rule
+        if ".status-label" in selectors or "thead" in selectors:
+            assert "display: none" not in body, selectors
+    assert re.search(r"\.tunnel-table \.status-label\s*\{[^}]*clip: rect\(0 0 0 0\)", block)
     # The phone layout has its own breakpoint, not the nav collapse.
     assert ".tunnel-table" not in _media_block(css, "max-width: 960px")
 
