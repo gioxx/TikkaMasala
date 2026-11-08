@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Form, HTTPException, Query, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 
 from app.backups import create_backup
 from app.cloudflare import list_tunnels
-from app.config import BACKUP_DIR, BACKUPS_PAGE_SIZE, DEMO_MODE
+from app.config import BACKUP_DIR, DEMO_MODE
 from app.credentials import require_api_credentials
 from app.notifications import queue_notification, render_notification_message
 from app.profiles import current_profile_id
@@ -23,8 +23,6 @@ router = APIRouter()
 @router.get("/", response_class=HTMLResponse)
 async def index(
     request: Request,
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=BACKUPS_PAGE_SIZE),
     message: str | None = None,
     error: str | None = None,
     success_target: str | None = "tunnels",
@@ -34,8 +32,6 @@ async def index(
         message=message,
         error=error,
         success_target=success_target,
-        backup_page=page,
-        backup_page_size=page_size,
     )
 
 

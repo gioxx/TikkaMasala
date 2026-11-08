@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Backups - Tikka Masala{% endblock %}
+{% block main_class %}container{% endblock %}
+
+{% block nav_links %}
+            <a href="#saved-backups-section">Saved backups</a>
+            <a href="/automation">Automation</a>
+            <a href="/settings">Settings</a>
+{% endblock %}
+
+{% block content %}
+      {% if not demo_mode %}
+      <section class="card" id="saved-backups-section">
+        <div class="section-heading">
+          <h2 class="heading-with-icon">
+            <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v3h-18z" />
+              <path d="M4 10v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-8" />
+              <path d="M10 12l4 0" />
+            </svg>
+            <span>Saved backups</span>
+          </h2>
+          <p class="hint">Browse the local archive of saved tunnel snapshots, review database statistics, and manage how much backup history Tikka Masala keeps over time.</p>
+        </div>
+        <div class="saved-backups-overview">
+          <section class="saved-backups-panel">
+            <h3>Archive statistics</h3>
+            <dl class="status-grid archive-stats-grid">
+              <div>
+                <dt>Unique tunnels</dt>
+                <dd>{{ database_stats.tunnel_count }}</dd>
+              </div>
+              <div>
+                <dt>Routes archived</dt>
+                <dd>{{ database_stats.route_total }}</dd>
+              </div>
+              <div>
+                <dt>Restores</dt>
+                <dd>{{ database_stats.restore_count }}</dd>
+              </div>
+              <div>
+                <dt>Scheduled runs</dt>
+                <dd>{{ database_stats.scheduled_run_count }}</dd>
+              </div>
+              <div class="archive-stats-wide">
+                <dt>Oldest backup</dt>
+                <dd>{{ database_stats.oldest_backup_at or 'None yet' }}</dd>
+              </div>
+              <div class="archive-stats-wide archive-stats-latest">
+                <dt>Latest backup</dt>
+                <dd>{{ database_stats.latest_backup_at or 'None yet' }}</dd>
+              </div>
+            </dl>
+          </section>
+          <section class="saved-backups-panel" id="backup-retention-status">
+            <div class="panel-heading-inline">
+              <h3>Archive retention</h3>
+              {% if backup_retention.enabled %}
+              <span class="status-pill status-alt status-pill-compact">{{ backup_retention.days }} day(s)</span>
+              {% else %}
+              <span class="status-pill status-match status-pill-compact">Keep all backups</span>
+              {% endif %}
+            </div>
+            <dl class="status-grid archive-stats-grid">
+              <div>
+                <dt>Backups kept</dt>
+                <dd>{{ database_stats.backup_count }}</dd>
+              </div>
+              <div>
+                <dt>Backup storage</dt>
+                <dd>{{ database_stats.backup_storage_size }}</dd>
+              </div>
+              <div>
+                <dt>Database size</dt>
+                <dd>{{ database_stats.database_size }}</dd>
+              </div>
+            </dl>
+            <p class="hint">{{ backup_retention.summary }}</p>
+            <p class="hint">{{ backup_retention.detail }}</p>
+          </section>
+        </div>
+        {% if backups %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Created</th>
+                <th>Tunnel</th>
+                <th>Routes</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for backup in backups %}
+              <tr>
+                <td data-label="ID">#{{ backup.id }}</td>
+                <td data-label="Created">{{ backup.created_at }}</td>
+                <td data-label="Tunnel">
+                  <div>{{ backup.tunnel_name or 'Unknown tunnel' }}</div>
+                  <small><code>{{ backup.tunnel_id }}</code></small>
+                </td>
+                <td data-label="Routes">{{ backup.route_count }}</td>
+                <td data-label="Actions">
+                  <div class="inline-actions">
+                    <a href="/backup/{{ backup.id }}">View</a>
+                    <a href="/backup/{{ backup.id }}/download">Download</a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination-bar">
+          <div class="pagination-summary">
+            Showing {{ backup_pagination.start_index }}-{{ backup_pagination.end_index }} of {{ backup_pagination.total_count }} backup(s)
+          </div>
+          <form method="get" action="/backups" class="page-size-form">
+            <input type="hidden" name="page" value="1">
+            <label class="page-size-label">
+              <span>Per page</span>
+              <select name="page_size" onchange="this.form.submit()">
+                {% for option in backup_page_size_options %}
+                <option value="{{ option }}" {% if backup_pagination.page_size == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </form>
+          {% if backup_pagination.total_pages > 1 %}
+          <div class="pagination-actions">
+            {% if backup_pagination.has_previous %}
+            <a href="/backups?page={{ backup_pagination.previous_page }}&page_size={{ backup_pagination.page_size }}#saved-backups-section" class="secondary-link-button">Previous</a>
+            {% else %}
+            <span class="secondary-link-button is-disabled" aria-disabled="true">Previous</span>
+            {% endif %}
+
+            <span class="pagination-current">Page {{ backup_pagination.current_page }} of {{ backup_pagination.total_pages }}</span>
+
+            {% if backup_pagination.has_next %}
+            <a href="/backups?page={{ backup_pagination.next_page }}&page_size={{ backup_pagination.page_size }}#saved-backups-section" class="secondary-link-button">Next</a>
+            {% else %}
+            <span class="secondary-link-button is-disabled" aria-disabled="true">Next</span>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+        {% else %}
+        <p>No backups yet.</p>
+        {% endif %}
+      </section>
+      {% endif %}
+{% endblock %}

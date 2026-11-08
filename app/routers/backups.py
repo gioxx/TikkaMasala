@@ -13,11 +13,18 @@ from app.config import BACKUP_DIR, DEMO_MODE
 from app.credentials import find_profile_for_account, get_api_credentials
 from app.ingress import config_settings_delta, diff_ingress, extract_ingress
 from app.notifications import queue_notification, render_notification_message
-from app.web import render_backup_page
+from app.web import render_backup_page, render_backups_page
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/backups", response_class=HTMLResponse)
+async def backups_page(request: Request) -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/", status_code=303)
+    return render_backups_page(request)
 
 
 @router.get("/backup/{backup_id}", response_class=HTMLResponse)

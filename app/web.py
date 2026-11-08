@@ -91,12 +91,7 @@ def render_index_page(
     error: str | None = None,
     success_target: str | None = "tunnels",
     tunnels: list[dict[str, Any]] | None = None,
-    backup_page: int | None = None,
-    backup_page_size: int | None = None,
 ) -> HTMLResponse:
-    resolved_page = backup_page if isinstance(backup_page, int) else get_requested_backup_page(request)
-    resolved_page_size = backup_page_size if isinstance(backup_page_size, int) else get_requested_backup_page_size(request)
-    backups, backup_pagination = get_backups_page(resolved_page, resolved_page_size)
     profile_id = current_profile_id(request)
     credentials = get_api_credentials(profile_id)
     return templates.TemplateResponse(
@@ -106,16 +101,50 @@ def render_index_page(
             "message": message,
             "error": error,
             "success_target": success_target,
-            "backups": backups,
-            "backup_pagination": backup_pagination,
-            "backup_page_size_options": sorted(BACKUPS_PAGE_SIZE_OPTIONS),
-            "database_stats": get_database_stats(),
-            "backup_retention": get_backup_retention_status(profile_id),
             "tunnels": tunnels,
             "credentials_account_id": credentials.account_id if credentials is not None else None,
             "demo_missing_credentials": DEMO_MODE and credentials is None,
             "demo_no_credentials_message": DEMO_NO_CREDENTIALS_MESSAGE,
+            "demo_mode": DEMO_MODE,
+        },
+    )
+
+
+def render_backups_page(request: Request) -> HTMLResponse:
+    backups, backup_pagination = get_backups_page(
+        get_requested_backup_page(request),
+        get_requested_backup_page_size(request),
+    )
+    return templates.TemplateResponse(
+        request,
+        "backups.html",
+        {
+            "backups": backups,
+            "backup_pagination": backup_pagination,
+            "backup_page_size_options": sorted(BACKUPS_PAGE_SIZE_OPTIONS),
+            "database_stats": get_database_stats(),
+            "backup_retention": get_backup_retention_status(current_profile_id(request)),
+            "demo_mode": DEMO_MODE,
+        },
+    )
+
+
+def render_automation_page(
+    request: Request,
+    message: str | None = None,
+    error: str | None = None,
+    success_target: str | None = None,
+) -> HTMLResponse:
+    profile_id = current_profile_id(request)
+    return templates.TemplateResponse(
+        request,
+        "automation.html",
+        {
+            "message": message,
+            "error": error,
+            "success_target": success_target,
             "auto_backup": build_auto_backup_status(profile_id),
+            "backup_retention": get_backup_retention_status(profile_id),
             "demo_mode": DEMO_MODE,
         },
     )

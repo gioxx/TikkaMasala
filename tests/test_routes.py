@@ -19,21 +19,20 @@ def test_index_renders(client):
     body = response.text
     assert "<title>Tikka Masala</title>" in body
     assert 'id="tunnels-section"' in body
-    assert 'id="saved-backups-section"' in body
     assert "/static/app.js" in body or "smoothScrollToY" in body
 
 
-def test_index_lists_saved_backup(client, make_backup):
+def test_backups_lists_saved_backup(client, make_backup):
     backup_id = make_backup(tunnel_name="Index Tunnel")
-    response = client.get("/")
+    response = client.get("/backups")
     assert response.status_code == 200
     assert f"/backup/{backup_id}" in response.text
     assert "Index Tunnel" in response.text
 
 
-def test_index_pagination_params(client):
-    assert client.get("/?page=2&page_size=10").status_code == 200
-    assert client.get("/?page_size=7").status_code == 200
+def test_backups_pagination_params(client):
+    assert client.get("/backups?page=2&page_size=10").status_code == 200
+    assert client.get("/backups?page_size=7").status_code == 200
 
 
 def test_scheduled_runs_page(client):

@@ -116,3 +116,36 @@ if (typeof systemThemeQuery.addEventListener === "function") {
 }
 
 applyThemePreference(root.dataset.themePreference || "system");
+
+// Render [data-utc-datetime] elements in the scheduler timezone. Pages that
+// carry data-auto-backup-timezone follow the same rule as the Automation page
+// (browser timezone unless the server one was set); others fall back to UTC.
+const formatLocalDateTimes = () => {
+  const container = document.querySelector("[data-auto-backup-timezone]");
+  const browserTimezoneName = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  let fallbackTimezone = "UTC";
+  if (container) {
+    const source = container.dataset.autoBackupTimezoneSource || "default";
+    fallbackTimezone = source === "default" ? browserTimezoneName : container.dataset.autoBackupTimezone || "UTC";
+  }
+  document.querySelectorAll("[data-utc-datetime]").forEach((element) => {
+    const rawValue = element.dataset.utcDatetime || "";
+    const displayTimezone = element.dataset.displayTimezone || fallbackTimezone;
+    const parsed = new Date(rawValue);
+    if (Number.isNaN(parsed.getTime())) return;
+    const zonedFormatter = new Intl.DateTimeFormat(undefined, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      timeZone: displayTimezone,
+      timeZoneName: "short",
+    });
+    element.textContent = zonedFormatter.format(parsed);
+    element.title = `${rawValue} UTC`;
+  });
+};
+
+document.addEventListener("DOMContentLoaded", formatLocalDateTimes);
