@@ -110,7 +110,9 @@ def test_menu_toggle_markup(client):
 
 def test_css_collapses_nav_on_narrow_screens(client):
     css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
-    start = css.index("@media (max-width: 760px)")
+    collapse = re.search(r"--topnav-collapse:\s*(\d+px);", css).group(1)
+    assert collapse == "960px"
+    start = css.index(f"@media (max-width: {collapse})")
     end = css.find("\n@media", start + 1)
     block = css[start:end if end != -1 else len(css)]
     assert ".topnav-toggle" in block
@@ -122,6 +124,7 @@ def test_app_js_has_menu_toggle_and_no_floating_nav(client):
     js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
     assert "data-topnav-toggle" in js
     assert "data-floating-nav" not in js
+    assert "--topnav-collapse" in js and "matchMedia" in js
 
 
 def test_ingress_redirects_in_demo(client, monkeypatch):
@@ -135,3 +138,10 @@ def test_settings_profile_block_not_nested_card(client, configured_default):
     text = client.get("/settings").text
     assert 'class="profile-block" id="profile-1"' in text
     assert 'class="card top-gap" id="profile-1"' not in text
+
+
+def test_sign_out_never_shrinks(client):
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    assert re.search(r"\.topnav-identity a \{[^}]*flex: none", css)
+    strong = re.search(r"\.topnav-identity strong \{([^}]*)\}", css).group(1)
+    assert "text-overflow: ellipsis" in strong and "overflow: hidden" in strong

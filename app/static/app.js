@@ -69,6 +69,18 @@ if (topbar && topnavToggle) {
   topbar.querySelectorAll(".topnav-link").forEach((link) => {
     link.addEventListener("click", () => setMenuOpen(false));
   });
+
+  // Close the menu when the viewport grows past the collapse width (--topnav-collapse in styles.css).
+  const collapseWidth = getComputedStyle(document.documentElement).getPropertyValue("--topnav-collapse").trim() || "960px";
+  const narrowQuery = window.matchMedia(`(max-width: ${collapseWidth})`);
+  const closeWhenWide = (event) => {
+    if (!event.matches) setMenuOpen(false);
+  };
+  if (typeof narrowQuery.addEventListener === "function") {
+    narrowQuery.addEventListener("change", closeWhenWide);
+  } else if (typeof narrowQuery.addListener === "function") {
+    narrowQuery.addListener(closeWhenWide);
+  }
 }
 
 document.querySelectorAll('a[href^="#"]').forEach((anchor) => {

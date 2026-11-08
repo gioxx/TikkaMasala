@@ -1,5 +1,8 @@
 :root {
   color-scheme: light;
+  /* Width at which the top navigation collapses behind the menu button.
+     Read by app.js; keep it equal to the "max-width" of the collapse @media block below. */
+  --topnav-collapse: 960px;
   --bg-start: #fdf8f3;
   --bg-end: #f5ece0;
   --panel: rgba(255, 255, 255, 0.97);
@@ -14,14 +17,10 @@
   --error: #fff1f0;
   --error-border: #f87171;
   --border: #e4d4bc;
-  --hero-start: #fff3e6;
   --hero-end: #fde4c4;
-  --hero-border: rgba(180, 90, 10, 0.14);
-  --eyebrow: #b06010;
   --link: #c24a00;
   --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(100,50,0,0.06);
   --shadow-card-hover: 0 2px 6px rgba(0,0,0,0.06), 0 8px 24px rgba(100,50,0,0.10);
-  --shadow-hero: 0 1px 3px rgba(0,0,0,0.04), 0 8px 28px rgba(100,50,0,0.08);
   --shadow-float: 0 4px 16px rgba(0,0,0,0.10);
   --code-bg: #fdf5ec;
   --button-secondary-bg: transparent;
@@ -77,14 +76,10 @@
     --error: #2d0b12;
     --error-border: #e11d48;
     --border: rgba(255, 255, 255, 0.08);
-    --hero-start: #130f28;
     --hero-end: #1b1640;
-    --hero-border: rgba(255, 255, 255, 0.07);
-    --eyebrow: #c4b5fd;
     --link: #fb923c;
     --shadow-card: 0 1px 3px rgba(0,0,0,0.20), 0 4px 16px rgba(0,0,0,0.28);
     --shadow-card-hover: 0 2px 8px rgba(0,0,0,0.28), 0 8px 28px rgba(0,0,0,0.38);
-    --shadow-hero: 0 1px 3px rgba(0,0,0,0.20), 0 8px 32px rgba(0,0,0,0.30);
     --shadow-float: 0 4px 20px rgba(0,0,0,0.45);
     --code-bg: rgba(255, 255, 255, 0.04);
     --button-secondary-bg: transparent;
@@ -140,14 +135,10 @@ html[data-theme="light"] {
   --error: #fff1f0;
   --error-border: #f87171;
   --border: #e4d4bc;
-  --hero-start: #fff3e6;
   --hero-end: #fde4c4;
-  --hero-border: rgba(180, 90, 10, 0.14);
-  --eyebrow: #b06010;
   --link: #c24a00;
   --shadow-card: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(100,50,0,0.06);
   --shadow-card-hover: 0 2px 6px rgba(0,0,0,0.06), 0 8px 24px rgba(100,50,0,0.10);
-  --shadow-hero: 0 1px 3px rgba(0,0,0,0.04), 0 8px 28px rgba(100,50,0,0.08);
   --shadow-float: 0 4px 16px rgba(0,0,0,0.10);
   --code-bg: #fdf5ec;
   --button-secondary-bg: transparent;
@@ -202,14 +193,10 @@ html[data-theme="dark"] {
   --error: #2d0b12;
   --error-border: #e11d48;
   --border: rgba(255, 255, 255, 0.08);
-  --hero-start: #130f28;
   --hero-end: #1b1640;
-  --hero-border: rgba(255, 255, 255, 0.07);
-  --eyebrow: #c4b5fd;
   --link: #fb923c;
   --shadow-card: 0 1px 3px rgba(0,0,0,0.20), 0 4px 16px rgba(0,0,0,0.28);
   --shadow-card-hover: 0 2px 8px rgba(0,0,0,0.28), 0 8px 28px rgba(0,0,0,0.38);
-  --shadow-hero: 0 1px 3px rgba(0,0,0,0.20), 0 8px 32px rgba(0,0,0,0.30);
   --shadow-float: 0 4px 20px rgba(0,0,0,0.45);
   --code-bg: rgba(255, 255, 255, 0.04);
   --button-secondary-bg: transparent;
@@ -337,15 +324,30 @@ body {
   border-radius: 6px;
 }
 .topnav-identity {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  flex: 0 1 auto;
+  min-width: 0;
   margin-left: auto;
   color: var(--muted);
   font-size: 0.85rem;
   white-space: nowrap;
+}
+.topnav-identity-label { flex: none; }
+/* Only the email shrinks (with an ellipsis): Sign out never gets cut. */
+.topnav-identity strong {
+  min-width: 2.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--text);
+  font-weight: 600;
 }
-.topnav-identity strong { color: var(--text); font-weight: 600; }
-.topnav-identity a { margin-left: 0.5rem; font-weight: 600; }
+.topnav-identity a { flex: none; margin-left: 0.15rem; font-weight: 600; }
+/* Between the collapse width and a wide screen there is no room for the label next to the nav. */
+@media (min-width: 961px) and (max-width: 1200px) {
+  .topnav-identity-label { display: none; }
+}
 .topnav-toggle {
   display: none;
   align-items: center;
@@ -1459,8 +1461,9 @@ html[data-theme="light"] body {
 /* Filtered rows must stay hidden even where tables become cards on mobile. */
 .table-wrap tr[hidden] { display: none; }
 
-/* === Top navigation on narrow screens: sections collapse behind the menu button === */
-@media (max-width: 760px) {
+/* === Top navigation on narrow screens: sections collapse behind the menu button ===
+   The one layout breakpoint (also used by page layouts); equals --topnav-collapse. */
+@media (max-width: 960px) {
   .topbar-inner { flex-wrap: wrap; gap: 0 0.75rem; }
   .topbar-brand { min-height: 3.5rem; }
   .topnav-toggle { display: inline-flex; }
@@ -1481,14 +1484,16 @@ html[data-theme="light"] body {
     border-left: 2px solid transparent;
   }
   .topnav-link[aria-current="page"] { border-left-color: var(--accent); }
-  /* The identity joins the collapsible menu; alone (setup page) it stays visible. */
-  .topnav ~ .topnav-identity {
-    display: none;
+  /* The identity gets its own row: inside the collapsible menu when there is one,
+     always visible when there is not (setup page). */
+  .topnav-identity {
+    display: block;
     flex: 1 0 100%;
     margin: 0;
     padding: 0.6rem 0.5rem 0.75rem;
     border-top: 1px solid var(--border);
     white-space: normal;
   }
-  .topbar.is-open .topnav ~ .topnav-identity { display: block; }
+  .topnav-identity strong { overflow-wrap: anywhere; }
+  .topbar:not(.is-open) .topnav ~ .topnav-identity { display: none; }
 }

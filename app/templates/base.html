@@ -55,7 +55,7 @@
         </nav>
         {% endif %}
         {% if identity %}
-        <div class="topnav-identity">Signed in as <strong>{{ identity.label }}</strong> <a href="{{ access_logout_path }}">Sign out</a></div>
+        <div class="topnav-identity"><span class="topnav-identity-label">Signed in as</span> <strong title="{{ identity.label }}">{{ identity.label }}</strong> <a href="{{ access_logout_path }}">Sign out</a></div>
         {% endif %}
       </div>
     </header>
