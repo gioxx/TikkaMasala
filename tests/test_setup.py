@@ -76,7 +76,7 @@ def test_redirects_to_setup_when_unconfigured(client):
 
 
 def test_post_also_redirected(client):
-    response = client.post("/backup", data={"tunnel_id": "t"}, follow_redirects=False)
+    response = client.post("/tunnels/backup-all", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/setup"
 

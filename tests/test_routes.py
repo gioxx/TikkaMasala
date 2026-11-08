@@ -18,7 +18,7 @@ def test_index_renders(client):
     assert response.status_code == 200
     body = response.text
     assert "<title>Tikka Masala</title>" in body
-    assert 'id="tunnels-section"' in body
+    assert 'id="tunnels-home"' in body
     assert "/static/app.js" in body or "smoothScrollToY" in body
 
 

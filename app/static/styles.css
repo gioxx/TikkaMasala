@@ -28,8 +28,6 @@
   --button-secondary-border: var(--border);
   --danger-bg: #fee2e2;
   --danger-text: #7f1d1d;
-  --fill-button-bg: #fde8cc;
-  --fill-button-text: #7c3510;
   --status-match-bg: rgba(34, 197, 94, 0.12);
   --status-match-border: rgba(34, 197, 94, 0.38);
   --status-match-text: #15803d;
@@ -87,8 +85,6 @@
     --button-secondary-border: var(--border);
     --danger-bg: rgba(248, 113, 113, 0.12);
     --danger-text: #fca5a5;
-    --fill-button-bg: rgba(246, 130, 31, 0.15);
-    --fill-button-text: #fdba74;
     --status-match-bg: rgba(22, 163, 74, 0.16);
     --status-match-border: rgba(22, 163, 74, 0.40);
     --status-match-text: #86efac;
@@ -146,8 +142,6 @@ html[data-theme="light"] {
   --button-secondary-border: var(--border);
   --danger-bg: #fee2e2;
   --danger-text: #7f1d1d;
-  --fill-button-bg: #fde8cc;
-  --fill-button-text: #7c3510;
   --status-match-bg: rgba(34, 197, 94, 0.12);
   --status-match-border: rgba(34, 197, 94, 0.38);
   --status-match-text: #15803d;
@@ -204,8 +198,6 @@ html[data-theme="dark"] {
   --button-secondary-border: var(--border);
   --danger-bg: rgba(248, 113, 113, 0.12);
   --danger-text: #fca5a5;
-  --fill-button-bg: rgba(246, 130, 31, 0.15);
-  --fill-button-text: #fdba74;
   --status-match-bg: rgba(22, 163, 74, 0.16);
   --status-match-border: rgba(22, 163, 74, 0.40);
   --status-match-text: #86efac;
@@ -441,15 +433,7 @@ details.forget-credentials > summary { color: var(--danger-text); }
   box-shadow: none;
 }
 
-/* === Guide Section === */
-.guide-panel { padding: 1.5rem; }
-.guide-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
+/* === Section headings === */
 .heading-with-icon {
   display: inline-flex;
   align-items: center;
@@ -469,10 +453,8 @@ details.forget-credentials > summary { color: var(--danger-text); }
   flex: 0 0 auto;
   color: var(--accent);
 }
-.guide-header h2,
 .section-heading h2,
 .section-heading h3 { margin: 0; }
-.guide-header .hint,
 .section-heading .hint { margin: 0.35rem 0 0; }
 .section-heading .panel-heading-inline { margin-bottom: 0; }
 .section-heading + form,
@@ -493,23 +475,7 @@ details.forget-credentials > summary { color: var(--danger-text); }
 .section-header-row h3,
 .section-header-row h2 { margin: 0; }
 
-/* === Guide Collapse === */
-.guide-content[hidden] { display: none; }
-.guide-content {
-  overflow: hidden;
-  opacity: 1;
-  max-height: none;
-  transform: translateY(0);
-  transition:
-    opacity 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    max-height 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.guide-content.is-collapsed {
-  opacity: 0;
-  max-height: 0;
-  transform: translateY(-8px);
-}
+/* Setup page explanatory copy */
 .guide-copy { padding: 0.2rem 0 1.15rem; }
 
 /* === Auto Backup Grid === */
@@ -959,27 +925,8 @@ tbody tr:hover {
   font-size: 0.85rem;
   border-radius: 8px;
 }
-.tunnel-actions { min-width: max-content; }
 /* Long IDs break only when the table would otherwise outgrow its card */
 .table-wrap td code { overflow-wrap: anywhere; }
-.copy-field {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-.copy-button {
-  padding: 0.4rem 0.65rem;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  line-height: 1;
-}
-.fill-button {
-  background: var(--fill-button-bg);
-  color: var(--fill-button-text);
-}
-.copy-button.copied { background: #7ee2a8; }
-.copy-button.failed { background: #ff8ea0; }
 
 /* === Back to Top === */
 .back-to-top {
@@ -1251,13 +1198,10 @@ a { color: var(--link); }
     -webkit-backdrop-filter: blur(8px);
   }
   /* Card tints only in actual dark mode */
-  html:not([data-theme="light"]) #backup-section { background: rgba(246,130,31,0.08); border-color: rgba(246,130,31,0.18); }
   html:not([data-theme="light"]) #auto-backup-section { background: rgba(246,130,31,0.06); border-color: rgba(246,130,31,0.14); }
   html:not([data-theme="light"]) #saved-backups-section { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.10); }
   html:not([data-theme="light"]) #notifications-section { background: rgba(139,92,246,0.08); border-color: rgba(139,92,246,0.18); }
-  html:not([data-theme="light"]) #tunnels-section { background: rgba(255,255,255,0.045); border-color: rgba(255,255,255,0.08); }
-  html:not([data-theme="light"]) .guide-panel { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.07); }
-  html:not([data-theme="light"]) #backup-section .auto-backup-panel,
+  html:not([data-theme="light"]) .tunnels-panel { background: rgba(255,255,255,0.045); border-color: rgba(255,255,255,0.08); }
   html:not([data-theme="light"]) #auto-backup-section .auto-backup-panel { background: rgba(246,130,31,0.06); border-color: rgba(246,130,31,0.14); }
   html:not([data-theme="light"]) #notifications-section .auto-backup-panel,
   html:not([data-theme="light"]) #notifications-section .saved-backups-panel { background: rgba(139,92,246,0.06); border-color: rgba(139,92,246,0.14); }
@@ -1284,10 +1228,6 @@ html[data-theme="dark"] .footer-panel {
   -webkit-backdrop-filter: blur(8px);
 }
 /* Card tints per section */
-html[data-theme="dark"] #backup-section {
-  background: rgba(246, 130, 31, 0.08);
-  border-color: rgba(246, 130, 31, 0.18);
-}
 html[data-theme="dark"] #auto-backup-section {
   background: rgba(246, 130, 31, 0.06);
   border-color: rgba(246, 130, 31, 0.14);
@@ -1300,15 +1240,10 @@ html[data-theme="dark"] #notifications-section {
   background: rgba(139, 92, 246, 0.08);
   border-color: rgba(139, 92, 246, 0.18);
 }
-html[data-theme="dark"] #tunnels-section {
+html[data-theme="dark"] .tunnels-panel {
   background: rgba(255, 255, 255, 0.045);
   border-color: rgba(255, 255, 255, 0.08);
 }
-html[data-theme="dark"] .guide-panel {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: rgba(255, 255, 255, 0.07);
-}
-html[data-theme="dark"] #backup-section .auto-backup-panel,
 html[data-theme="dark"] #auto-backup-section .auto-backup-panel {
   background: rgba(246, 130, 31, 0.06);
   border-color: rgba(246, 130, 31, 0.14);
@@ -1361,10 +1296,6 @@ html[data-theme="light"] body {
   .archive-stats-grid,
   .status-grid {
     grid-template-columns: 1fr;
-  }
-  .guide-header {
-    flex-direction: column;
-    align-items: stretch;
   }
   .section-header-row {
     flex-direction: column;
@@ -1429,7 +1360,6 @@ html[data-theme="light"] body {
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
-  .tunnel-actions { min-width: 0; }
 }
 
 /* === Hostnames (ingress overview) === */
@@ -1460,6 +1390,203 @@ html[data-theme="light"] body {
 .ingress-filter-empty td { color: var(--muted); text-align: center; }
 /* Filtered rows must stay hidden even where tables become cards on mobile. */
 .table-wrap tr[hidden] { display: none; }
+
+/* === Tunnels home === */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+/* The status dot is the one recurring motif: tiles and tunnel rows share it and its tones. */
+.status-dot {
+  display: inline-block;
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--status-muted-text);
+  box-shadow: 0 0 0 3px var(--status-muted-bg);
+}
+.status-dot-ok,
+.status-dot-healthy {
+  background: var(--status-match-text);
+  box-shadow: 0 0 0 3px var(--status-match-bg);
+}
+.status-dot-warn,
+.status-dot-degraded {
+  background: var(--status-alt-text);
+  box-shadow: 0 0 0 3px var(--status-alt-bg);
+}
+.status-dot-error,
+.status-dot-down {
+  background: var(--status-warn-text);
+  box-shadow: 0 0 0 3px var(--status-warn-bg);
+}
+.status-dot-muted,
+.status-dot-inactive,
+.status-dot-unknown {
+  background: var(--status-muted-text);
+  box-shadow: 0 0 0 3px var(--status-muted-bg);
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 1rem 1.15rem 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  text-decoration: none;
+  backdrop-filter: blur(var(--backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--backdrop-blur));
+  transition: box-shadow 200ms ease, border-color 200ms ease;
+}
+a.tile:hover {
+  box-shadow: var(--shadow-card-hover);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+.tile-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.tile-icon { flex: none; }
+.tile-value {
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.tile-error .tile-value { color: var(--status-warn-text); }
+.tile-detail {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.tile-detail .status-dot { margin-top: 0.38em; }
+.tunnels-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+.tunnels-panel-head h2 { margin: 0; }
+.tunnels-panel-head form { margin: 0; }
+.tunnels-panel-head button { padding: 0.6rem 1.05rem; }
+.tunnel-table-wrap { overflow-x: auto; }
+.tunnel-table td { vertical-align: middle; }
+.tunnel-table .col-name a {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+.tunnel-table .col-name a:hover { color: var(--link); text-decoration: underline; }
+.tunnel-table .col-status { white-space: nowrap; }
+.tunnel-table .col-status .status-dot { margin-right: 0.55rem; vertical-align: 0.05em; }
+.tunnel-table .col-hostnames { font-variant-numeric: tabular-nums; }
+.tunnel-table .col-last { color: var(--muted); white-space: nowrap; }
+.tunnel-table .col-action { width: 1%; text-align: right; white-space: nowrap; }
+.tunnel-table .col-action form { display: inline-flex; margin: 0; }
+.row-backup-button {
+  padding: 0.45rem 0.85rem;
+  font-size: 0.82rem;
+}
+.row-feedback {
+  display: block;
+  max-width: 16rem;
+  margin: 0.35rem 0 0 auto;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  text-align: right;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.row-feedback a { color: inherit; }
+.row-feedback-ok { color: var(--status-match-text); }
+.row-feedback-error { color: var(--status-warn-text); }
+/* The only motion: the row an action just answered fades back to its normal background. */
+.tunnel-row.has-feedback { animation: tunnel-row-feedback 2.4s ease-out; }
+@keyframes tunnel-row-feedback {
+  from { background: var(--row-hover); box-shadow: inset 3px 0 0 var(--accent); }
+  to { background: transparent; box-shadow: inset 3px 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tunnel-row.has-feedback { animation: none; }
+}
+.tunnels-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
+  margin: 1rem 0 0;
+}
+/* Between the phone layout and a wide screen the tiles keep four columns with a smaller figure. */
+@media (min-width: 641px) and (max-width: 900px) {
+  .tiles { gap: 0.75rem; }
+  .tile { padding: 0.85rem 0.9rem 0.95rem; }
+  .tile-value { font-size: 1.5rem; }
+}
+
+/* === Tunnels home on phones: tiles two per row, the table becomes compact rows ===
+   Its own breakpoint: between this and the nav collapse (960px) the full table stays. */
+@media (max-width: 640px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+  .tile { padding: 0.85rem 0.9rem 0.95rem; }
+  .tile-value { font-size: 1.55rem; }
+  .tunnels-panel { padding: 1.1rem; }
+  .tunnel-table thead,
+  .tunnel-table .col-hostnames,
+  .tunnel-table .status-label { display: none; }
+  .tunnel-table,
+  .tunnel-table tbody { display: block; width: 100%; }
+  .tunnel-table .tunnel-row {
+    display: grid;
+    grid-template-columns: minmax(0, auto) 1fr auto;
+    grid-template-areas:
+      "name status action"
+      "last last action";
+    align-items: center;
+    column-gap: 0.55rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .tunnel-table td { display: block; padding: 0; border: 0; }
+  .tunnel-table .col-name { grid-area: name; min-width: 0; overflow-wrap: anywhere; }
+  .tunnel-table .col-status { grid-area: status; }
+  .tunnel-table .col-status .status-dot { margin-right: 0; }
+  .tunnel-table .col-last { grid-area: last; font-size: 0.82rem; }
+  .tunnel-table .col-action { grid-area: action; width: auto; }
+  .row-feedback { max-width: 9rem; }
+}
+
+/* === Settings and detail pages: long unbreakable values wrap instead of widening the page === */
+.profile-block,
+.meta-grid,
+.meta-grid dd { min-width: 0; }
+.meta-value { overflow-wrap: anywhere; }
 
 /* === Top navigation on narrow screens: sections collapse behind the menu button ===
    The one layout breakpoint (also used by page layouts); equals --topnav-collapse. */

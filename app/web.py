@@ -41,6 +41,7 @@ from app.scheduler import (
     get_scheduled_runs_stats,
     summarize_scheduled_run_details,
 )
+from app.tunnels import RowFeedback, TunnelsHome, format_when
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,8 @@ templates.env.globals["access_identity"] = access_identity
 templates.env.globals["access_logout_path"] = ACCESS_LOGOUT_PATH
 templates.env.globals["origin_request_delta"] = origin_request_delta
 templates.env.globals["nav_sections"] = nav_sections
+# Short, human times in the scheduler timezone ("today 03:00", "3 days ago").
+templates.env.filters["when"] = lambda value: format_when(value)
 
 
 def get_requested_backup_page(request: Request) -> int:
@@ -116,29 +119,35 @@ def get_requested_scheduled_runs_page_size(request: Request) -> int | None:
     return page_size if page_size in SCHEDULED_RUNS_PAGE_SIZE_OPTIONS else SCHEDULED_RUNS_PAGE_SIZE
 
 
-def render_index_page(
+def render_tunnels_page(
     request: Request,
-    message: str | None = None,
-    error: str | None = None,
-    success_target: str | None = "tunnels",
-    tunnels: list[dict[str, Any]] | None = None,
+    home: TunnelsHome,
+    *,
+    feedback: dict[str, RowFeedback] | None = None,
+    notice: tuple[str, str] | None = None,
+    partial: bool = False,
+    status_code: int = 200,
 ) -> HTMLResponse:
-    profile_id = current_profile_id(request)
-    credentials = get_api_credentials(profile_id)
-    return templates.TemplateResponse(
+    """The Tunnels home, or with ``partial`` only its ``#tunnels-home`` region (for htmx swaps).
+
+    ``notice`` is ``(tone, message)`` with tone ``success``, ``error`` or ``muted``;
+    ``feedback`` maps a tunnel ID to the outcome of an action on its row.
+    """
+    response = templates.TemplateResponse(
         request,
-        "index.html",
+        "partials/tunnels_home.html" if partial else "tunnels.html",
         {
-            "message": message,
-            "error": error,
-            "success_target": success_target,
-            "tunnels": tunnels,
-            "credentials_account_id": credentials.account_id if credentials is not None else None,
-            "demo_missing_credentials": DEMO_MODE and credentials is None,
-            "demo_no_credentials_message": DEMO_NO_CREDENTIALS_MESSAGE,
+            "home": home,
+            "feedback": feedback or {},
+            "notice": notice,
             "demo_mode": DEMO_MODE,
+            "demo_no_credentials_message": DEMO_NO_CREDENTIALS_MESSAGE,
         },
+        status_code=status_code,
     )
+    if partial:
+        response.headers["Vary"] = "HX-Request"
+    return response
 
 
 def render_backups_page(request: Request) -> HTMLResponse:
