@@ -1,5 +1,5 @@
 // Shared behaviour for every page: smooth scrolling, back-to-top button,
-// the collapsible top navigation menu and the System/Dark/Light theme switcher.
+// the profile switcher, the collapsible top navigation menu and the System/Dark/Light theme switcher.
 // Page scripts run after this file and may use smoothScrollToY / smoothScrollToElement.
 
 const smoothScrollToY = (targetY, duration = 560) => {
@@ -43,6 +43,21 @@ if (backToTopButton) {
   window.addEventListener("scroll", toggleBackToTop, { passive: true });
   toggleBackToTop();
 }
+
+// Profile switcher: with JS the choice applies on change, so the "Switch" button (the no-JS path) is hidden.
+document.querySelectorAll("[data-profile-switcher]").forEach((form) => {
+  const select = form.querySelector("select");
+  const submit = form.querySelector(".profile-switcher-submit");
+  if (!select) return;
+  if (submit) submit.hidden = true;
+  select.addEventListener("change", () => {
+    if (typeof form.requestSubmit === "function") {
+      form.requestSubmit();
+    } else {
+      form.submit();
+    }
+  });
+});
 
 // Top navigation: on narrow screens the sections collapse behind a menu button.
 const topbar = document.querySelector("[data-topbar]");

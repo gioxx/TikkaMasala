@@ -146,3 +146,32 @@ def test_sign_out_never_shrinks(client):
     assert re.search(r"\.topnav-identity a \{[^}]*flex: none", css)
     strong = re.search(r"\.topnav-identity strong \{([^}]*)\}", css).group(1)
     assert "text-overflow: ellipsis" in strong and "overflow: hidden" in strong
+
+
+def _media_block(css: str, query: str) -> str:
+    """The body of the first ``@media {query}`` block, up to its matching closing brace."""
+    start = css.index("{", css.index(f"@media {query}")) + 1
+    depth = 1
+    for index in range(start, len(css)):
+        if css[index] == "{":
+            depth += 1
+        elif css[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return css[start:index]
+    raise AssertionError(f"unclosed @media {query}")
+
+
+def test_signed_in_label_visually_hidden_not_display_none():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    block = _media_block(css, "(min-width: 961px) and (max-width: 1200px)")
+    rule = re.search(r"\.topnav-identity-label \{([^}]*)\}", block).group(1)
+    assert "clip" in rule
+    assert "display: none" not in rule
+
+
+def test_switcher_wraps_below_bar_on_narrow_screens():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    block = _media_block(css, "(max-width: 960px)")
+    rule = re.search(r"\.profile-switcher \{([^}]*)\}", block).group(1)
+    assert "flex: 1 1 100%" in rule

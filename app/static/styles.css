@@ -336,10 +336,70 @@ body {
   font-weight: 600;
 }
 .topnav-identity a { flex: none; margin-left: 0.15rem; font-weight: 600; }
-/* Between the collapse width and a wide screen there is no room for the label next to the nav. */
+/* Between the collapse width and a wide screen the bar is tight (brand, nav, profile switcher, identity):
+   slimmer gaps, no version tag (the footer shows it), and the "Signed in as" label stays for screen
+   readers only, visually hidden. */
 @media (min-width: 961px) and (max-width: 1200px) {
-  .topnav-identity-label { display: none; }
+  .topbar-inner { column-gap: 0.75rem; }
+  .topbar-brand sub { display: none; }
+  .topnav-link { padding: 0 0.45rem; }
+  .topnav-identity-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
 }
+/* Profile switcher: shown with more than one profile, outside the collapsible menu. */
+.profile-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 1 auto;
+  /* The cloud icon plus a select wide enough for a short name; longer names get an ellipsis. */
+  min-width: 7.5rem;
+  margin-left: auto;
+}
+.profile-switcher ~ .topnav-identity { margin-left: 0; }
+.profile-switcher label {
+  display: inline-flex;
+  flex: none;
+  color: var(--muted);
+}
+.profile-switcher select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 12rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.profile-switcher select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 5px var(--input-focus-ring);
+}
+.profile-switcher-submit {
+  flex: none;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+}
+.profile-switcher-submit[hidden] { display: none; }
 .topnav-toggle {
   display: none;
   align-items: center;
@@ -1759,5 +1819,19 @@ a.tile:hover {
   }
   .topnav-identity strong { overflow-wrap: anywhere; }
   .topbar:not(.is-open) .topnav ~ .topnav-identity { display: none; }
+  /* The switcher stays visible on its own full-width row, after the menu and the identity. */
+  .profile-switcher {
+    flex: 1 1 100%;
+    order: 1;
+    margin: 0;
+    padding: 0.5rem 0 0.65rem;
+    border-top: 1px solid var(--border);
+  }
+  .profile-switcher select {
+    flex: 1 1 auto;
+    max-width: none;
+    min-height: 44px;
+  }
+  .profile-switcher-submit { min-height: 44px; }
 }
 .subnav.subnav-page { margin: 0 0 1rem; }

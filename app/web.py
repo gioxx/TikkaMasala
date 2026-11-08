@@ -34,7 +34,7 @@ from app.credentials import (
 )
 from app.ingress import IngressDiff, extract_ingress, fragile_rules, origin_request_delta
 from app.notifications import env_notification_destinations
-from app.profiles import current_profile_id, get_profile
+from app.profiles import current_profile_id, get_profile, list_profiles
 from app.scheduler import (
     build_auto_backup_status,
     get_scheduled_runs_page,
@@ -73,12 +73,37 @@ def nav_sections() -> list[NavSection]:
     return list(_NAV_SECTIONS)
 
 
+@dataclass(frozen=True)
+class ProfileSwitcher:
+    """The top-bar profile picker: every profile as ``(id, name)``, the active one, and whether to show it."""
+
+    active_id: int
+    active_name: str
+    options: list[tuple[int, str]]
+    visible: bool
+
+
+def profile_switcher(request: Request) -> ProfileSwitcher:
+    """Shown only with more than one profile and never in demo mode (which always works on Default)."""
+
+    active_id = current_profile_id(request)
+    options = [(profile.id, profile.name) for profile in list_profiles()]
+    active_name = next((name for profile_id, name in options if profile_id == active_id), "")
+    return ProfileSwitcher(
+        active_id=active_id,
+        active_name=active_name,
+        options=options,
+        visible=not DEMO_MODE and len(options) > 1,
+    )
+
+
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
 templates.env.globals["access_identity"] = access_identity
 templates.env.globals["access_logout_path"] = ACCESS_LOGOUT_PATH
 templates.env.globals["origin_request_delta"] = origin_request_delta
 templates.env.globals["nav_sections"] = nav_sections
+templates.env.globals["profile_switcher"] = profile_switcher
 templates.env.globals["archive_url"] = archive_url
 # Short, human times in the scheduler timezone ("today 03:00", "3 days ago").
 templates.env.filters["when"] = lambda value: format_when(value)
