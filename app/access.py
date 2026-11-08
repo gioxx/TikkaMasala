@@ -155,15 +155,26 @@ def access_identity(request: Request) -> AccessIdentity | None:
 def is_cross_site_request(request: Request) -> bool:
     """Whether the browser says this request comes from another site (``Sec-Fetch-Site: cross-site``).
 
-    A cheap guard for state-changing form posts (login CSRF): requests without the
-    header (older browsers, scripts) are let through.
+    A cheap CSRF guard for state-changing requests: requests without the header
+    (older browsers, scripts) are let through.
     """
 
     return request.headers.get("Sec-Fetch-Site", "").strip().lower() == "cross-site"
 
 
 def cross_site_rejected() -> Response:
-    return Response("Cross-site form submissions are not allowed.", status_code=403, media_type="text/plain")
+    return Response("Cross-site requests that change data are not allowed.", status_code=403, media_type="text/plain")
+
+
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+async def cross_site_guard(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    """Reject every unsafe-method request the browser marks as cross-site (runs inside Access)."""
+
+    if request.method not in SAFE_METHODS and request.url.path not in ACCESS_EXEMPT_PATHS and is_cross_site_request(request):
+        return cross_site_rejected()
+    return await call_next(request)
 
 
 def _denied_response(request: Request) -> Response:

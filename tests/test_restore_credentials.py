@@ -94,3 +94,57 @@ def test_restore_does_not_set_cookie(client, make_backup, calls):
     backup_id = make_backup()
     response = client.post(f"/backup/{backup_id}/restore", data={"tunnel_id": "tunnel-1", "mode": "apply"})
     assert "cf_api_token" not in response.headers.get("set-cookie", "")
+
+
+# --- cross-site guard on every unsafe method ------------------------------------------
+
+CROSS_SITE = {"Sec-Fetch-Site": "cross-site"}
+
+
+@pytest.fixture
+def run_calls(monkeypatch):
+    import app.routers.auto_backup as auto_backup
+
+    recorded: list[tuple] = []
+
+    async def fake_run(*args, **kwargs):
+        recorded.append((args, kwargs))
+        return {"status": "success", "tunnel_count": 0, "backup_count": 0, "error_count": 0}
+
+    monkeypatch.setattr(auto_backup, "DEMO_MODE", False)
+    monkeypatch.setattr(auto_backup, "run_auto_backup_job", fake_run)
+    return recorded
+
+
+def test_cross_site_restore_rejected(client, make_backup, calls):
+    backup_id = make_backup()
+    response = client.post(
+        f"/backup/{backup_id}/restore", data={"tunnel_id": "tunnel-1", "mode": "apply"}, headers=CROSS_SITE
+    )
+    assert response.status_code == 403
+    assert calls["put"] == []
+    assert calls["fetch"] == []
+
+
+def test_cross_site_automation_post_rejected(client, run_calls):
+    response = client.post("/auto-backup/run", headers=CROSS_SITE)
+    assert response.status_code == 403
+    assert run_calls == []
+
+
+@pytest.mark.parametrize("headers", [{}, {"Sec-Fetch-Site": "same-origin"}, {"Sec-Fetch-Site": "none"}])
+def test_same_origin_or_headerless_posts_allowed(client, make_backup, calls, run_calls, headers):
+    backup_id = make_backup()
+    response = client.post(
+        f"/backup/{backup_id}/restore", data={"tunnel_id": "tunnel-1", "mode": "apply"}, headers=headers
+    )
+    assert response.status_code == 200
+    assert len(calls["put"]) == 1
+    response = client.post("/auto-backup/run", headers=headers)
+    assert response.status_code == 200
+    assert len(run_calls) == 1
+
+
+def test_cross_site_get_and_healthz_unaffected(client):
+    assert client.get("/healthz", headers=CROSS_SITE).status_code == 200
+    assert client.get("/settings", headers=CROSS_SITE).status_code == 200

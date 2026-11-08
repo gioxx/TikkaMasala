@@ -5,7 +5,6 @@ from __future__ import annotations
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from app.access import cross_site_rejected, is_cross_site_request
 from app.cloudflare import CredentialsInvalid
 from app.config import DEMO_MODE
 from app.credentials import clear_saved_credentials, describe_profile_credentials, save_profile_credentials
@@ -78,8 +77,6 @@ async def save_credentials(
     account_id: str = Form(""),
     api_token: str = Form(""),
 ) -> Response:
-    if is_cross_site_request(request):
-        return cross_site_rejected()
     if DEMO_MODE:
         return RedirectResponse(SETTINGS_PATH, status_code=303)
     _ensure_profile(profile_id)
@@ -99,8 +96,6 @@ async def save_credentials(
 
 @router.post(f"{SETTINGS_PATH}/profiles/{{profile_id}}/clear-credentials", response_model=None)
 async def clear_credentials(request: Request, profile_id: int) -> Response:
-    if is_cross_site_request(request):
-        return cross_site_rejected()
     if DEMO_MODE:
         return RedirectResponse(SETTINGS_PATH, status_code=303)
     _ensure_profile(profile_id)
