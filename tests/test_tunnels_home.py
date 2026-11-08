@@ -14,7 +14,7 @@ import app.credentials as credentials
 import app.tunnels as tunnels
 from app.backups import count_backups_for_account
 from app.credentials import DEMO_NO_CREDENTIALS_MESSAGE, MISSING_CREDENTIALS_MESSAGE, ApiCredentials
-from app.ingress_overview import snapshot_overview
+from app.ingress_overview import IngressOverview, TunnelSource, snapshot_overview
 from app.profiles import update_profile
 from app.tunnels import (
     TUNNEL_ID_PATTERN,
@@ -136,6 +136,54 @@ def test_unknown_status_value(configured_default, fake_list):
     home = _build()
     assert [(row.name, row.status) for row in home.rows] == [("a", "unknown"), ("b", "unknown")]
     assert home.tile("tunnels").value == "2"
+
+
+def test_unknown_status_is_not_healthy(configured_default, fake_list):
+    fake_list([{"id": T1, "name": "a", "status": "healthy"}, {"id": T2, "name": "b"}])
+    tile = _build().tile("tunnels")
+    assert (tile.value, tile.detail, tile.tone) == ("2", "1 status unknown", "warn")
+
+
+def test_unknown_status_listed_with_unhealthy(configured_default, fake_list):
+    fake_list(
+        [
+            {"id": T1, "name": "a", "status": "down"},
+            {"id": T2, "name": "b", "status": "brand-new"},
+            {"id": T3, "name": "c", "status": "degraded"},
+            {"id": T4, "name": "d", "status": None},
+        ]
+    )
+    tile = _build().tile("tunnels")
+    assert (tile.value, tile.detail, tile.tone) == ("4", "1 degraded, 1 down, 2 status unknown", "warn")
+
+
+def test_hostnames_tile_warns_on_unreadable_snapshots():
+    overview = IngressOverview(
+        source="snapshot",
+        tunnels=[
+            TunnelSource(tunnel_id=T1, tunnel_name="a"),
+            TunnelSource(tunnel_id=T2, tunnel_name="b", error="Snapshot file is missing."),
+        ],
+    )
+    tile = tunnels._hostnames_tile(overview)
+    assert (tile.value, tile.detail, tile.tone) == ("0", "1 snapshot unreadable", "warn")
+    overview.tunnels.append(TunnelSource(tunnel_id=T3, tunnel_name="c", error="Snapshot file is corrupt."))
+    tile = tunnels._hostnames_tile(overview)
+    assert (tile.detail, tile.tone) == ("2 snapshots unreadable", "warn")
+
+
+def test_hostnames_tile_unreadable_snapshot_end_to_end(configured_default, seeded, fake_list, monkeypatch):
+    fake_list(TUNNEL_LIST)
+    real = snapshot_overview
+
+    def broken(account_id):
+        overview = real(account_id)
+        overview.tunnels.append(TunnelSource(tunnel_id=T3, tunnel_name="Office", error="Snapshot file is corrupt."))
+        return overview
+
+    monkeypatch.setattr(tunnels, "snapshot_overview", broken)
+    tile = _build().tile("hostnames")
+    assert (tile.value, tile.detail, tile.tone) == ("3", "1 host-local origin, 1 snapshot unreadable", "warn")
 
 
 def test_all_healthy_with_inactive(configured_default, fake_list):

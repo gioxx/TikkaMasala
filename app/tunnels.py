@@ -182,9 +182,13 @@ def _tunnels_tile(
     if not tunnel_list:
         return tile("0", "No tunnels in this account", "muted")
     statuses = [_normalize_status(tunnel.get("status")) for tunnel in tunnel_list]
-    unhealthy = [f"{statuses.count(status)} {status}" for status in UNHEALTHY_STATUSES if statuses.count(status)]
-    if unhealthy:
-        return tile(str(len(tunnel_list)), ", ".join(unhealthy), "warn")
+    problems = [f"{statuses.count(status)} {status}" for status in UNHEALTHY_STATUSES if statuses.count(status)]
+    unknown = statuses.count("unknown")
+    if unknown:
+        # A missing or new status is not evidence of health.
+        problems.append(f"{unknown} status unknown")
+    if problems:
+        return tile(str(len(tunnel_list)), ", ".join(problems), "warn")
     detail = "All healthy"
     inactive = statuses.count("inactive")
     if inactive:
@@ -198,9 +202,16 @@ def _hostnames_tile(overview: IngressOverview) -> Tile:
 
     if not overview.tunnels:
         return tile("0", "No snapshots yet", "muted")
+    issues: list[str] = []
     fragile = overview.fragile_count
     if fragile:
-        return tile(str(overview.hostname_count), _plural(fragile, "host-local origin", "host-local origins"), "warn")
+        issues.append(_plural(fragile, "host-local origin", "host-local origins"))
+    unreadable = len(overview.tunnels_with_errors)
+    if unreadable:
+        # Missing, corrupt or unreadable latest snapshots: the counts above are partial.
+        issues.append(_plural(unreadable, "snapshot unreadable", "snapshots unreadable"))
+    if issues:
+        return tile(str(overview.hostname_count), ", ".join(issues), "warn")
     return tile(str(overview.hostname_count), "No host-local origins", "ok")
 
 
