@@ -206,8 +206,7 @@ def test_settings_access_on(client):
 
     client.app.state.access_verifier = _Verifier()
     text = client.get("/settings").text
-    assert "team.cloudflareaccess.com" in text
-    assert "a@b.c" in text
+    assert "On — team domain team.cloudflareaccess.com, signed in as a@b.c</p>" in text
 
 
 def test_settings_links_and_version(client):
