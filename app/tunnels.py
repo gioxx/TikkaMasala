@@ -324,7 +324,9 @@ def _unexpected_error(exc: Exception) -> str:
     return f"Unexpected error ({type(exc).__name__})."
 
 
-async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str, notes: str | None = None) -> BackupRecord:
+async def back_up_tunnel(
+    creds: ApiCredentials, tunnel_id: str, notes: str | None = None, *, profile_id: int
+) -> BackupRecord:
     """Back up one tunnel now (with an optional note) and queue the matching manual backup notification.
 
     On failure queues ``manual_backup_failed`` and raises an ``HTTPException``: the original one, or a
@@ -336,9 +338,10 @@ async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str, notes: str | Non
         failed_details = {"account_id": account_id, "tunnel_id": tunnel_id, "error": error}
         queue_notification(
             "manual_backup_failed",
-            render_notification_message("manual_backup_failed", failed_details),
+            render_notification_message("manual_backup_failed", failed_details, profile_id=profile_id),
             failed_details,
             level="warning",
+            profile_id=profile_id,
         )
 
     try:
@@ -368,9 +371,10 @@ async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str, notes: str | Non
     }
     queue_notification(
         "manual_backup_success",
-        render_notification_message("manual_backup_success", success_details),
+        render_notification_message("manual_backup_success", success_details, profile_id=profile_id),
         success_details,
         level="info",
+        profile_id=profile_id,
     )
     return backup
 
@@ -442,7 +446,7 @@ async def back_up_all_tunnels(profile_id: int) -> BulkOutcome:
         failures: list[str] = []
         for tunnel_id, name in targets:
             try:
-                backup = await back_up_tunnel(creds, tunnel_id)
+                backup = await back_up_tunnel(creds, tunnel_id, profile_id=profile_id)
             except HTTPException as exc:
                 feedback[tunnel_id] = RowFeedback(ok=False, message=str(exc.detail))
                 failures.append(f"{name} ({str(exc.detail).rstrip('.')})")

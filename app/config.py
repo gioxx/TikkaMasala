@@ -68,3 +68,6 @@ logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
+# httpx logs every request URL at INFO. A webhook URL and the Telegram bot URL (bot token in the
+# path) are secrets, so its request log stays off whatever LOG_LEVEL says.
+logging.getLogger("httpx").setLevel(logging.WARNING)

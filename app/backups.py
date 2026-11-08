@@ -221,6 +221,8 @@ def _purge_group(
     reference_time: datetime,
     where: str,
     params: tuple,
+    *,
+    profile_id: int | None,
 ) -> int:
     cutoff_iso = (reference_time - timedelta(days=retention_days)).replace(microsecond=0).isoformat()
     rows = conn.execute(
@@ -249,9 +251,10 @@ def _purge_group(
         }
         queue_notification(
             "retention_cleanup",
-            render_notification_message("retention_cleanup", _rc_details),
+            render_notification_message("retention_cleanup", _rc_details, profile_id=profile_id),
             _rc_details,
             level="info",
+            profile_id=profile_id,
         )
     return deleted_count
 
@@ -271,14 +274,18 @@ def purge_expired_backups(reference_time: datetime | None = None) -> int:
             retention_days = get_backup_retention_days(profile.id)
             if retention_days is None:
                 continue
-            deleted_total += _purge_group(conn, retention_days, reference_time, "account_id = ?", (account_id,))
+            deleted_total += _purge_group(
+                conn, retention_days, reference_time, "account_id = ?", (account_id,), profile_id=profile.id
+            )
 
         # Backups of accounts that match no profile follow the environment rule.
         retention_days = get_backup_retention_days(None)
         if retention_days is not None:
             placeholders = ",".join("?" for _ in claimed)
             where = f"account_id NOT IN ({placeholders})" if claimed else "1 = 1"
-            deleted_total += _purge_group(conn, retention_days, reference_time, where, tuple(claimed))
+            deleted_total += _purge_group(
+                conn, retention_days, reference_time, where, tuple(claimed), profile_id=None
+            )
 
     return deleted_total
 

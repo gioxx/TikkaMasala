@@ -8,6 +8,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
+from string import Formatter
 from typing import Any
 
 import httpx
@@ -24,7 +25,8 @@ from app.config import (
     TELEGRAM_NOTIFICATION_EVENTS_RAW,
 )
 from app.db import get_setting, set_setting
-from app.destinations import webhook_host
+from app.destinations import DeliveryTarget, delivery_targets, webhook_host
+from app.profiles import DEFAULT_PROFILE_ID, get_profile, list_profiles
 
 logger = logging.getLogger(__name__)
 background_tasks: set[asyncio.Task[Any]] = set()
@@ -184,42 +186,46 @@ def format_notification_detail_value(value: Any) -> str | None:
     return str(value)
 
 
-async def send_webhook_notification(event: str, payload: dict[str, Any], force: bool = False) -> dict[str, Any]:
-    if not NOTIFICATION_WEBHOOK_URL:
-        return {"channel": "webhook", "attempted": False, "success": False, "reason": "not_configured"}
-    if not force and event not in get_webhook_notification_events():
-        return {"channel": "webhook", "attempted": False, "success": False, "reason": "event_disabled"}
-    try:
-        async with httpx.AsyncClient(timeout=min(REQUEST_TIMEOUT, 10.0)) as client:
-            response = await client.post(NOTIFICATION_WEBHOOK_URL, json=payload)
-        if response.status_code >= 400:
-            logger.warning(
-                "Notification webhook returned HTTP %s for event %s: %s",
-                response.status_code,
-                event,
-                response.text[:300].strip(),
+async def _post_json(url: str, payload: dict[str, Any]) -> httpx.Response:
+    """The only HTTP call of this module (tests replace it)."""
+    async with httpx.AsyncClient(timeout=min(REQUEST_TIMEOUT, 10.0)) as client:
+        return await client.post(url, json=payload)
+
+
+def env_delivery_targets() -> list[DeliveryTarget]:
+    """The webhook and Telegram destinations set in the environment, when configured (Default only)."""
+    targets: list[DeliveryTarget] = []
+    if NOTIFICATION_WEBHOOK_URL:
+        targets.append(
+            DeliveryTarget(
+                key="env-webhook",
+                label="Webhook (environment)",
+                kind="webhook",
+                events=frozenset(get_webhook_notification_events()),
+                secret=NOTIFICATION_WEBHOOK_URL,
+                chat_id="",
             )
-            return {"channel": "webhook", "attempted": True, "success": False, "reason": f"http_{response.status_code}"}
-        logger.info("Webhook notification sent successfully (event=%s).", event)
-        return {"channel": "webhook", "attempted": True, "success": True}
-    except Exception:
-        logger.exception("Failed to send webhook notification (event=%s).", event)
-        return {"channel": "webhook", "attempted": True, "success": False, "reason": "exception"}
+        )
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        targets.append(
+            DeliveryTarget(
+                key="env-telegram",
+                label="Telegram (environment)",
+                kind="telegram",
+                events=frozenset(get_telegram_notification_events()),
+                secret=TELEGRAM_BOT_TOKEN,
+                chat_id=TELEGRAM_CHAT_ID,
+            )
+        )
+    return targets
 
 
-async def send_telegram_notification(event: str, payload: dict[str, Any], force: bool = False) -> dict[str, Any]:
-    if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
-        return {"channel": "telegram", "attempted": False, "success": False, "reason": "not_configured"}
-    if not force and event not in get_telegram_notification_events():
-        return {"channel": "telegram", "attempted": False, "success": False, "reason": "event_disabled"}
-
-    message = payload["message"]
+def _telegram_text(event: str, payload: dict[str, Any]) -> str:
     details = payload.get("details") or {}
-    event_title = humanize_notification_event(event)
     lines = [
         f"Tikka Masala {APP_VERSION}",
-        event_title,
-        message,
+        humanize_notification_event(event),
+        str(payload.get("message", "")),
     ]
     if details and not get_telegram_compact_notifications():
         lines.append("")
@@ -228,32 +234,39 @@ async def send_telegram_notification(event: str, payload: dict[str, Any], force:
             if not rendered:
                 continue
             lines.append(f"{key}: {rendered}")
+    return "\n".join(lines)[:4096]
 
-    telegram_payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": "\n".join(lines)[:4096],
-        "disable_web_page_preview": True,
-    }
 
+async def send_to_target(target: DeliveryTarget, event: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Send one notification to one destination; never raises.
+
+    Failures are logged with the destination label and the HTTP status or the exception type only:
+    the URL, the bot token and the exception text (which can quote the URL) never reach the log.
+    """
+    result: dict[str, Any] = {"key": target.key, "label": target.label, "attempted": True, "success": False, "reason": None}
     try:
-        async with httpx.AsyncClient(timeout=min(REQUEST_TIMEOUT, 10.0)) as client:
-            response = await client.post(
-                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                json=telegram_payload,
-            )
+        if target.kind == "telegram":
+            url = f"https://api.telegram.org/bot{target.secret}/sendMessage"
+            body: dict[str, Any] = {
+                "chat_id": target.chat_id,
+                "text": _telegram_text(event, payload),
+                "disable_web_page_preview": True,
+            }
+        else:
+            url = target.secret
+            body = payload
+        response = await _post_json(url, body)
         if response.status_code >= 400:
-            logger.warning(
-                "Telegram notification returned HTTP %s for event %s: %s",
-                response.status_code,
-                event,
-                response.text[:300].strip(),
-            )
-            return {"channel": "telegram", "attempted": True, "success": False, "reason": f"http_{response.status_code}"}
-        logger.info("Telegram notification sent successfully (event=%s).", event)
-        return {"channel": "telegram", "attempted": True, "success": True}
-    except Exception:
-        logger.exception("Failed to send Telegram notification (event=%s).", event)
-        return {"channel": "telegram", "attempted": True, "success": False, "reason": "exception"}
+            result["reason"] = f"HTTP {response.status_code}"
+        else:
+            result["success"] = True
+    except Exception as exc:  # noqa: BLE001 - one destination must never break the others
+        result["reason"] = f"could not connect ({type(exc).__name__})"
+    if result["success"]:
+        logger.info("Notification to %s sent (event=%s).", target.label, event)
+    else:
+        logger.warning("Notification to %s failed: %s", target.label, result["reason"])
+    return result
 
 
 async def deliver_notification(
@@ -262,10 +275,23 @@ async def deliver_notification(
     details: dict[str, Any] | None = None,
     level: str = "info",
     force: bool = False,
+    *,
+    profile_id: int | None,
+    only: str | None = None,
 ) -> dict[str, Any]:
-    status = get_notification_status()
-    if not force and (event not in status["events"] or not status["configured"]):
-        return {"attempted": False, "sent_count": 0, "successful_channels": [], "failed_channels": []}
+    """Send ``event`` to the destinations of ``profile_id`` (plus the env ones for Default or ``None``).
+
+    ``only`` keeps the one target with that key. Unless ``force``, a target receives only the events
+    it subscribes to. A failing destination never stops the others.
+    """
+    targets: list[DeliveryTarget] = []
+    if profile_id is None or profile_id == DEFAULT_PROFILE_ID:
+        targets.extend(env_delivery_targets())
+    targets.extend(delivery_targets(profile_id))
+    if only is not None:
+        targets = [target for target in targets if target.key == only]
+    if not force:
+        targets = [target for target in targets if event in target.events]
 
     payload = {
         "app": "Tikka Masala",
@@ -276,24 +302,35 @@ async def deliver_notification(
         "message": message,
         "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "details": details or {},
+        "profile": {"id": profile_id, "name": notification_profile_name(profile_id)},
     }
-    results = await asyncio.gather(
-        send_webhook_notification(event, payload, force=force),
-        send_telegram_notification(event, payload, force=force),
-    )
-    attempted = [result for result in results if result.get("attempted")]
-    successful_channels = [result["channel"] for result in attempted if result.get("success")]
-    failed_channels = [result["channel"] for result in attempted if not result.get("success")]
+    results = list(await asyncio.gather(*(send_to_target(target, event, payload) for target in targets)))
+    successful_channels = [result["label"] for result in results if result["success"]]
+    failed_channels = [result["label"] for result in results if not result["success"]]
     return {
-        "attempted": bool(attempted),
+        "attempted": bool(results),
         "sent_count": len(successful_channels),
         "successful_channels": successful_channels,
         "failed_channels": failed_channels,
+        "results": results,
     }
 
 
-async def send_notification(event: str, message: str, details: dict[str, Any] | None = None, level: str = "info") -> None:
-    await deliver_notification(event, message, details, level)
+async def send_notification(
+    event: str,
+    message: str,
+    details: dict[str, Any] | None = None,
+    level: str = "info",
+    *,
+    profile_id: int | None,
+) -> None:
+    """Deliver a notification in the background: any error is logged (type only), never raised."""
+    try:
+        await deliver_notification(event, message, details, level, profile_id=profile_id)
+    except Exception as exc:  # noqa: BLE001 - a notification must never fail the operation it reports
+        logger.warning(
+            "Notification delivery failed (event=%s, profile_id=%s): %s", event, profile_id, type(exc).__name__
+        )
 
 
 def get_notification_log_context() -> dict[str, Any]:
@@ -308,14 +345,21 @@ def get_notification_log_context() -> dict[str, Any]:
     }
 
 
-def queue_notification(event: str, message: str, details: dict[str, Any] | None = None, level: str = "info") -> None:
+def queue_notification(
+    event: str,
+    message: str,
+    details: dict[str, Any] | None = None,
+    level: str = "info",
+    *,
+    profile_id: int | None,
+) -> None:
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         logger.debug("Skipping queued notification because no running event loop is available (event=%s).", event)
         return
 
-    task = loop.create_task(send_notification(event, message, details, level))
+    task = loop.create_task(send_notification(event, message, details, level, profile_id=profile_id))
     background_tasks.add(task)
     task.add_done_callback(background_tasks.discard)
 
@@ -342,12 +386,8 @@ NOTIFICATION_MESSAGE_PLACEHOLDERS: dict[str, list[str]] = {
     "restore_failed": ["backup_id", "account_id", "tunnel_id", "error"],
     "retention_cleanup": ["deleted_count", "retention_days", "cutoff"],
 }
-NOTIFICATION_MESSAGE_GLOBAL_PLACEHOLDERS = ["version", "timestamp"]
-
-
-class _SafeFormatDict(dict):  # type: ignore[type-arg]
-    def __missing__(self, key: str) -> str:
-        return f"{{{key}}}"
+NOTIFICATION_MESSAGE_GLOBAL_PLACEHOLDERS = ["version", "timestamp", "profile"]
+OTHER_ACCOUNTS_LABEL = "Other accounts"
 
 
 def get_notification_message_templates() -> dict[str, str]:
@@ -376,15 +416,65 @@ def set_telegram_compact_notifications(enabled: bool) -> None:
     set_setting("telegram_compact_notifications", "true" if enabled else "false")
 
 
-def render_notification_message(event: str, details: dict[str, Any] | None = None) -> str:
+def notification_profile_name(profile_id: int | None) -> str:
+    """The profile name shown in notifications: "Other accounts" for ``None``, a fallback when it is gone."""
+    if profile_id is None:
+        return OTHER_ACCOUNTS_LABEL
+    try:
+        return get_profile(profile_id).name
+    except LookupError:
+        return f"Profile {profile_id}"
+
+
+def _format_template(template: str, ctx: dict[str, Any]) -> str:
+    """``str.format`` limited to plain names: unknown, dotted or indexed fields are left as written.
+
+    Attribute and index lookups are never evaluated, so a template cannot reach object internals,
+    and a substituted value (a profile name with braces, say) is never formatted again.
+    """
+    try:
+        parts = list(Formatter().parse(template))
+    except ValueError:
+        return template
+    out: list[str] = []
+    for literal, field_name, spec, conversion in parts:
+        out.append(literal)
+        if field_name is None:
+            continue
+        if field_name.isidentifier() and field_name in ctx:
+            value = ctx[field_name]
+            if conversion == "r":
+                value = repr(value)
+            elif conversion == "a":
+                value = ascii(value)
+            elif conversion == "s":
+                value = str(value)
+            try:
+                out.append(format(value, spec or ""))
+            except (TypeError, ValueError):
+                out.append(str(value))
+        else:
+            out.append(
+                "{" + field_name + (f"!{conversion}" if conversion else "") + (f":{spec}" if spec else "") + "}"
+            )
+    return "".join(out)
+
+
+def render_notification_message(event: str, details: dict[str, Any] | None = None, *, profile_id: int | None) -> str:
+    """The message of ``event``: the custom template if any, else the built-in one.
+
+    Built-in templates start with ``[{profile}] `` when more than one profile exists; custom templates
+    are left as written (they can use ``{profile}``). Unknown placeholders stay in the text as written.
+    """
     templates = get_notification_message_templates()
-    template = templates.get(event, "").strip()
+    custom = templates.get(event, "")
+    template = custom.strip() if isinstance(custom, str) else ""
     if not template:
         template = DEFAULT_NOTIFICATION_MESSAGES.get(event, event)
-    ctx = _SafeFormatDict(details or {})
+        if len(list_profiles()) > 1:
+            template = "[{profile}] " + template
+    ctx: dict[str, Any] = dict(details or {})
     ctx.setdefault("version", APP_VERSION)
     ctx.setdefault("timestamp", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
-    try:
-        return template.format_map(ctx)
-    except (ValueError, KeyError):
-        return template
+    ctx["profile"] = notification_profile_name(profile_id)
+    return _format_template(template, ctx)

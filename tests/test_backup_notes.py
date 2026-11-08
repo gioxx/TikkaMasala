@@ -84,7 +84,7 @@ def fake_list(monkeypatch):
 def events(monkeypatch):
     recorded: list[str] = []
 
-    def _queue(event, message, details=None, level="info"):
+    def _queue(event, message, details=None, level="info", *, profile_id):
         recorded.append(event)
 
     monkeypatch.setattr(tunnels, "queue_notification", _queue)

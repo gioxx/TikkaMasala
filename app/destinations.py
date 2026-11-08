@@ -24,7 +24,7 @@ from urllib.parse import urlsplit
 from app.config import DEFAULT_NOTIFICATION_EVENTS
 from app.db import db
 from app.encryption import EncryptionKeyError, encrypt_secret, read_secret
-from app.profiles import DEFAULT_PROFILE_ID
+from app.profiles import DEFAULT_PROFILE_ID, is_control_character
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +45,9 @@ TELEGRAM_TOKEN_PATTERN = r"\d{3,}:[A-Za-z0-9_-]{20,}"
 TELEGRAM_CHAT_PATTERN = r"-?\d{1,20}|@[A-Za-z0-9_]{4,64}"
 
 _DEFAULT_LABELS = {"webhook": "Webhook", "telegram": "Telegram"}
-_TOKEN_RE = re.compile(TELEGRAM_TOKEN_PATTERN)
-_CHAT_RE = re.compile(TELEGRAM_CHAT_PATTERN)
+# ASCII only: ``\d`` would otherwise accept Arabic-Indic and other Unicode digits.
+_TOKEN_RE = re.compile(TELEGRAM_TOKEN_PATTERN, re.ASCII)
+_CHAT_RE = re.compile(TELEGRAM_CHAT_PATTERN, re.ASCII)
 _WEBHOOK_URL_MESSAGE = "The webhook URL must start with http:// or https:// and include a host."
 UNREADABLE_HINT = "Saved secret cannot be decrypted. Edit the destination and enter it again."
 
@@ -143,6 +144,8 @@ def validate_destination(data: DestinationInput, *, creating: bool) -> Destinati
     label = data.label.strip() or _DEFAULT_LABELS[kind]
     if len(label) > LABEL_MAX:
         raise DestinationInputError("label", f"Labels can be at most {LABEL_MAX} characters.")
+    if any(is_control_character(ch) for ch in label):
+        raise DestinationInputError("label", "Labels cannot contain control characters.")
     secret = data.secret.strip()
     chat_id = ""
     if kind == "webhook":

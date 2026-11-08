@@ -140,7 +140,8 @@ RESERVED_PROFILE_NAMES = frozenset({"other accounts"})
 _BIDI_CONTROLS = frozenset("\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069")
 
 
-def _is_control_character(ch: str) -> bool:
+def is_control_character(ch: str) -> bool:
+    """True for control, format (zero-width, bidi) and line/paragraph separator characters."""
     # Cf covers zero-width and bidi formatting characters (U+200B, U+FEFF, U+202E, ...).
     return unicodedata.category(ch) in {"Cc", "Cf", "Zl", "Zp"} or ch in _BIDI_CONTROLS
 
@@ -152,7 +153,7 @@ def normalize_profile_name(raw: str, *, exclude_id: int | None = None) -> str:
         raise ValueError("Enter a profile name.")
     if len(name) > PROFILE_NAME_MAX:
         raise ValueError(f"Profile names can be at most {PROFILE_NAME_MAX} characters.")
-    if any(_is_control_character(ch) for ch in name):
+    if any(is_control_character(ch) for ch in name):
         raise ValueError("Profile names cannot contain control characters.")
     folded = name.casefold()
     if folded in RESERVED_PROFILE_NAMES:

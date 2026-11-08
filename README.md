@@ -334,6 +334,7 @@ Webhook notifications send a JSON payload with:
 - message
 - timestamp
 - event-specific details
+- the profile the event belongs to (`"profile": {"id": …, "name": …}`; retention cleanup of backups no profile covers uses `null` and `Other accounts`)
 
 Telegram notifications send the same information as a formatted plain-text message through the Telegram Bot API. By default Telegram messages are compact (title and message only); toggle **Compact Telegram notifications** off on the **Notification messages** page to also append the structured `key: value` details block (trigger, account_id, tunnel counts, skipped tunnels, etc.). The webhook channel is unaffected either way and always receives the full payload.
 
@@ -350,10 +351,13 @@ When notifications are configured:
 
 Each event has a built-in default message. You can override it from the **Notification messages** page (`/settings/notifications`, linked from Settings).
 
-Messages support `{placeholder}` tokens that are replaced at runtime with event-specific values. Two tokens are always available regardless of the event:
+Messages support `{placeholder}` tokens that are replaced at runtime with event-specific values. Three tokens are always available regardless of the event:
 
 - `{version}` — current app version
 - `{timestamp}` — ISO 8601 UTC timestamp of the notification
+- `{profile}` — name of the profile the event belongs to (`Other accounts` for backups no profile covers)
+
+When more than one profile exists, the built-in default messages start with `[profile name] `. Custom messages are sent as written.
 
 Available tokens per event:
 
@@ -377,7 +381,7 @@ For `auto_backup_*` events:
 - `{backed_up_tunnels}` — comma-separated list of tunnel names that were backed up (or `—` if none)
 - `{skipped_tunnels}` — comma-separated list of skipped tunnel names with the reason in parentheses (or `—` if none)
 
-Leaving a field empty restores the built-in default for that event. Unknown tokens are left as-is in the output.
+Leaving a field empty restores the built-in default for that event. Unknown tokens (and tokens with attribute or index lookups, such as `{error.args}`) are left as-is in the output.
 
 > **Note:** as of 1.3.4, the default `auto_backup_*` messages include the new tokens above. If you had already saved a custom message, clear the field (or click *Use default*) on the notification customization page to pick up the new format.
 

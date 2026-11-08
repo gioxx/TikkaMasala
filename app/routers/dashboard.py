@@ -68,7 +68,8 @@ async def backup_tunnel_action(request: Request, tunnel_id: str) -> Response:
         )
     tunnel_id = tunnel_id.lower()
     try:
-        creds = require_api_credentials(current_profile_id(request))
+        profile_id = current_profile_id(request)
+        creds = require_api_credentials(profile_id)
     except HTTPException as exc:
         return await _render_home(request, notice=("error", str(exc.detail)))
     if DEMO_MODE:
@@ -83,7 +84,7 @@ async def backup_tunnel_action(request: Request, tunnel_id: str) -> Response:
             headers={"Content-Disposition": f'attachment; filename="{snapshot.filename}"'},
         )
     try:
-        backup = await back_up_tunnel(creds, tunnel_id)
+        backup = await back_up_tunnel(creds, tunnel_id, profile_id=profile_id)
     except HTTPException as exc:
         return await _render_home(request, feedback={tunnel_id: RowFeedback(ok=False, message=str(exc.detail))})
     return await _render_home(request, feedback={tunnel_id: backup_saved_feedback(backup)})

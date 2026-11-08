@@ -22,6 +22,11 @@
             Leave a field empty to use the built-in default message.
             Use <code>{placeholder}</code> tokens to include dynamic values — click a token to insert it at the cursor.
           </p>
+          <p class="hint">
+            Every message can use
+            {% for token in global_placeholders %}<code>{{'{'}}{{ token }}{{'}'}}</code>{% if not loop.last %}, {% endif %}{% endfor %}.
+            Default messages start with [profile name] when more than one profile exists.
+          </p>
           <section class="notice top-gap">
             <strong>Heads up:</strong> automatic backup notifications now include
             <code>{backed_up_tunnels}</code>, <code>{skipped_tunnels}</code>,

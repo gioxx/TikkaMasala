@@ -108,7 +108,7 @@ async def new_backup_action(
         # The page shows the credentials notice in place of the form.
         return await fail(None, 400)
     try:
-        backup = await back_up_tunnel(creds, tunnel_id.lower(), cleaned_notes)
+        backup = await back_up_tunnel(creds, tunnel_id.lower(), cleaned_notes, profile_id=current_profile_id(request))
     except HTTPException as exc:
         return await fail(f"Backup failed: {exc.detail}", 502)
     return RedirectResponse(url=f"/backup/{backup.id}?created=1", status_code=303)
@@ -191,9 +191,10 @@ async def restore_backup(
         }
         queue_notification(
             "restore_success",
-            render_notification_message("restore_success", _rs_details),
+            render_notification_message("restore_success", _rs_details, profile_id=target.profile_id),
             _rs_details,
             level="info",
+            profile_id=target.profile_id,
         )
         return render_backup_page(
             request,
@@ -219,9 +220,10 @@ async def restore_backup(
         }
         queue_notification(
             "restore_failed",
-            render_notification_message("restore_failed", _rf_details),
+            render_notification_message("restore_failed", _rf_details, profile_id=target.profile_id),
             _rf_details,
             level="warning",
+            profile_id=target.profile_id,
         )
         return render_backup_page(
             request,

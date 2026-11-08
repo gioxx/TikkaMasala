@@ -12,8 +12,9 @@ from app.background import finish_or_continue
 from app.backups import RETENTION_INPUT_ERROR, get_backup_retention_status, parse_retention_days_input
 from app.config import AUTO_BACKUP_TIMEZONE, DEFAULT_AUTO_BACKUP_CRON, DEMO_MODE
 from app.credentials import get_api_credentials
-from app.notifications import deliver_notification, get_notification_status, render_notification_message
-from app.profiles import current_profile_id, update_profile
+from app.destinations import list_destinations
+from app.notifications import deliver_notification, env_delivery_targets, render_notification_message
+from app.profiles import DEFAULT_PROFILE_ID, current_profile_id, update_profile
 from app.tunnels import fetch_tunnel_list
 from app.scheduler import (
     TUNNEL_FREQUENCY_OPTIONS,
@@ -186,46 +187,40 @@ async def automation_run_action(request: Request) -> HTMLResponse:
 async def automation_notifications_test_action(request: Request) -> HTMLResponse:
     if DEMO_MODE:
         return _home()
-    status = get_notification_status()
-    if not status["webhook_enabled"] and not status["telegram_enabled"]:
-        logger.warning("Notification test requested, but no notification channel is configured.")
+    profile_id = current_profile_id(request)
+    channel_labels = [target.label for target in env_delivery_targets()] if profile_id == DEFAULT_PROFILE_ID else []
+    channel_labels += [destination.label for destination in list_destinations(profile_id)]
+    if not channel_labels:
+        logger.warning("Notification test requested, but profile %s has no notification destination.", profile_id)
         return render_automation_page(
             request,
             notice=(
                 "notifications",
                 "error",
-                "Notification test failed: no configured channel found. Set a webhook URL and/or Telegram bot settings first.",
+                "Notification test failed: no configured channel found. Add a destination first.",
             ),
         )
 
-    logger.info(
-        "Notification test requested from UI (channels=%s, events=%s).",
-        status["channel_label"],
-        ", ".join(status["events"]) if status["events"] else "none",
-    )
-    details: dict[str, Any] = {
-        "configured_channels": status["channel_label"],
-        "enabled_events": status["events"],
-    }
+    logger.info("Notification test requested from UI (profile_id=%s, destinations=%s).", profile_id, len(channel_labels))
+    details: dict[str, Any] = {"configured_channels": ", ".join(channel_labels)}
     result = await deliver_notification(
         "notification_test",
-        render_notification_message("notification_test", details),
+        render_notification_message("notification_test", details, profile_id=profile_id),
         details,
         level="info",
         force=True,
+        profile_id=profile_id,
     )
     logger.info(
-        "Notification test finished (sent=%s, successful_channels=%s, failed_channels=%s).",
+        "Notification test finished (profile_id=%s, sent=%s, failed=%s).",
+        profile_id,
         result["sent_count"],
-        ", ".join(result["successful_channels"]) or "none",
-        ", ".join(result["failed_channels"]) or "none",
+        len(result["failed_channels"]),
     )
     if result["sent_count"]:
-        successful_channels = [channel.title() for channel in result["successful_channels"]]
-        failed_channels = [channel.title() for channel in result["failed_channels"]]
-        message = f"Notification test sent successfully via {', '.join(successful_channels)}."
+        message = f"Notification test sent successfully via {', '.join(result['successful_channels'])}."
         if result["failed_channels"]:
-            message += f" Failed channels: {', '.join(failed_channels)}."
+            message += f" Failed channels: {', '.join(result['failed_channels'])}."
         return render_automation_page(request, notice=("notifications", "success", message))
 
     return render_automation_page(

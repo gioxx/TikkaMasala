@@ -611,9 +611,10 @@ async def run_auto_backup_job(profile_id: int, trigger: str = "schedule") -> dic
             }
             queue_notification(
                 f"auto_backup_{status}",
-                render_notification_message(f"auto_backup_{status}", _ab_details),
+                render_notification_message(f"auto_backup_{status}", _ab_details, profile_id=profile_id),
                 _ab_details,
                 level="warning" if status in {"partial", "failed"} else "info",
+                profile_id=profile_id,
             )
         return {
             "status": status,
