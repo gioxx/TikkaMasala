@@ -175,3 +175,38 @@ def test_switcher_wraps_below_bar_on_narrow_screens():
     block = _media_block(css, "(max-width: 960px)")
     rule = re.search(r"\.profile-switcher \{([^}]*)\}", block).group(1)
     assert "flex: 1 1 100%" in rule
+
+
+def _top_level_rule(css: str, selector: str) -> str:
+    """The body of the first rule for ``selector`` outside any @media block."""
+    depth = 0
+    index = 0
+    while index < len(css):
+        if depth == 0 and css.startswith(selector + " {", index) and (index == 0 or css[index - 1] == "\n"):
+            start = index + len(selector) + 2
+            return css[start:css.index("}", start)]
+        if css[index] == "{":
+            depth += 1
+        elif css[index] == "}":
+            depth -= 1
+        index += 1
+    raise AssertionError(f"no top-level rule for {selector}")
+
+
+def test_switcher_select_keeps_readable_min_width():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    rule = _top_level_rule(css, ".profile-switcher select")
+    match = re.search(r"min-width:\s*([\d.]+)rem", rule)
+    assert match and float(match.group(1)) >= 6
+
+
+def test_version_tag_never_hidden_without_switcher():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+        if "display: none" in body and ".topbar-brand sub" in selector:
+            assert ".has-profile-switcher" in selector, selector
+    # Nor is the bar tightened for single-profile installs.
+    block = _media_block(css, "(min-width: 961px) and (max-width: 1200px)")
+    for selector, _body in re.findall(r"([^{}]+)\{([^{}]*)\}", block):
+        if ".topbar-inner" in selector or ".topnav-link" in selector:
+            assert ".has-profile-switcher" in selector, selector

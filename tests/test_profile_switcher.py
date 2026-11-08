@@ -75,7 +75,29 @@ def test_setup_page_has_no_switcher(client, second_profile, monkeypatch, tmp_pat
     assert "data-profile-switcher" not in response.text
 
 
-def test_app_js_autosubmits_switcher(client):
+def test_switcher_on_backup_detail(client, second_profile, make_backup):
+    backup_id = make_backup()
+    response = client.get(f"/backup/{backup_id}")
+    assert response.status_code == 200
+    assert "data-profile-switcher" in response.text
+    assert f'name="next" value="/backup/{backup_id}"' in response.text
+
+
+def test_switch_button_always_visible_no_autosubmit(client, second_profile):
+    text = client.get("/").text
+    start = text.index("<form class=\"profile-switcher\"")
+    form = text[start:text.index("</form>", start)]
+    assert '<button type="submit" class="secondary-button profile-switcher-submit">Switch</button>' in form
+    button = form[form.index("<button"):form.index("</button>")]
+    assert "hidden" not in button
     js = client.get("/static/app.js").text
-    assert "data-profile-switcher" in js
-    assert "requestSubmit" in js
+    assert "requestSubmit" not in js
+    assert "data-profile-switcher" not in js
+
+
+def test_topbar_flags_switcher_only_when_shown(client, second_profile):
+    assert '<header class="topbar has-profile-switcher" data-topbar>' in client.get("/").text
+
+
+def test_topbar_plain_with_one_profile(client):
+    assert '<header class="topbar" data-topbar>' in client.get("/").text

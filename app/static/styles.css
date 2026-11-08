@@ -336,13 +336,9 @@ body {
   font-weight: 600;
 }
 .topnav-identity a { flex: none; margin-left: 0.15rem; font-weight: 600; }
-/* Between the collapse width and a wide screen the bar is tight (brand, nav, profile switcher, identity):
-   slimmer gaps, no version tag (the footer shows it), and the "Signed in as" label stays for screen
-   readers only, visually hidden. */
+/* Between the collapse width and a wide screen there is no room for the label next to the nav:
+   it stays for screen readers, visually hidden. */
 @media (min-width: 961px) and (max-width: 1200px) {
-  .topbar-inner { column-gap: 0.75rem; }
-  .topbar-brand sub { display: none; }
-  .topnav-link { padding: 0 0.45rem; }
   .topnav-identity-label {
     position: absolute;
     width: 1px;
@@ -356,14 +352,16 @@ body {
     border: 0;
   }
 }
-/* Profile switcher: shown with more than one profile, outside the collapsible menu. */
+/* Profile switcher: shown with more than one profile, outside the collapsible menu. The top bar then
+   carries .has-profile-switcher; every layout change it needs is scoped to that class, so a
+   single-profile install sees the bar exactly as before. */
 .profile-switcher {
   display: flex;
   align-items: center;
   gap: 0.4rem;
   flex: 0 1 auto;
-  /* The cloud icon plus a select wide enough for a short name; longer names get an ellipsis. */
-  min-width: 7.5rem;
+  /* Never narrower than the icon, a readable select (6rem) and the Switch button. */
+  min-width: 12.5rem;
   margin-left: auto;
 }
 .profile-switcher ~ .topnav-identity { margin-left: 0; }
@@ -374,7 +372,7 @@ body {
 }
 .profile-switcher select {
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: 6rem;
   max-width: 12rem;
   padding: 0.35rem 0.6rem;
   border: 1px solid var(--border);
@@ -399,7 +397,39 @@ body {
   padding: 0.35rem 0.7rem;
   font-size: 0.8rem;
 }
-.profile-switcher-submit[hidden] { display: none; }
+/* With the switcher in the bar there is no room for "Signed in as" at any width: screen readers only. */
+@media (min-width: 961px) {
+  .topbar.has-profile-switcher .topnav-identity-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+/* Between the collapse width and a wide screen brand, nav, switcher and identity do not fit on one row:
+   the switcher moves to a compact row under the bar, aligned right; the identity keeps the first row. */
+@media (min-width: 961px) and (max-width: 1200px) {
+  .topbar.has-profile-switcher .topbar-inner { flex-wrap: wrap; }
+  /* Keep the first row as tall as the single-row bar (the nav underline sits on its bottom edge). */
+  .topbar.has-profile-switcher .topnav { min-height: 3.5rem; }
+  .topbar.has-profile-switcher .topnav-identity {
+    flex: 1 1 0;
+    justify-content: flex-end;
+  }
+  .topbar.has-profile-switcher .profile-switcher {
+    order: 1;
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    margin: 0;
+    padding: 0 0 0.6rem;
+  }
+}
 .topnav-toggle {
   display: none;
   align-items: center;

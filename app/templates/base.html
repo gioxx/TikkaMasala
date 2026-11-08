@@ -39,7 +39,8 @@
 </svg>
 {%- endmacro %}
     {% set identity = access_identity(request) %}
-    <header class="topbar" data-topbar>
+    {% set switcher = none if hide_sections else profile_switcher(request) %}
+    <header class="topbar{% if switcher and switcher.visible %} has-profile-switcher{% endif %}" data-topbar>
       <div class="topbar-inner">
         <a class="topbar-brand" href="/">
           <img src="/static/favicon.ico" alt="" width="20" height="20">
@@ -55,7 +56,6 @@
           <a class="topnav-link" data-nav="{{ section.key }}" href="{{ section.href }}"{% if section.key == active_section %} aria-current="page"{% endif %}>{{ nav_icon(section.icon) }}<span>{{ section.label }}</span></a>
           {% endfor %}
         </nav>
-        {% set switcher = profile_switcher(request) %}
         {% if switcher.visible %}
         <form class="profile-switcher" data-profile-switcher method="post" action="/profiles/active">
           <input type="hidden" name="next" value="{{ request.url.path }}">
