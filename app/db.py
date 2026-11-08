@@ -7,6 +7,7 @@ from contextlib import closing
 from dataclasses import dataclass
 
 from app.config import DB_PATH
+from app.migrations import apply_migrations
 
 
 @dataclass
@@ -19,6 +20,21 @@ class BackupRecord:
     route_count: int
     filename: str
     notes: str | None
+
+
+@dataclass
+class ProfileRecord:
+    id: int
+    name: str
+    account_id: str | None
+    api_token: str | None
+    auto_backup_enabled: bool
+    auto_backup_cron: str | None
+    tunnel_schedule: str | None
+    retention_days: int | None
+    last_run_at: str | None
+    last_status: str | None
+    created_at: str
 
 
 @dataclass
@@ -51,56 +67,7 @@ def db() -> sqlite3.Connection:
 
 def init_db() -> None:
     with closing(db()) as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS backups (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at TEXT NOT NULL,
-                account_id TEXT NOT NULL,
-                tunnel_id TEXT NOT NULL,
-                tunnel_name TEXT,
-                route_count INTEGER NOT NULL,
-                filename TEXT NOT NULL UNIQUE,
-                notes TEXT
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS restores (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                backup_id INTEGER NOT NULL,
-                restored_at TEXT NOT NULL,
-                account_id TEXT NOT NULL,
-                tunnel_id TEXT NOT NULL,
-                FOREIGN KEY (backup_id) REFERENCES backups(id)
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS scheduled_runs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                started_at TEXT NOT NULL,
-                finished_at TEXT,
-                status TEXT NOT NULL,
-                account_id TEXT NOT NULL,
-                tunnel_count INTEGER NOT NULL DEFAULT 0,
-                backup_count INTEGER NOT NULL DEFAULT 0,
-                error_count INTEGER NOT NULL DEFAULT 0,
-                details TEXT
-            )
-            """
-        )
-        conn.commit()
+        apply_migrations(conn, DB_PATH)
 
 
 init_db()
