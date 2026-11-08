@@ -280,7 +280,8 @@ def test_snapshot_shared_warning_suggests_live_check(client, make_backup):
     make_backup(tunnel_id="dup-a", tunnel_name="DupA", ingress=[{"hostname": "dup.example.com", "service": "http://a"}])
     make_backup(tunnel_id="dup-b", tunnel_name="DupB", ingress=[{"hostname": "dup.example.com", "service": "http://b"}])
     body = client.get("/ingress").text
-    assert "dup.example.com" in body
+    assert "<strong>Hostname served by more than one tunnel.</strong>" in body
+    assert "also in DupB" in body
     assert "check with <em>Live from Cloudflare</em>" in body
 
 
