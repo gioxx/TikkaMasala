@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from cryptography.fernet import Fernet, InvalidToken
 from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -16,8 +15,8 @@ from app.config import (
     DEFAULT_API_TOKEN,
     DEMO_MODE,
     ENCRYPTED_VALUE_PREFIX,
-    TOKEN_ENCRYPTION_KEY,
 )
+from app.encryption import encrypt_secret, read_secret
 from app.profiles import DEFAULT_PROFILE_ID, get_profile, update_profile
 
 logger = logging.getLogger(__name__)
@@ -71,58 +70,20 @@ def remember_account_id(profile_id: int, account_id: str) -> None:
         update_profile(profile_id, account_id=normalized)
 
 
-def get_fernet() -> Fernet | None:
-    if not TOKEN_ENCRYPTION_KEY:
-        return None
-    try:
-        return Fernet(TOKEN_ENCRYPTION_KEY.encode("utf-8"))
-    except (ValueError, TypeError):
-        raise RuntimeError("TOKEN_ENCRYPTION_KEY is invalid. Provide a valid Fernet key.")
-
-
-def encrypt_secret(value: str) -> str:
-    fernet = get_fernet()
-    if fernet is None:
-        raise RuntimeError("TOKEN_ENCRYPTION_KEY is required to persist API tokens securely.")
-    token = fernet.encrypt(value.encode("utf-8")).decode("utf-8")
-    return f"{ENCRYPTED_VALUE_PREFIX}{token}"
-
-
-def decrypt_secret(value: str) -> str:
-    if not value.startswith(ENCRYPTED_VALUE_PREFIX):
-        return value
-    fernet = get_fernet()
-    if fernet is None:
-        raise RuntimeError("TOKEN_ENCRYPTION_KEY is required to read encrypted API tokens from the database.")
-    encrypted = value.removeprefix(ENCRYPTED_VALUE_PREFIX).encode("utf-8")
-    try:
-        return fernet.decrypt(encrypted).decode("utf-8")
-    except (InvalidToken, ValueError) as exc:
-        raise RuntimeError("Failed to decrypt stored API token. Check TOKEN_ENCRYPTION_KEY.") from exc
-
-
 def _read_stored_api_token(profile_id: int) -> str | None:
     """Return the profile's saved token in clear, or ``None`` if unset or unreadable.
 
-    A token still stored in plaintext (legacy install) is re-saved encrypted
-    when an encryption key is configured.
+    A token still stored in plaintext (legacy install) is re-saved encrypted.
     """
     stored_token = (get_profile(profile_id).api_token or "").strip()
     if not stored_token:
         return None
-    try:
-        decrypted = decrypt_secret(stored_token).strip()
-    except RuntimeError:
-        logger.exception(
-            "Saved API token of profile %s is not readable with the current key; falling back.",
-            profile_id,
-        )
-        return None
+    decrypted = (read_secret(stored_token) or "").strip()
     if decrypted and not stored_token.startswith(ENCRYPTED_VALUE_PREFIX):
         try:
             remember_api_token(profile_id, decrypted)
         except RuntimeError:
-            logger.exception("Unable to encrypt the plaintext API token of profile %s.", profile_id)
+            logger.warning("Unable to encrypt the plaintext API token of profile %s; it stays as is.", profile_id)
     return decrypted or None
 
 
@@ -175,7 +136,7 @@ def remember_api_token(profile_id: int, api_token: str) -> None:
     if DEMO_MODE:
         return
     normalized = api_token.strip()
-    if normalized and TOKEN_ENCRYPTION_KEY:
+    if normalized:
         update_profile(profile_id, api_token=encrypt_secret(normalized))
 
 
@@ -208,7 +169,7 @@ def build_prefill_status_from_sources(account_source: str | None, api_token_sour
         "uses_environment_prefill": "environment" in {account_source, api_token_source},
         "uses_database_prefill": "database" in {account_source, api_token_source},
         "uses_browser_prefill": api_token_source == "browser",
-        "can_persist_api_token": bool(TOKEN_ENCRYPTION_KEY),
+        "can_persist_api_token": not DEMO_MODE,
     }
 
 

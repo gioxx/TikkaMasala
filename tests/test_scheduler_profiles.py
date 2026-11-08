@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 import app.credentials as credentials
+import app.encryption as encryption
 import app.scheduler as scheduler
 from app.db import get_setting
 from app.profiles import DEFAULT_PROFILE_ID, create_profile, get_profile, update_profile
@@ -42,12 +43,13 @@ def _remove_profile_jobs() -> None:
 
 
 @pytest.fixture
-def recorder(data_dir: Path, monkeypatch):
+def recorder(data_dir: Path, tmp_path: Path, monkeypatch):
     """Default (acc-A) and Client (acc-B) profiles, with Cloudflare calls recorded."""
     monkeypatch.setattr(credentials, "DEMO_MODE", False)
     monkeypatch.setattr(credentials, "DEFAULT_ACCOUNT_ID", "")
     monkeypatch.setattr(credentials, "DEFAULT_API_TOKEN", "")
-    monkeypatch.setattr(credentials, "TOKEN_ENCRYPTION_KEY", "")
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", "")
+    monkeypatch.setattr(encryption, "ENCRYPTION_KEY_FILE", tmp_path / "encryption.key")
     monkeypatch.setattr(scheduler, "queue_notification", lambda *args, **kwargs: None)
 
     with closing(sqlite3.connect(data_dir / "app.db")) as conn:

@@ -11,6 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 BACKUP_DIR = DATA_DIR / "backups"
 DB_PATH = DATA_DIR / "app.db"
+ENCRYPTION_KEY_FILE = DATA_DIR / "encryption.key"
 API_BASE = os.getenv("CLOUDFLARE_API_BASE", "https://api.cloudflare.com/client/v4")
 REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "20"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").strip().upper()
