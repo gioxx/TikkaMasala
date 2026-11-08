@@ -152,7 +152,7 @@ def test_ingress_page_htmx_returns_partial(client, make_backup):
 def test_ingress_page_live_without_credentials(client):
     response = client.get("/ingress?source=live")
     assert response.status_code == 200
-    assert "needs an Account ID and an API token" in response.text
+    assert "Live data needs an Account ID and an API token. Add them in Settings." in response.text
 
 
 def test_dashboard_links_to_ingress_page(client):

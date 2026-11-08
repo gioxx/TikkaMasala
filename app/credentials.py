@@ -1,19 +1,15 @@
-"""Account ID / API token resolution, encryption at rest and the token cookie."""
+"""Account ID / API token resolution, validation on save and encryption at rest."""
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
 
-from fastapi import HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import HTTPException
 
 from app import cloudflare
 from app.cloudflare import CredentialsInvalid
 from app.config import (
-    API_TOKEN_COOKIE_MAX_AGE,
-    API_TOKEN_COOKIE_NAME,
     DEFAULT_ACCOUNT_ID,
     DEFAULT_API_TOKEN,
     DEMO_MODE,
@@ -56,24 +52,6 @@ def get_account_id_source(profile_id: int) -> str | None:
     return None
 
 
-def resolve_account_id(profile_id: int, account_id: str | None) -> str:
-    resolved = (account_id or "").strip() or get_saved_account_id(profile_id)
-    if not resolved:
-        raise HTTPException(
-            status_code=400,
-            detail="Account ID is required. Set it in the form or via CLOUDFLARE_ACCOUNT_ID.",
-        )
-    return resolved
-
-
-def remember_account_id(profile_id: int, account_id: str) -> None:
-    if DEMO_MODE:
-        return
-    normalized = account_id.strip()
-    if normalized:
-        update_profile(profile_id, account_id=normalized)
-
-
 def _read_stored_api_token(profile_id: int) -> str | None:
     """Return the profile's saved token in clear, or ``None`` if unset or unreadable.
 
@@ -91,26 +69,8 @@ def _read_stored_api_token(profile_id: int) -> str | None:
     return decrypted or None
 
 
-def get_saved_api_token(request: Request, profile_id: int) -> str:
-    if DEMO_MODE:
-        return _env_api_token(profile_id)
-    cookie_token = request.cookies.get(API_TOKEN_COOKIE_NAME, "").strip()
-    if cookie_token:
-        return cookie_token
-    return get_server_api_token(profile_id)
-
-
-def get_api_token_source(request: Request, profile_id: int) -> str | None:
-    if DEMO_MODE:
-        return "environment" if _env_api_token(profile_id) else None
-    cookie_token = request.cookies.get(API_TOKEN_COOKIE_NAME, "").strip()
-    if cookie_token:
-        return "browser"
-    return get_server_api_token_source(profile_id)
-
-
 def get_server_api_token(profile_id: int) -> str:
-    """The token for server-side work (no browser cookie): database first, then environment."""
+    """The profile's API token in clear: database first, then environment (demo: environment only)."""
     if DEMO_MODE:
         return _env_api_token(profile_id)
     return _read_stored_api_token(profile_id) or _env_api_token(profile_id)
@@ -124,16 +84,6 @@ def get_server_api_token_source(profile_id: int) -> str | None:
     if _env_api_token(profile_id):
         return "environment"
     return None
-
-
-def resolve_api_token(request: Request, profile_id: int, api_token: str | None) -> str:
-    resolved = (api_token or "").strip() or get_saved_api_token(request, profile_id)
-    if not resolved:
-        raise HTTPException(
-            status_code=400,
-            detail="API token is required. Set it in the form or via CLOUDFLARE_API_TOKEN.",
-        )
-    return resolved
 
 
 def remember_api_token(profile_id: int, api_token: str) -> None:
@@ -164,6 +114,21 @@ def get_api_credentials(profile_id: int) -> ApiCredentials | None:
     if not account_id or not api_token:
         return None
     return ApiCredentials(account_id=account_id, api_token=api_token)
+
+
+DEMO_NO_CREDENTIALS_MESSAGE = (
+    "No credentials in demo mode. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN to try it."
+)
+MISSING_CREDENTIALS_MESSAGE = "Account ID and API token are not configured. Add them in Settings."
+
+
+def require_api_credentials(profile_id: int) -> ApiCredentials:
+    """The profile's effective credentials, or a 400 ``HTTPException`` with a user-facing message."""
+    creds = get_api_credentials(profile_id)
+    if creds is None:
+        detail = DEMO_NO_CREDENTIALS_MESSAGE if DEMO_MODE else MISSING_CREDENTIALS_MESSAGE
+        raise HTTPException(status_code=400, detail=detail)
+    return creds
 
 
 def mask_secret(value: str) -> str:
@@ -283,37 +248,3 @@ async def save_profile_credentials(
     update_profile(profile_id, **fields)
     logger.info("Credentials of profile %s saved (account_id=%s).", profile_id, resulting_account)
     return True
-
-
-def set_api_token_cookie(response: HTMLResponse | RedirectResponse, api_token: str) -> None:
-    if DEMO_MODE:
-        return
-    response.set_cookie(
-        key=API_TOKEN_COOKIE_NAME,
-        value=api_token.strip(),
-        max_age=API_TOKEN_COOKIE_MAX_AGE,
-        httponly=True,
-        samesite="lax",
-    )
-
-
-def clear_api_token_cookie(response: HTMLResponse | RedirectResponse) -> None:
-    response.delete_cookie(key=API_TOKEN_COOKIE_NAME, samesite="lax")
-
-
-def build_prefill_status_from_sources(account_source: str | None, api_token_source: str | None) -> dict[str, Any]:
-    return {
-        "account_id_source": account_source,
-        "api_token_source": api_token_source,
-        "has_prefill": bool(account_source or api_token_source),
-        "uses_environment_prefill": "environment" in {account_source, api_token_source},
-        "uses_database_prefill": "database" in {account_source, api_token_source},
-        "uses_browser_prefill": api_token_source == "browser",
-        "can_persist_api_token": not DEMO_MODE,
-    }
-
-
-def build_prefill_status(request: Request, profile_id: int) -> dict[str, Any]:
-    return build_prefill_status_from_sources(
-        get_account_id_source(profile_id), get_api_token_source(request, profile_id)
-    )

@@ -1,30 +1,16 @@
-"""Dashboard: token check, tunnel listing, manual backup, saved-auth reset."""
+"""Dashboard: tunnel listing and manual backup with the profile's saved credentials."""
 
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 
 from app.backups import create_backup
-from app.cloudflare import list_tunnels, verify_token
+from app.cloudflare import list_tunnels
 from app.config import BACKUP_DIR, BACKUPS_PAGE_SIZE, DEMO_MODE
-from app.credentials import (
-    build_prefill_status_from_sources,
-    clear_api_token_cookie,
-    clear_saved_credentials,
-    get_account_id_source,
-    get_saved_account_id,
-    get_server_api_token,
-    get_server_api_token_source,
-    remember_account_id,
-    remember_api_token,
-    resolve_account_id,
-    resolve_api_token,
-    set_api_token_cookie,
-)
+from app.credentials import require_api_credentials
 from app.notifications import queue_notification, render_notification_message
 from app.profiles import current_profile_id
 from app.web import render_index_page
@@ -42,71 +28,31 @@ async def index(
     message: str | None = None,
     error: str | None = None,
     success_target: str | None = "tunnels",
-    prefill_status: dict[str, Any] | None = None,
-    prefill_account_id: str | None = None,
-    prefill_api_token: str | None = None,
 ) -> HTMLResponse:
     return render_index_page(
         request,
         message=message,
         error=error,
         success_target=success_target,
-        prefill_status=prefill_status,
-        prefill_account_id=prefill_account_id,
-        prefill_api_token=prefill_api_token,
         backup_page=page,
         backup_page_size=page_size,
     )
 
 
-@router.post("/verify-token", response_class=HTMLResponse)
-async def verify_token_action(request: Request, api_token: str = Form(default="")) -> HTMLResponse:
-    profile_id = current_profile_id(request)
-    try:
-        api_token = resolve_api_token(request, profile_id, api_token)
-        logger.info("Token verification requested.")
-        result = await verify_token(api_token)
-        status = result.get("result", {}).get("status", "unknown")
-        message = f"Token verified successfully. Status: {status}."
-        logger.info("Token verification completed successfully (status=%s).", status)
-        remember_api_token(profile_id, api_token)
-        response = await index(
-            request,
-            message=message,
-            success_target="guide",
-            prefill_status=build_prefill_status_from_sources(get_account_id_source(profile_id), "browser"),
-            prefill_account_id=get_saved_account_id(profile_id),
-            prefill_api_token=api_token,
-        )
-        set_api_token_cookie(response, api_token)
-        return response
-    except HTTPException as exc:
-        logger.warning("Token verification failed: %s", exc.detail)
-        return await index(request, error=exc.detail, success_target="guide")
-
-
 @router.post("/list-tunnels", response_class=HTMLResponse)
-async def list_tunnels_action(request: Request, account_id: str = Form(default=""), api_token: str = Form(default="")) -> HTMLResponse:
+async def list_tunnels_action(request: Request) -> HTMLResponse:
     profile_id = current_profile_id(request)
     try:
-        account_id = resolve_account_id(profile_id, account_id)
-        api_token = resolve_api_token(request, profile_id, api_token)
-        logger.info("Tunnel listing requested (account_id=%s).", account_id)
-        tunnels = await list_tunnels(account_id, api_token)
-        logger.info("Tunnel listing completed (account_id=%s, tunnels=%s).", account_id, len(tunnels))
-        remember_account_id(profile_id, account_id)
-        remember_api_token(profile_id, api_token)
-        response = render_index_page(
+        creds = require_api_credentials(profile_id)
+        logger.info("Tunnel listing requested (account_id=%s).", creds.account_id)
+        tunnels = await list_tunnels(creds.account_id, creds.api_token)
+        logger.info("Tunnel listing completed (account_id=%s, tunnels=%s).", creds.account_id, len(tunnels))
+        return render_index_page(
             request,
             message=f"Loaded {len(tunnels)} tunnel(s).",
             success_target="tunnels",
             tunnels=tunnels,
-            prefill_status=build_prefill_status_from_sources("database", "browser"),
-            prefill_account_id=account_id,
-            prefill_api_token=api_token,
         )
-        set_api_token_cookie(response, api_token)
-        return response
     except HTTPException as exc:
         logger.warning("Tunnel listing failed: %s", exc.detail)
         return await index(request, error=exc.detail, success_target="tunnels")
@@ -115,17 +61,16 @@ async def list_tunnels_action(request: Request, account_id: str = Form(default="
 @router.post("/backup", response_model=None)
 async def backup_action(
     request: Request,
-    account_id: str = Form(default=""),
     tunnel_id: str = Form(...),
-    api_token: str = Form(default=""),
     notes: str | None = Form(default=None),
 ) -> HTMLResponse | FileResponse:
     profile_id = current_profile_id(request)
+    account_id: str | None = None
     try:
-        account_id = resolve_account_id(profile_id, account_id)
-        api_token = resolve_api_token(request, profile_id, api_token)
+        creds = require_api_credentials(profile_id)
+        account_id = creds.account_id
         logger.info("Manual backup requested (account_id=%s, tunnel_id=%s).", account_id, tunnel_id)
-        backup = await create_backup(account_id, tunnel_id, api_token, notes)
+        backup = await create_backup(account_id, tunnel_id, creds.api_token, notes)
         logger.info(
             "Manual backup created successfully (backup_id=%s, account_id=%s, tunnel_id=%s, tunnel_name=%s).",
             backup.id,
@@ -146,25 +91,18 @@ async def backup_action(
             _mbs_details,
             level="info",
         )
-        remember_account_id(profile_id, account_id)
-        remember_api_token(profile_id, api_token)
         if DEMO_MODE:
             file_path = BACKUP_DIR / backup.filename
             return FileResponse(path=file_path, filename=backup.filename, media_type="application/json")
-        response = await index(
+        return await index(
             request,
             message=f"Backup created: #{backup.id} for tunnel {backup.tunnel_name}.",
             success_target="backup",
-            prefill_status=build_prefill_status_from_sources("database", "browser"),
-            prefill_account_id=account_id,
-            prefill_api_token=api_token,
         )
-        set_api_token_cookie(response, api_token)
-        return response
     except HTTPException as exc:
         logger.warning("Manual backup failed (tunnel_id=%s): %s", tunnel_id, exc.detail)
         _mbf_details = {
-            "account_id": account_id.strip() or None,
+            "account_id": account_id,
             "tunnel_id": tunnel_id.strip() or None,
             "error": str(exc.detail),
         }
@@ -175,24 +113,3 @@ async def backup_action(
             level="warning",
         )
         return await index(request, error=exc.detail, success_target="backup")
-
-
-@router.post("/clear-saved-auth", response_class=HTMLResponse)
-async def clear_saved_auth(request: Request) -> HTMLResponse:
-    logger.info("Clearing saved authentication data from database and browser cookie.")
-    profile_id = current_profile_id(request)
-    clear_saved_credentials(profile_id)
-    # The browser cookie is cleared below, so prefill from what the server still knows (environment).
-    response = await index(
-        request,
-        message="Saved authentication data removed from the database. Backups were left untouched.",
-        success_target="guide",
-        prefill_status=build_prefill_status_from_sources(
-            get_account_id_source(profile_id),
-            get_server_api_token_source(profile_id),
-        ),
-        prefill_account_id=get_saved_account_id(profile_id),
-        prefill_api_token=get_server_api_token(profile_id),
-    )
-    clear_api_token_cookie(response)
-    return response

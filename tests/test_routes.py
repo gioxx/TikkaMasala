@@ -120,11 +120,5 @@ def test_notifications_test_without_channels(client):
     assert "no configured channel found" in response.text
 
 
-def test_list_tunnels_requires_account_id(client):
-    response = client.post("/list-tunnels", data={"api_token": "x"})
-    assert response.status_code == 200
-    assert "Account ID is required" in response.text
-
-
 def test_static_assets_served(client):
     assert client.get("/static/styles.css").status_code == 200

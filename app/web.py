@@ -28,11 +28,9 @@ from app.config import (
     SCHEDULED_RUNS_PAGE_SIZE_OPTIONS,
 )
 from app.credentials import (
-    build_prefill_status,
+    DEMO_NO_CREDENTIALS_MESSAGE,
     find_profile_for_account,
     get_api_credentials,
-    get_saved_account_id,
-    get_saved_api_token,
 )
 from app.ingress import IngressDiff, extract_ingress, fragile_rules, origin_request_delta
 from app.profiles import current_profile_id, get_profile
@@ -93,9 +91,6 @@ def render_index_page(
     error: str | None = None,
     success_target: str | None = "tunnels",
     tunnels: list[dict[str, Any]] | None = None,
-    prefill_status: dict[str, Any] | None = None,
-    prefill_account_id: str | None = None,
-    prefill_api_token: str | None = None,
     backup_page: int | None = None,
     backup_page_size: int | None = None,
 ) -> HTMLResponse:
@@ -103,6 +98,7 @@ def render_index_page(
     resolved_page_size = backup_page_size if isinstance(backup_page_size, int) else get_requested_backup_page_size(request)
     backups, backup_pagination = get_backups_page(resolved_page, resolved_page_size)
     profile_id = current_profile_id(request)
+    credentials = get_api_credentials(profile_id)
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -116,9 +112,9 @@ def render_index_page(
             "database_stats": get_database_stats(),
             "backup_retention": get_backup_retention_status(profile_id),
             "tunnels": tunnels,
-            "prefill_status": prefill_status or build_prefill_status(request, profile_id),
-            "prefill_account_id": prefill_account_id if prefill_account_id is not None else get_saved_account_id(profile_id),
-            "prefill_api_token": prefill_api_token if prefill_api_token is not None else get_saved_api_token(request, profile_id),
+            "credentials": credentials,
+            "demo_missing_credentials": DEMO_MODE and credentials is None,
+            "demo_no_credentials_message": DEMO_NO_CREDENTIALS_MESSAGE,
             "auto_backup": build_auto_backup_status(profile_id),
             "demo_mode": DEMO_MODE,
         },

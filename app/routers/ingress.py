@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.config import DEMO_MODE
-from app.credentials import get_saved_account_id, get_saved_api_token
+from app.credentials import get_api_credentials
 from app.ingress_overview import IngressOverview, live_overview, snapshot_overview
 from app.profiles import current_profile_id
 from app.web import templates
@@ -17,10 +17,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-MISSING_CREDENTIALS_ERROR = (
-    "Live data needs an Account ID and an API token. Load your tunnels once from the dashboard, "
-    "or set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN."
-)
+MISSING_CREDENTIALS_ERROR = "Live data needs an Account ID and an API token. Add them in Settings."
 
 
 @router.get("/ingress", response_class=HTMLResponse)
@@ -28,13 +25,11 @@ async def ingress_overview_page(request: Request, source: str = "snapshot") -> H
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
 
-    profile_id = current_profile_id(request)
-    account_id = get_saved_account_id(profile_id)
     if source == "live":
-        api_token = get_saved_api_token(request, profile_id)
-        if account_id and api_token:
-            logger.info("Live ingress overview requested (account_id=%s).", account_id)
-            overview = await live_overview(account_id, api_token)
+        creds = get_api_credentials(current_profile_id(request))
+        if creds is not None:
+            logger.info("Live ingress overview requested (account_id=%s).", creds.account_id)
+            overview = await live_overview(creds.account_id, creds.api_token)
         else:
             overview = IngressOverview(source="live", error=MISSING_CREDENTIALS_ERROR)
     else:
