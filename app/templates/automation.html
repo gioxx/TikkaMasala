@@ -1,15 +1,9 @@
 {% extends "base.html" %}
+{% set active_section = "automation" %}
 
 {% block title %}Automation - Tikka Masala{% endblock %}
 {% block main_class %}container{% endblock %}
 {% block main_attrs %} data-success-target="{{ success_target or '' }}" data-auto-backup-timezone="{{ auto_backup.timezone_name }}" data-auto-backup-timezone-source="{{ auto_backup.timezone_source }}"{% endblock %}
-
-{% block nav_links %}
-            <a href="#auto-backup-section">Automatic backups</a>
-            <a href="#notifications-section">Notifications</a>
-            <a href="/backups">Saved backups</a>
-            <a href="/settings">Settings</a>
-{% endblock %}
 
 {% block content %}
       {% if not demo_mode %}

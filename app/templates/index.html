@@ -1,18 +1,9 @@
 {% extends "base.html" %}
+{% set active_section = "tunnels" %}
 
 {% block title %}Tikka Masala{% endblock %}
 {% block main_class %}container{% endblock %}
 {% block main_attrs %} data-success-target="{{ success_target or '' }}"{% endblock %}
-
-{% block nav_links %}
-            <a href="#guide-section">Guide</a>
-            <a href="#tunnels-section">Load tunnels</a>
-            <a href="#backup-section">Create backup</a>
-            {% if not demo_mode %}<a href="/backups">Saved backups</a>{% endif %}
-            {% if not demo_mode %}<a href="/automation">Automation</a>{% endif %}
-            {% if not demo_mode %}<a href="/ingress">Hostnames</a>{% endif %}
-            <a href="/settings">Settings</a>
-{% endblock %}
 
 {% block content %}
       {% if demo_mode %}

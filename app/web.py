@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import Request
@@ -42,11 +43,41 @@ from app.scheduler import (
 )
 
 
+@dataclass(frozen=True)
+class NavSection:
+    """One entry of the top navigation; ``icon`` names a Tabler icon drawn by ``base.html``."""
+
+    key: str
+    label: str
+    href: str
+    icon: str
+
+
+_NAV_SECTIONS = (
+    NavSection("tunnels", "Tunnels", "/", "network"),
+    NavSection("hostnames", "Hostnames", "/ingress", "world-www"),
+    NavSection("backups", "Backups", "/backups", "archive"),
+    NavSection("automation", "Automation", "/automation", "clock-play"),
+    NavSection("settings", "Settings", "/settings", "settings"),
+)
+# Hostnames, Backups and Automation redirect to "/" in demo mode, so the nav hides them.
+_DEMO_NAV_KEYS = frozenset({"tunnels", "settings"})
+
+
+def nav_sections() -> list[NavSection]:
+    """The top navigation sections; reads ``DEMO_MODE`` at call time so tests can patch it."""
+
+    if DEMO_MODE:
+        return [section for section in _NAV_SECTIONS if section.key in _DEMO_NAV_KEYS]
+    return list(_NAV_SECTIONS)
+
+
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
 templates.env.globals["access_identity"] = access_identity
 templates.env.globals["access_logout_path"] = ACCESS_LOGOUT_PATH
 templates.env.globals["origin_request_delta"] = origin_request_delta
+templates.env.globals["nav_sections"] = nav_sections
 
 
 def get_requested_backup_page(request: Request) -> int:

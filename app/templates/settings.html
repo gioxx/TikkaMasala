@@ -1,14 +1,7 @@
 {% extends "base.html" %}
+{% set active_section = "settings" %}
 
 {% block title %}Tikka Masala · Settings{% endblock %}
-
-{% block nav_links %}
-            <a href="/">Dashboard</a>
-            <a href="#profiles-section">Profiles</a>
-            <a href="#settings-notifications-section">Notification messages</a>
-            <a href="#access-section">Cloudflare Access</a>
-            <a href="#about-section">About</a>
-{% endblock %}
 
 {% block content %}
       {% if demo_mode %}
@@ -39,7 +32,7 @@
         {% set pid = profile.profile_id %}
         {% set env_only = profile.account_id.source != 'database' and profile.api_token.source != 'database'
              and 'environment' in [profile.account_id.source, profile.api_token.source] %}
-        <section class="card top-gap" id="profile-{{ pid }}">
+        <section class="profile-block" id="profile-{{ pid }}">
           <h3>{{ profile.name }}</h3>
 
           {% if profile.saved_token_unreadable %}
