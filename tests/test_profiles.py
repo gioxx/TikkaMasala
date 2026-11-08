@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -11,16 +12,14 @@ from cryptography.fernet import Fernet
 from starlette.requests import Request
 
 import app.credentials as credentials
+import app.encryption as encryption
 from app.credentials import (
-    build_prefill_status,
     clear_saved_credentials,
+    describe_profile_credentials,
     get_account_id_source,
-    get_api_token_source,
     get_saved_account_id,
-    get_saved_api_token,
     get_server_api_token,
     get_server_api_token_source,
-    remember_account_id,
     remember_api_token,
 )
 from app.profiles import (
@@ -33,20 +32,13 @@ from app.profiles import (
 )
 
 
-def _request(cookies: dict[str, str] | None = None) -> Request:
-    headers = []
-    if cookies:
-        cookie = "; ".join(f"{key}={value}" for key, value in cookies.items())
-        headers.append((b"cookie", cookie.encode("latin-1")))
-    return Request({"type": "http", "method": "GET", "path": "/", "headers": headers})
-
-
 @pytest.fixture(autouse=True)
-def reset_profiles(data_dir: Path, monkeypatch):
+def reset_profiles(data_dir: Path, tmp_path: Path, monkeypatch):
     monkeypatch.setattr(credentials, "DEMO_MODE", False)
     monkeypatch.setattr(credentials, "DEFAULT_ACCOUNT_ID", "")
     monkeypatch.setattr(credentials, "DEFAULT_API_TOKEN", "")
-    monkeypatch.setattr(credentials, "TOKEN_ENCRYPTION_KEY", "")
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", "")
+    monkeypatch.setattr(encryption, "ENCRYPTION_KEY_FILE", tmp_path / "encryption.key")
     update_profile(DEFAULT_PROFILE_ID, account_id=None, api_token=None)
     yield
     update_profile(DEFAULT_PROFILE_ID, account_id=None, api_token=None)
@@ -75,7 +67,8 @@ def test_list_profiles_ordered_by_id():
 
 
 def test_current_profile_id_is_default():
-    assert current_profile_id(_request()) == DEFAULT_PROFILE_ID
+    request = Request({"type": "http", "method": "GET", "path": "/", "headers": []})
+    assert current_profile_id(request) == DEFAULT_PROFILE_ID
 
 
 def test_update_profile_rejects_unknown_column():
@@ -127,11 +120,10 @@ def test_env_only_install_uses_env_values(monkeypatch):
     profile = get_profile(DEFAULT_PROFILE_ID)
     assert profile.account_id is None and profile.api_token is None
     assert get_saved_account_id(DEFAULT_PROFILE_ID) == "env-acc"
-    assert get_saved_api_token(_request(), DEFAULT_PROFILE_ID) == "env-tok"
     assert get_server_api_token(DEFAULT_PROFILE_ID) == "env-tok"
-    status = build_prefill_status(_request(), DEFAULT_PROFILE_ID)
-    assert status["account_id_source"] == "environment"
-    assert status["api_token_source"] == "environment"
+    view = describe_profile_credentials(DEFAULT_PROFILE_ID)
+    assert view.account_id.source == "environment"
+    assert view.api_token.source == "environment"
 
 
 def test_env_never_feeds_other_profiles(monkeypatch):
@@ -142,46 +134,51 @@ def test_env_never_feeds_other_profiles(monkeypatch):
     assert get_account_id_source(p.id) is None
     assert get_server_api_token(p.id) == ""
     assert get_server_api_token_source(p.id) is None
-    assert get_saved_api_token(_request(), p.id) == ""
-    assert get_api_token_source(_request(), p.id) is None
-
-
-def test_cookie_token_still_wins_for_request_reads(monkeypatch):
-    monkeypatch.setattr(credentials, "DEFAULT_API_TOKEN", "env-tok")
-    request = _request({credentials.API_TOKEN_COOKIE_NAME: "cookie-tok"})
-    assert get_saved_api_token(request, DEFAULT_PROFILE_ID) == "cookie-tok"
-    assert get_api_token_source(request, DEFAULT_PROFILE_ID) == "browser"
 
 
 def test_plaintext_token_upgraded_on_read(monkeypatch):
-    monkeypatch.setattr(credentials, "TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
     update_profile(DEFAULT_PROFILE_ID, api_token="plain-1")
     assert get_server_api_token(DEFAULT_PROFILE_ID) == "plain-1"
     assert get_profile(DEFAULT_PROFILE_ID).api_token.startswith("enc:")
     assert get_server_api_token(DEFAULT_PROFILE_ID) == "plain-1"
 
 
-def test_plaintext_token_upgraded_on_request_read(monkeypatch):
-    monkeypatch.setattr(credentials, "TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
+def test_plaintext_token_upgraded_on_credentials_read(monkeypatch):
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
     update_profile(DEFAULT_PROFILE_ID, api_token="plain-2")
-    assert get_saved_api_token(_request(), DEFAULT_PROFILE_ID) == "plain-2"
+    assert describe_profile_credentials(DEFAULT_PROFILE_ID).api_token.source == "database"
     assert get_profile(DEFAULT_PROFILE_ID).api_token.startswith("enc:")
 
 
-def test_plaintext_token_kept_without_key():
+def test_plaintext_upgraded_with_generated_key():
     update_profile(DEFAULT_PROFILE_ID, api_token="plain-3")
     assert get_server_api_token(DEFAULT_PROFILE_ID) == "plain-3"
-    assert get_profile(DEFAULT_PROFILE_ID).api_token == "plain-3"
+    assert get_profile(DEFAULT_PROFILE_ID).api_token.startswith("enc:")
+    assert encryption.ENCRYPTION_KEY_FILE.exists()
+    assert get_server_api_token(DEFAULT_PROFILE_ID) == "plain-3"
+
+
+def test_plaintext_row_with_malformed_env_key(monkeypatch):
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", "not-a-key")
+    update_profile(DEFAULT_PROFILE_ID, api_token="plain-x")
+    assert get_server_api_token(DEFAULT_PROFILE_ID) == "plain-x"
+    assert get_profile(DEFAULT_PROFILE_ID).api_token == "plain-x"
+
+
+def test_can_persist_api_token_without_env_key():
+    remember_api_token(DEFAULT_PROFILE_ID, "tok-no-env-key")
+    assert get_profile(DEFAULT_PROFILE_ID).api_token.startswith("enc:")
+    assert get_server_api_token(DEFAULT_PROFILE_ID) == "tok-no-env-key"
 
 
 def test_undecryptable_token_falls_back_without_crash(monkeypatch):
-    monkeypatch.setattr(credentials, "TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
     monkeypatch.setattr(credentials, "DEFAULT_API_TOKEN", "env-tok")
     update_profile(DEFAULT_PROFILE_ID, api_token="enc:garbage")
     assert get_server_api_token(DEFAULT_PROFILE_ID) == "env-tok"
     assert get_server_api_token_source(DEFAULT_PROFILE_ID) == "environment"
-    assert get_saved_api_token(_request(), DEFAULT_PROFILE_ID) == "env-tok"
-    assert get_api_token_source(_request(), DEFAULT_PROFILE_ID) == "environment"
+    assert describe_profile_credentials(DEFAULT_PROFILE_ID).saved_token_unreadable is True
     assert get_profile(DEFAULT_PROFILE_ID).api_token == "enc:garbage"
 
 
@@ -192,11 +189,9 @@ def test_undecryptable_token_without_key_or_env_has_no_source():
 
 
 def test_remember_writes_profile_row(monkeypatch):
-    monkeypatch.setattr(credentials, "TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
-    remember_account_id(DEFAULT_PROFILE_ID, " acc-9 ")
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
     remember_api_token(DEFAULT_PROFILE_ID, " tok-9 ")
     profile = get_profile(DEFAULT_PROFILE_ID)
-    assert profile.account_id == "acc-9"
     assert profile.api_token.startswith("enc:")
     assert get_server_api_token(DEFAULT_PROFILE_ID) == "tok-9"
 
@@ -210,10 +205,9 @@ def test_clear_saved_credentials():
 
 
 def test_remember_is_noop_in_demo(monkeypatch):
-    monkeypatch.setattr(credentials, "TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
     update_profile(DEFAULT_PROFILE_ID, account_id="keep-acc", api_token="keep-tok")
     monkeypatch.setattr(credentials, "DEMO_MODE", True)
-    remember_account_id(DEFAULT_PROFILE_ID, "new-acc")
     remember_api_token(DEFAULT_PROFILE_ID, "new-tok")
     profile = get_profile(DEFAULT_PROFILE_ID)
     assert profile.account_id == "keep-acc"
@@ -228,3 +222,18 @@ def test_server_token_reads_env_only_in_demo_mode(monkeypatch):
     monkeypatch.setattr(credentials, "DEFAULT_API_TOKEN", "env-tok")
     assert get_server_api_token(DEFAULT_PROFILE_ID) == "env-tok"
     assert get_server_api_token_source(DEFAULT_PROFILE_ID) == "environment"
+
+
+def test_plaintext_row_with_unwritable_key_path(tmp_path, monkeypatch):
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("chmod does not restrict root")
+    directory = tmp_path / "ro"
+    directory.mkdir()
+    directory.chmod(0o555)
+    monkeypatch.setattr(encryption, "ENCRYPTION_KEY_FILE", directory / "encryption.key")
+    try:
+        update_profile(DEFAULT_PROFILE_ID, api_token="plain-ro")
+        assert get_server_api_token(DEFAULT_PROFILE_ID) == "plain-ro"
+        assert get_profile(DEFAULT_PROFILE_ID).api_token == "plain-ro"
+    finally:
+        directory.chmod(0o755)

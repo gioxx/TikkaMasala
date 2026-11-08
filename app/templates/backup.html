@@ -9,6 +9,7 @@
             <a href="/#auto-backup-section">Automatic backups</a>
             <a href="/auto-backup/runs">Automatic backup archive</a>
             <a href="/#saved-backups-section">Saved backups</a>
+            <a href="/settings">Settings</a>
 {% endblock %}
 
 {% block content %}
@@ -201,24 +202,21 @@
           </table>
         </div>
         {% endif %}
+        {% if restore_profile_name %}
+        <p class="top-gap">Restores into account <code>{{ restore_account_id }}</code> (profile {{ restore_profile_name }}) with its saved API token.</p>
         <form method="post" action="/backup/{{ backup.id }}/restore" class="grid form-grid">
-          <label>
-            <span>Account ID</span>
-            <input type="text" name="account_id" value="{{ form_account_id or prefill_account_id or backup.account_id }}" required>
-          </label>
-          <label>
+          <label class="full-row">
             <span>Tunnel ID</span>
             <input type="text" name="tunnel_id" value="{{ form_tunnel_id or backup.tunnel_id }}" required>
-          </label>
-          <label class="full-row">
-            <span>API token</span>
-            <input type="password" name="api_token" value="{{ form_api_token or prefill_api_token or '' }}" placeholder="Token with tunnel edit permission" required>
           </label>
           <div class="full-row actions">
             <button type="submit" name="mode" value="preview">Preview changes</button>
             <button type="submit" name="mode" value="apply" class="danger">Restore backup</button>
           </div>
         </form>
+        {% else %}
+        <section class="notice error top-gap">No profile has credentials for account {{ restore_account_id }}. Add them in <a href="/settings">Settings</a> to restore this backup.</section>
+        {% endif %}
       </section>
 
       <section class="card code-card">

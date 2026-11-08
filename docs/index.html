@@ -556,8 +556,8 @@
     <div class="features-grid">
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg></div>
-        <h3>Verify &amp; browse</h3>
-        <p>Verify a Cloudflare API token, list every tunnel in the account, open any of them in the Cloudflare dashboard, and jump to Access Applications and Policies.</p>
+        <h3>Connect &amp; browse</h3>
+        <p>Enter your credentials once (checked against Cloudflare before they are saved), list every tunnel in the account, open any of them in the Cloudflare dashboard, and jump to Access Applications and Policies.</p>
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1"/><path d="M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1 1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1"/></svg></div>
@@ -577,7 +577,7 @@
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></div>
         <h3>Restore anywhere</h3>
-        <p>Push a snapshot back to its original tunnel, another tunnel or another account, with a restore history that records where each backup went.</p>
+        <p>Push a snapshot back to its original tunnel or another tunnel in the same account, with a restore history that records where each backup went.</p>
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -592,7 +592,7 @@
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
         <h3>Encrypted token storage</h3>
-        <p>With <code>TOKEN_ENCRYPTION_KEY</code> set, the API token is saved encrypted (Fernet) in SQLite; without it, the token is never written to disk.</p>
+        <p>The API token is saved encrypted (Fernet) in SQLite. The key comes from <code>TOKEN_ENCRYPTION_KEY</code> or is generated automatically as <code>encryption.key</code> in the data directory.</p>
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.72 1.72 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3-6c.5-.3.9-1 .9-1.5Z"/><path d="M10 21.9V14L2.1 9.1"/><path d="m10 14 11.9-6.9"/><path d="M14 19.8v-8.1"/><path d="M18 17.5V9.4"/></svg></div>
@@ -641,7 +641,7 @@
         <div class="step-num">1</div>
         <div class="step-body">
           <h3>Connect your account</h3>
-          <p>Enter (or prefill from the environment) your Account ID and an API token with <code>Cloudflare Tunnel</code> permissions, verify it, and load the tunnels.</p>
+          <p>Enter your Account ID and an API token with <code>Cloudflare Tunnel</code> permissions on the first-run setup screen (or set them in the environment). They are checked against Cloudflare before being saved, then you can load the tunnels.</p>
         </div>
       </div>
       <div class="step reveal">
@@ -708,7 +708,7 @@ docker run -d \
       <div>
         <h3>Generate the encryption key</h3>
 <pre>python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"</pre>
-        <p class="note">Put it in <code>TOKEN_ENCRYPTION_KEY</code>: without it the API token is never saved server-side, and scheduled backups need <code>CLOUDFLARE_API_TOKEN</code> in the environment.</p>
+        <p class="note">Optional. Put it in <code>TOKEN_ENCRYPTION_KEY</code> to manage the key yourself; if you skip it, the app generates <code>encryption.key</code> in the data directory.</p>
         <h3 style="margin-top:1.75rem">Update</h3>
 <pre>docker pull gfsolone/tikkamasala:latest
 docker rm -f tikkamasala   <span class="comment"># data stays in ./data</span>
@@ -731,7 +731,7 @@ docker rm -f tikkamasala   <span class="comment"># data stays in ./data</span>
         <a href="#doc-requirements">Requirements</a>
         <a href="#doc-env">Environment variables</a>
         <a href="#doc-running">Running the app</a>
-        <a href="#doc-prefill">Prefill &amp; persistence</a>
+        <a href="#doc-prefill">First run &amp; credentials</a>
         <a href="#doc-storage">Storage layout</a>
         <a href="#doc-backups">What gets backed up</a>
         <a href="#doc-restore">Restore</a>
@@ -756,9 +756,9 @@ docker rm -f tikkamasala   <span class="comment"># data stays in ./data</span>
           <table class="kv">
             <thead><tr><th>Variable</th><th>Required</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><code>CLOUDFLARE_ACCOUNT_ID</code></td><td>No</td><td>Prefills the Cloudflare account ID in the UI.</td></tr>
-              <tr><td><code>CLOUDFLARE_API_TOKEN</code></td><td>No</td><td>Prefills the API token in the UI.</td></tr>
-              <tr><td><code>TOKEN_ENCRYPTION_KEY</code></td><td>Recommended</td><td>Fernet key used to encrypt the API token before saving it in SQLite.</td></tr>
+              <tr><td><code>CLOUDFLARE_ACCOUNT_ID</code></td><td>No</td><td>Account ID of the Default profile. With the token also set, setup is skipped and Settings shows both read-only.</td></tr>
+              <tr><td><code>CLOUDFLARE_API_TOKEN</code></td><td>No</td><td>API token of the Default profile.</td></tr>
+              <tr><td><code>TOKEN_ENCRYPTION_KEY</code></td><td>No</td><td>Fernet key used to encrypt the saved API token. If unset, the app generates one as <code>DATA_DIR/encryption.key</code> (mode <code>0600</code>).</td></tr>
               <tr><td><code>AUTO_BACKUP_TIMEZONE</code></td><td>No</td><td>Force automatic backups to use a specific IANA timezone such as <code>Europe/Rome</code>.</td></tr>
               <tr><td><code>BACKUP_RETENTION_DAYS</code></td><td>No</td><td>Automatically delete backups older than this many days after new backups are created.</td></tr>
               <tr><td><code>NOTIFICATION_WEBHOOK_URL</code></td><td>No</td><td>Send JSON notifications to a generic webhook endpoint.</td></tr>
@@ -814,22 +814,20 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
   <span class="key">tikkamasala_data:</span></pre>
         <p>Use <code>ghcr.io/gioxx/tikkamasala:latest</code> instead if you prefer GHCR. Set the values in the stack's <strong>Environment variables</strong> panel (Portainer prompts for anything left as <code>${VAR}</code> without a default) or edit the <code>environment:</code> block directly, adding any other variable from the <a href="#doc-env">table above</a>. The named volume can be swapped for a bind mount (e.g. <code>/opt/tikkamasala/data:/data</code>) if you'd rather keep backups on a known host path.</p>
 
-        <h3 id="doc-prefill">Prefill &amp; persistence</h3>
-        <p>The UI can prefill authentication fields from three sources: environment variables, saved values in the local database, and a browser cookie for the API token. Effective priority:</p>
-        <ul>
-          <li><strong>Account ID</strong>: database, then environment</li>
-          <li><strong>API token</strong>: browser cookie, then database, then environment</li>
-        </ul>
-        <p>Automatic backups use only server-side credentials: database or environment. Browser cookies are never used by the scheduler.</p>
-        <p>After a successful token verification or API action, the <strong>Account ID</strong> is saved in <code>app.db</code>, the <strong>API token</strong> is stored in a browser cookie, and it is also saved in <code>app.db</code> only if <code>TOKEN_ENCRYPTION_KEY</code> is configured.</p>
-        <div class="callout"><strong>Clear saved auth data</strong> removes only the saved Account ID and API token from the database and clears the browser cookie. If <code>CLOUDFLARE_ACCOUNT_ID</code> or <code>CLOUDFLARE_API_TOKEN</code> are still set in the environment, the UI keeps showing those values as prefilled.</div>
+        <h3 id="doc-prefill">First run &amp; credentials</h3>
+        <p>If <code>CLOUDFLARE_ACCOUNT_ID</code> and <code>CLOUDFLARE_API_TOKEN</code> are both set in the environment, setup is skipped. Otherwise the first page is a setup screen (<code>/setup</code>): enter your Account ID and API token, the app checks them against Cloudflare and saves them only if the check passes. The token is stored encrypted and never shown again in clear.</p>
+        <p>Afterwards, manage credentials on the <strong>Settings</strong> page: the token appears as "configured, ending in XXXX", <strong>Replace credentials</strong> validates new values before saving, and <strong>Forget saved credentials</strong> removes them from the database without touching backups. Settings also shows the Cloudflare Access status, the version and the encryption key source.</p>
+        <p>Precedence is per field: database, then environment. Environment values are shown read-only, with a <strong>Save a different value</strong> option. Every page, the scheduler and restore use these server-side credentials; the browser holds none.</p>
+        <div class="callout">Upgrading from a version that kept the token in a browser cookie: the cookie is migrated into the database once and then deleted (with <code>CLOUDFLARE_API_TOKEN</code> set, it is only deleted). If the token can't be saved (for example the encryption key is invalid), the cookie is kept and the migration is retried on a later request. If the saved token can't be decrypted (for example <code>encryption.key</code> was removed), the app returns to the setup screen so you can save a new one.</div>
 
         <h3 id="doc-storage">Storage layout</h3>
         <p>Everything is stored under <code>DATA_DIR</code>, which defaults to <code>/data</code> in the container and typically maps to <code>./data</code> on the host:</p>
         <ul>
-          <li><code>app.db</code>: SQLite database for backup metadata, restore history, and saved auth settings</li>
+          <li><code>app.db</code>: SQLite database for backup metadata, restore history, and saved credentials (the token is encrypted)</li>
+          <li><code>encryption.key</code>: generated on first use when <code>TOKEN_ENCRYPTION_KEY</code> is not set (mode <code>0600</code>); keep it, or the saved token can't be read</li>
           <li><code>backups/*.json</code>: exported tunnel configuration snapshots</li>
         </ul>
+        <p class="note">With the generated key, a copy of the data directory holds both the encrypted token and its key. If you share or back up that directory, set <code>TOKEN_ENCRYPTION_KEY</code> in the environment instead.</p>
 
         <h3 id="doc-backups">What gets backed up</h3>
         <p>Tikka Masala saves the tunnel configuration returned by the Cloudflare Tunnel configuration endpoints, along with backup metadata: export timestamp, account ID, tunnel ID, tunnel name, and notes. It does not back up arbitrary account-wide Cloudflare settings.</p>
@@ -837,8 +835,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
         <div class="callout">A rule whose <code>service</code> targets <code>localhost</code> or a loopback address (<code>127.0.0.0/8</code>, <code>::1</code>) is flagged as <strong>host-local</strong>. That address is resolved relative to wherever <code>cloudflared</code> runs: when it runs in a container, <code>localhost</code> is the container, not the Docker host, so the route can return <code>502</code> after a restore even though it worked where the backup was taken. Use <code>host.docker.internal</code>, the bridge gateway IP, or a service/container name instead.</div>
 
         <h3 id="doc-restore">Restore</h3>
-        <p>Restoring a backup replaces the current remote configuration of the selected tunnel with the configuration stored in the snapshot. The target can be the original tunnel, a different tunnel, or a tunnel in another account.</p>
-        <p>The backup detail page keeps a restore history: when a backup was restored, which account and tunnel it was restored to, and whether the restore targeted the original tunnel, a different tunnel, or a different account.</p>
+        <p>Restoring a backup replaces the current remote configuration of the selected tunnel with the configuration stored in the snapshot. The target is the original tunnel or another tunnel in the same account, and the restore uses the credentials saved for that account's profile (restoring needs a profile for that account).</p>
+        <p>The backup detail page keeps a restore history: when a backup was restored, which account and tunnel it was restored to, and whether the restore targeted the original tunnel or a different tunnel. Entries written by older versions, which allowed restoring to another account, may still show a different account.</p>
         <h4>Preview changes before restoring</h4>
         <p>The restore form has a <strong>Preview changes</strong> button next to <strong>Restore backup</strong>. It fetches the target tunnel's current live configuration and compares it against the snapshot without applying anything, then shows:</p>
         <ul>
@@ -860,7 +858,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
           <li><strong>Selected tunnels only</strong>: only the tunnels you explicitly check are included in each run.</li>
         </ul>
         <p>Per-tunnel frequency: <strong>Every run</strong> (default), <strong>Once per week</strong> (skipped if a backup exists within the last 7 days) or <strong>Once per month</strong> (skipped if a backup exists within the last 30 days). This lets you run the scheduler daily while backing up low-priority tunnels only once a week.</p>
-        <div class="callout">Automatic backups require server-side credentials from the database or environment; browser-only token prefill is not enough for scheduled jobs. Automatic and manual backups share the same archive. If <code>BACKUP_RETENTION_DAYS</code> is set, old backup files and related database records (including restore history) are deleted automatically after new backups are created.</div>
+        <div class="callout">Automatic backups require the saved server-side credentials (database, then environment). Automatic and manual backups share the same archive. If <code>BACKUP_RETENTION_DAYS</code> is set, old backup files and related database records (including restore history) are deleted automatically after new backups are created.</div>
 
         <h3 id="doc-notifications">Notifications</h3>
         <p>Tikka Masala can send server-side notifications through a generic webhook and/or Telegram. Set <code>NOTIFICATION_WEBHOOK_URL</code> / <code>NOTIFICATION_WEBHOOK_EVENTS</code> and/or <code>TELEGRAM_BOT_TOKEN</code> / <code>TELEGRAM_CHAT_ID</code> / <code>TELEGRAM_NOTIFICATION_EVENTS</code>.</p>
@@ -885,20 +883,20 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
         <p>For <code>auto_backup_*</code> events: <code>{tunnel_count}</code> is every tunnel discovered on the account, <code>{processed_count}</code> is <code>backup_count</code> + <code>error_count</code>, <code>{skipped_count}</code> is tunnels skipped by scheduling rules, and <code>{backed_up_tunnels}</code> / <code>{skipped_tunnels}</code> are comma-separated tunnel name lists (or <code>-</code> if none). Leaving a field empty restores the built-in default; unknown tokens are left as-is.</p>
 
         <h3 id="doc-demo">Demo mode</h3>
-        <p>Set <code>DEMO=true</code> to try the UI without persisting auth data or enabling server-side automation: authentication data is not stored in SQLite or the browser cookie, automatic backups, notifications and the backup archive are disabled. Manual tunnel listing and manual backup downloads still work.</p>
+        <p>Set <code>DEMO=true</code> to try the UI without persisting auth data or enabling server-side automation: credentials come only from the environment (no setup screen, Settings is read-only), nothing is written to SQLite and no key file is created, automatic backups, notifications and the backup archive are disabled. Manual tunnel listing and manual backup downloads still work.</p>
 
         <h3 id="doc-security">Security</h3>
         <ul>
-          <li>The API token is never persisted in plaintext in the database.</li>
-          <li>If <code>TOKEN_ENCRYPTION_KEY</code> is missing, the token is not written to SQLite at all.</li>
-          <li>The token can still be reused temporarily through the browser cookie or environment prefill.</li>
-          <li>Plaintext tokens saved by older versions are upgraded to encrypted form the first time they are read with a valid <code>TOKEN_ENCRYPTION_KEY</code>.</li>
+          <li>The API token is never persisted in plaintext in the database, never shown in the UI after saving, and never held by the browser.</li>
+          <li>The key comes from <code>TOKEN_ENCRYPTION_KEY</code> or from <code>DATA_DIR/encryption.key</code> (mode <code>0600</code>, never overwritten).</li>
+          <li>Credentials are validated against Cloudflare before saving.</li>
+          <li>Plaintext tokens saved by older versions are upgraded to encrypted form the first time they are read.</li>
         </ul>
         <div class="callout">The web UI has no built-in authentication, and it can restore tunnel configurations with your token. Keep port 8080 on a trusted network, or put it behind a reverse proxy with authentication (Cloudflare Access works well).</div>
 
         <h3 id="doc-faq">FAQ</h3>
         <h4>What happens if I don't set <code>TOKEN_ENCRYPTION_KEY</code>?</h4>
-        <p>The API token is not written to SQLite at all. It's still usable via the browser cookie or environment prefill during your session, but scheduled backups won't have server-side credentials unless <code>CLOUDFLARE_API_TOKEN</code> is set in the environment.</p>
+        <p>Nothing to worry about: the app generates a key as <code>encryption.key</code> in the data directory on first use and keeps using it. Keep that file with your data; without it the saved token can't be decrypted and you'd enter it again on the setup screen. Before downgrading to an older version, set <code>TOKEN_ENCRYPTION_KEY</code> to the content of that file.</p>
         <h4>Why does a restored route return 502 even though the backup worked fine?</h4>
         <p>Check whether that rule's origin is <code>localhost</code> or a loopback address: the backup detail page flags these as <strong>host-local</strong>. When <code>cloudflared</code> runs in a container, <code>localhost</code> means the container, not the Docker host. Point the rule at <code>host.docker.internal</code>, the bridge gateway IP, or a service/container name instead, and use <strong>Preview changes</strong> to see the full ingress diff before you apply.</p>
         <h4>The Admin link says "Cloudflare Tunnels have moved". What should I do?</h4>

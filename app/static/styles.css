@@ -499,6 +499,14 @@ body.has-floating-nav { --floating-nav-offset: 3.2rem; }
   border-color: var(--status-warn-border);
   color: var(--status-warn-text);
 }
+details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+  width: fit-content;
+}
+details > summary:hover { color: var(--accent); }
+details.forget-credentials > summary { color: var(--danger-text); }
 .origin-delta {
   margin-top: 0.35rem;
   font-size: 0.8rem;
@@ -585,26 +593,6 @@ body.has-floating-nav { --floating-nav-offset: 3.2rem; }
   transform: translateY(-8px);
 }
 .guide-copy { padding: 0.2rem 0 1.15rem; }
-.verify-card {
-  margin-top: 0;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border);
-}
-
-/* === Auth Status === */
-.auth-status-card {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 1.25rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border);
-}
-.auth-status-card h2 { margin: 0 0 0.45rem; }
-.auth-status-card .hint { margin: 0.45rem 0 0; }
-.auth-status-copy { flex: 1 1 auto; }
-.auth-status-actions { flex: 0 0 auto; }
 
 /* === Auto Backup Grid === */
 .auto-backup-grid {
@@ -1196,7 +1184,8 @@ tbody tr:hover {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+summary:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -1593,10 +1582,6 @@ html[data-theme="light"] .hero h1 a {
     align-items: stretch;
   }
   .section-header-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .auth-status-card {
     flex-direction: column;
     align-items: stretch;
   }

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Tikka Masala · Settings{% endblock %}
+
+{% block nav_links %}
+            <a href="/">Dashboard</a>
+            <a href="#profiles-section">Profiles</a>
+            <a href="#settings-notifications-section">Notification messages</a>
+            <a href="#access-section">Cloudflare Access</a>
+            <a href="#about-section">About</a>
+{% endblock %}
+
+{% block content %}
+      {% if demo_mode %}
+      <section class="demo-banner">
+        <p>Demo mode: settings are read-only.</p>
+      </section>
+      {% endif %}
+      {% if notice %}
+      <section class="notice success">{{ notice }}</section>
+      {% endif %}
+
+      <section class="card" id="profiles-section">
+        <div class="section-heading">
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon icon-tabler icons-tabler-outline icon-tabler-key" aria-hidden="true">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0z" />
+              <path d="M15 9h.01" />
+            </svg>
+            <span>Profiles</span>
+          </h2>
+          <p class="hint">Cloudflare credentials of each profile. The API token is never shown after it is saved.</p>
+        </div>
+
+        {% for profile in profiles %}
+        {% set pid = profile.profile_id %}
+        {% set env_only = profile.account_id.source != 'database' and profile.api_token.source != 'database'
+             and 'environment' in [profile.account_id.source, profile.api_token.source] %}
+        <section class="card top-gap" id="profile-{{ pid }}">
+          <h3>{{ profile.name }}</h3>
+
+          {% if profile.saved_token_unreadable %}
+          <section class="notice warn top-gap">The saved API token cannot be decrypted with the current encryption key. Save it again.</section>
+          {% endif %}
+          {% if errors.get(pid) %}
+          <section class="notice error top-gap">{{ errors[pid] }}</section>
+          {% endif %}
+
+          <dl class="meta-grid top-gap">
+            <div>
+              <dt>Account ID</dt>
+              <dd class="meta-value">
+                {% if profile.account_id.value %}{{ profile.account_id.value }} <span class="hint">(from {{ profile.account_id.source }})</span>{% else %}Not set{% endif %}
+                {% if profile.account_id.source == 'database' and profile.account_id.env_value_present %}<br><span class="hint">Saved value overrides CLOUDFLARE_ACCOUNT_ID</span>{% endif %}
+              </dd>
+            </div>
+            <div>
+              <dt>API token</dt>
+              <dd class="meta-value">
+                {% if profile.api_token.value %}{{ profile.api_token.value }} <span class="hint">(from {{ profile.api_token.source }})</span>{% else %}Not set{% endif %}
+                {% if profile.api_token.source == 'database' and profile.api_token.env_value_present %}<br><span class="hint">Saved value overrides CLOUDFLARE_API_TOKEN</span>{% endif %}
+              </dd>
+            </div>
+          </dl>
+
+          {% if not demo_mode %}
+          <details class="top-gap"{% if errors.get(pid) %} open{% endif %}>
+            <summary>{% if env_only %}Save a different value{% else %}Replace credentials{% endif %}</summary>
+            <form method="post" action="/settings/profiles/{{ pid }}/credentials" class="stack top-gap">
+              <label>
+                <span>Account ID</span>
+                <input type="text" name="account_id" value="{{ form_values.get(pid) or profile.account_id.value or '' }}" placeholder="32-character Account ID" autocomplete="off">
+              </label>
+              <label>
+                <span>API token</span>
+                <input type="password" name="api_token" value="" placeholder="Leave empty to keep the current token" autocomplete="off">
+              </label>
+              <p class="hint">Changes are checked against Cloudflare before they are saved.</p>
+              <div class="actions">
+                <button type="submit">Verify and save</button>
+              </div>
+            </form>
+          </details>
+          {% if profile.has_saved_values %}
+          <details class="forget-credentials top-gap">
+            <summary>Forget saved credentials…</summary>
+            <p class="notice warn top-gap">This removes the Account ID and API token saved in the database. Cloudflare shows a token only once, so keep a copy if you need it again. Without values in environment variables you will be sent to setup.</p>
+            <form method="post" action="/settings/profiles/{{ pid }}/clear-credentials" class="actions top-gap">
+              <button type="submit" class="danger">Forget saved credentials</button>
+            </form>
+          </details>
+          {% endif %}
+          {% endif %}
+        </section>
+        {% endfor %}
+      </section>
+
+      <section class="card" id="settings-notifications-section">
+        <div class="section-heading">
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon icon-tabler icons-tabler-outline icon-tabler-bell" aria-hidden="true">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6" />
+              <path d="M9 17v1a3 3 0 0 0 6 0v-1" />
+            </svg>
+            <span>Notification messages</span>
+          </h2>
+        </div>
+        <p>The text of webhook and Telegram notifications can be customised for each event.</p>
+        <div class="actions">
+          <a class="secondary-link-button" href="/notifications/messages">Edit notification messages</a>
+        </div>
+      </section>
+
+      <section class="card" id="access-section">
+        <div class="section-heading">
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon icon-tabler icons-tabler-outline icon-tabler-shield-lock" aria-hidden="true">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" />
+              <path d="M12 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
+              <path d="M12 12l0 2.5" />
+            </svg>
+            <span>Cloudflare Access</span>
+          </h2>
+        </div>
+        {% if access_enabled %}
+        {% set identity = access_identity(request) %}
+        <p>On — team domain {{ access_team_domain }}{% if identity %}, signed in as {{ identity.email or identity.subject }}{% endif %}</p>
+        {% else %}
+        <p>Off — set CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD to enable</p>
+        {% endif %}
+      </section>
+
+      <section class="card" id="about-section">
+        <div class="section-heading">
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon icon-tabler icons-tabler-outline icon-tabler-info-circle" aria-hidden="true">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
+              <path d="M12 9h.01" />
+              <path d="M11 12h1v4h1" />
+            </svg>
+            <span>About</span>
+          </h2>
+        </div>
+        <dl class="meta-grid">
+          <div>
+            <dt>Version</dt>
+            <dd class="meta-value">{{ app_version }}</dd>
+          </div>
+          <div>
+            <dt>Encryption key</dt>
+            <dd class="meta-value">{{ key_source_label }}</dd>
+          </div>
+        </dl>
+      </section>
+{% endblock %}

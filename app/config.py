@@ -11,6 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 BACKUP_DIR = DATA_DIR / "backups"
 DB_PATH = DATA_DIR / "app.db"
+ENCRYPTION_KEY_FILE = DATA_DIR / "encryption.key"
 API_BASE = os.getenv("CLOUDFLARE_API_BASE", "https://api.cloudflare.com/client/v4")
 REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "20"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").strip().upper()
@@ -27,8 +28,9 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "").strip()
 TELEGRAM_NOTIFICATION_EVENTS_RAW = os.getenv("TELEGRAM_NOTIFICATION_EVENTS", "").strip()
 DEMO_MODE = os.getenv("DEMO", "false").strip().lower() in ("true", "1", "yes")
+# Legacy: the browser cookie that held the API token. Read only by the one-time
+# migration in app/setup.py, which moves it to the Default profile and deletes it.
 API_TOKEN_COOKIE_NAME = "cf_api_token"
-API_TOKEN_COOKIE_MAX_AGE = 30 * 24 * 60 * 60
 ENCRYPTED_VALUE_PREFIX = "enc:"
 DEFAULT_AUTO_BACKUP_CRON = "0 3 * * *"
 BACKUPS_PAGE_SIZE = 5

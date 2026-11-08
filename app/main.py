@@ -9,7 +9,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.access import AccessVerifier, access_guard, load_access_settings
+from app import setup
+from app.access import AccessVerifier, access_guard, cross_site_guard, load_access_settings
 from app.backups import get_backup_retention_days
 from app.config import (
     API_BASE,
@@ -23,7 +24,7 @@ from app.config import (
 )
 from app.notifications import get_notification_log_context, get_notification_status
 from app.profiles import DEFAULT_PROFILE_ID
-from app.routers import auto_backup, backups, dashboard, ingress, notifications
+from app.routers import auto_backup, backups, dashboard, ingress, notifications, settings
 from app.scheduler import auto_backup_scheduler, configure_all_auto_backup_jobs
 
 logger = logging.getLogger(__name__)
@@ -89,13 +90,19 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Tikka Masala", lifespan=lifespan)
 app.state.access_verifier = AccessVerifier(ACCESS_SETTINGS) if ACCESS_SETTINGS else None
+# Last registered runs first: Access stays outermost, then the cross-site guard for
+# unsafe methods, then the setup gate.
+app.middleware("http")(setup.credentials_guard)
+app.middleware("http")(cross_site_guard)
 app.middleware("http")(access_guard)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+app.include_router(setup.router)
 app.include_router(dashboard.router)
 app.include_router(auto_backup.router)
 app.include_router(notifications.router)
 app.include_router(backups.router)
 app.include_router(ingress.router)
+app.include_router(settings.router)
 
 
 @app.get("/healthz")

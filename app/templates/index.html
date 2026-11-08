@@ -12,13 +12,14 @@
             {% if not demo_mode %}<a href="#saved-backups-section">Saved backups</a>{% endif %}
             {% if not demo_mode %}<a href="#notifications-section">Notifications</a>{% endif %}
             {% if not demo_mode %}<a href="/ingress">Hostnames</a>{% endif %}
+            <a href="/settings">Settings</a>
 {% endblock %}
 
 {% block content %}
       {% if demo_mode %}
       <section class="demo-banner">
         <p>Demo mode is active.</p>
-        <p>Authentication data is not saved to the database or browser. Automatic backups, notifications, and backup archive are disabled. Manual tunnel listing and backups work normally: completed backups are downloaded directly as JSON files.</p>
+        <p>Credentials come only from environment variables and are never saved. Automatic backups, notifications, and backup archive are disabled. Manual tunnel listing and backups work normally: completed backups are downloaded directly as JSON files.</p>
       </section>
       {% endif %}
 
@@ -40,7 +41,12 @@
               </svg>
               <span>How to use Tikka Masala</span>
             </h2>
-            <p class="hint">Use this section only when you need the setup steps or want to verify the token first.</p>
+            <p class="hint">Use this section when you need the setup steps.</p>
+            {% if credentials_account_id %}
+            <p class="hint">Connected to account <code>{{ credentials_account_id }}</code>. Manage credentials in <a href="/settings">Settings</a>.</p>
+            {% elif not demo_mode %}
+            <p class="hint">No credentials configured. Add them in <a href="/settings">Settings</a>.</p>
+            {% endif %}
           </div>
           <button type="button" class="toggle-button" data-toggle-guide aria-expanded="false">Show guide</button>
         </div>
@@ -54,10 +60,9 @@
         <div class="guide-content is-collapsed" data-guide-content hidden>
           <section class="guide-copy">
             <p>
-              Before creating a backup, make sure you have your Cloudflare <strong>Account ID</strong>,
-              the <strong>Tunnel ID</strong> you want to work with, and an <strong>API token</strong>
-              with the required permissions. The app uses the token for the current request and can
-              prefill it later if you configured persistence.
+              Tikka Masala works with your Cloudflare <strong>Account ID</strong> and an <strong>API token</strong>
+              with the required permissions, both managed in <a href="/settings">Settings</a>. To back up a tunnel
+              you also need its <strong>Tunnel ID</strong>.
             </p>
             <p>
               To find the <strong>Account ID</strong>, open the <a href="https://dash.cloudflare.com/" target="_blank">Cloudflare dashboard</a>, go to the
@@ -77,84 +82,8 @@
             <p>
               To find the <strong>Tunnel ID</strong>, go to <strong>Zero Trust → Networks → Connectors → Cloudflare Tunnels</strong>,
               open your tunnel, and copy the ID from the details page. If you prefer, use
-              <strong>Load tunnels</strong> below after entering your Account ID and API token (recommended).
+              <strong>Load tunnels</strong> below (recommended).
             </p>
-          </section>
-
-          <section class="verify-card">
-            <div class="section-heading">
-              <h2 class="heading-with-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                  class="icon icon-tabler icons-tabler-outline icon-tabler-user-key">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                  <path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" />
-                  <path d="M6 21v-2a4 4 0 0 1 4 -4h5" />
-                  <path d="M18.5 18.5l-3.5 3.5l-1.5 -1.5" />
-                  <path d="M18.554 18.414a2 2 0 1 1 2.828 -2.828a2 2 0 0 1 -2.828 2.828" />
-                  <path d="M16 19l1 1" />
-                </svg>
-                <span>Verify API token</span>
-              </h2>
-              <p class="hint">Optional, but useful before loading tunnels, creating a backup, or restoring a snapshot.</p>
-            </div>
-            <form method="post" action="/verify-token" class="stack">
-              <label>
-                <span>API token</span>
-                <input type="password" name="api_token" value="{{ prefill_api_token or '' }}" placeholder="Paste the Cloudflare API token" required>
-              </label>
-              <div class="actions">
-                <button type="submit">Verify token</button>
-              </div>
-            </form>
-          </section>
-          <section class="auth-status-card">
-            <div class="auth-status-copy">
-              <h2 class="heading-with-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                  class="icon icon-tabler icons-tabler-outline icon-tabler-user-scan">
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                  <path d="M10 9a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
-                  <path d="M4 8v-2a2 2 0 0 1 2 -2h2" />
-                  <path d="M4 16v2a2 2 0 0 0 2 2h2" />
-                  <path d="M16 4h2a2 2 0 0 1 2 2v2" />
-                  <path d="M16 20h2a2 2 0 0 0 2 -2v-2" />
-                  <path d="M8 16a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2" />
-                </svg>
-                <span>Authentication data</span>
-              </h2>
-              {% if prefill_status.has_prefill %}
-              <p class="hint">
-                {% if prefill_status.account_id_source %}
-                Account ID prefilled from {{ prefill_status.account_id_source }}.
-                {% endif %}
-                {% if prefill_status.api_token_source %}
-                API token prefilled from {{ prefill_status.api_token_source }}.
-                {% endif %}
-              </p>
-              {% else %}
-              <p class="hint">No prefilled authentication data is currently available.</p>
-              {% endif %}
-              <p class="hint">
-                After a successful token verification or API action, the Account ID is saved in the database and the API token is saved for reuse too.
-                {% if prefill_status.can_persist_api_token %}
-                The API token is stored encrypted in the database.
-                {% else %}
-                The API token is kept only in the browser or prefilled from the environment until `TOKEN_ENCRYPTION_KEY` is configured.
-                {% endif %}
-              </p>
-              {% if prefill_status.uses_environment_prefill %}
-              <section class="notice error inline-notice">
-                `CLOUDFLARE_ACCOUNT_ID` and/or `CLOUDFLARE_API_TOKEN` are currently loaded from environment variables.
-                `Clear saved auth data` only removes values stored in the database and browser cookie:
-                values still provided by `docker compose`, Portainer, or `.env` will continue to appear.
-              </section>
-              {% endif %}
-            </div>
-            <form method="post" action="/clear-saved-auth" class="auth-status-actions">
-              <button type="submit" class="secondary-button">Clear saved auth data</button>
-            </form>
           </section>
         </div>
       </section>
@@ -182,20 +111,16 @@
         {% if message and success_target == "tunnels" %}
         <section class="notice success top-gap" id="tunnels-notice">{{ message }}</section>
         {% endif %}
+        {% if demo_missing_credentials %}
+        <section class="notice error top-gap">{{ demo_no_credentials_message }}</section>
+        {% else %}
         {% if error and success_target == "tunnels" %}
         <section class="notice error top-gap" id="tunnels-notice">{{ error }}</section>
         {% endif %}
         <form method="post" action="/list-tunnels" class="stack">
-          <label>
-            <span>Account ID</span>
-            <input type="text" name="account_id" value="{{ prefill_account_id or '' }}" placeholder="32-character Account ID" required>
-          </label>
-          <label>
-            <span>API token</span>
-            <input type="password" name="api_token" value="{{ prefill_api_token or '' }}" placeholder="API token" required>
-          </label>
           <button type="submit">Load tunnels</button>
         </form>
+        {% endif %}
         {% if tunnels %}
         <div class="table-wrap top-gap" id="tunnels-results">
           <table>
@@ -233,9 +158,9 @@
                     >
                       Use
                     </button>
-                    {% if prefill_account_id %}
+                    {% if credentials_account_id %}
                     <a
-                      href="https://dash.cloudflare.com/{{ prefill_account_id }}/tunnels/{{ tunnel.id }}/overview"
+                      href="https://dash.cloudflare.com/{{ credentials_account_id }}/tunnels/{{ tunnel.id }}/overview"
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label="Open Cloudflare admin page for tunnel {{ tunnel.name or tunnel.id }}"
@@ -250,15 +175,15 @@
             </tbody>
           </table>
         </div>
-        {% if prefill_account_id %}
+        {% if credentials_account_id %}
         <div class="inline-actions top-gap">
           <a
-            href="https://dash.cloudflare.com/{{ prefill_account_id }}/one/access-controls/apps"
+            href="https://dash.cloudflare.com/{{ credentials_account_id }}/one/access-controls/apps"
             target="_blank"
             rel="noopener noreferrer"
           >Access Controls: Applications</a>
           <a
-            href="https://dash.cloudflare.com/{{ prefill_account_id }}/one/access-controls/policies"
+            href="https://dash.cloudflare.com/{{ credentials_account_id }}/one/access-controls/policies"
             target="_blank"
             rel="noopener noreferrer"
           >Access Controls: Policies</a>
@@ -285,21 +210,16 @@
         {% if message and success_target == "backup" %}
         <section class="notice success top-gap" id="backup-notice">{{ message }}</section>
         {% endif %}
+        {% if demo_missing_credentials %}
+        <section class="notice error top-gap">{{ demo_no_credentials_message }}</section>
+        {% else %}
         {% if error and success_target == "backup" %}
         <section class="notice error top-gap" id="backup-notice">{{ error }}</section>
         {% endif %}
         <form method="post" action="/backup" class="grid form-grid">
-          <label>
-            <span>Account ID</span>
-            <input type="text" name="account_id" value="{{ prefill_account_id or '' }}" placeholder="32-character Account ID" required>
-          </label>
-          <label>
+          <label class="full-row">
             <span>Tunnel ID</span>
             <input type="text" name="tunnel_id" id="backup-tunnel-id" placeholder="Tunnel UUID" required>
-          </label>
-          <label class="full-row">
-            <span>API token</span>
-            <input type="password" name="api_token" value="{{ prefill_api_token or '' }}" placeholder="API token" required>
           </label>
           <label class="full-row">
             <span>Notes</span>
@@ -309,6 +229,7 @@
             <button type="submit" class="auto-backup-primary">Create backup</button>
           </div>
         </form>
+        {% endif %}
       </section>
 
       {% if not demo_mode %}
@@ -363,7 +284,7 @@
               </label>
               {% if not auto_backup.prereqs.ready and not auto_backup.enabled %}
               <p class="hint">
-                Enable is locked until all required server-side credentials are available.
+                Enable is locked until the profile has an Account ID and API token. Manage them in <a href="/settings">Settings</a>.
               </p>
               {% endif %}
               <label>
@@ -403,19 +324,17 @@
               {% if auto_backup.prereqs.ready %}
               <div class="server-readiness-item">
                 <span class="hint">
-                  Automatic backups use only server-side credentials from the database or environment.
-                  Browser cookies are ignored.<br>
-                  Server-side credentials are available. Account ID comes from {{ auto_backup.prereqs.account_id_source or 'unknown source' }},
+                  Automatic backups use the credentials saved in <a href="/settings">Settings</a> or set in the environment.<br>
+                  Credentials are available. Account ID comes from {{ auto_backup.prereqs.account_id_source or 'unknown source' }},
                   API token comes from {{ auto_backup.prereqs.api_token_source or 'unknown source' }}.
                 </span>
               </div>
               {% else %}
               <div class="server-readiness-item">
                 <span class="hint">
-                  Automatic backups use only server-side credentials from the database or environment.
-                  Browser cookies are ignored.<br>
+                  Automatic backups use the credentials saved in Settings or set in the environment.<br>
                   Missing: {{ auto_backup.prereqs.missing_items | join(', ') }}.
-                  Add them through the app and save them, or provide them from the environment.
+                  Add them in <a href="/settings">Settings</a>, or provide them from the environment.
                 </span>
               </div>
               {% endif %}
@@ -474,7 +393,7 @@
             <section class="notice error inline-notice">
               Automatic backups are not ready yet.
               Missing: {{ auto_backup.prereqs.missing_items | join(', ') }}.
-              You need values available to the server from the database or environment.
+              Add them in <a href="/settings">Settings</a>, or provide them from the environment.
             </section>
             {% endif %}
             <form method="post" action="/auto-backup/run" class="auto-backup-footer-form">
