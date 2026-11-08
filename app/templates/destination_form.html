@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% set active_section = "automation" %}
+{% set is_telegram = kind == "telegram" %}
+{% if destination %}
+{% set heading = "Edit " ~ destination.label %}
+{% set form_action = "/automation/destinations/" ~ destination.id %}
+{% else %}
+{% set heading = "Add Telegram" if is_telegram else "Add webhook" %}
+{% set form_action = "/automation/destinations" %}
+{% endif %}
+
+{% block title %}{{ heading }} - Tikka Masala{% endblock %}
+
+{% block content %}
+      <section class="card destination-form" id="destination-form">
+        <div class="section-heading">
+          <h1 class="heading-with-icon">
+            <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6" />
+              <path d="M9 17v1a3 3 0 0 0 6 0v-1" />
+            </svg>
+            <span>{{ heading }}</span>
+          </h1>
+          <p class="hint">Notifications of the active profile go here. The {{ "bot token" if is_telegram else "webhook URL" }} is stored encrypted and never shown again.</p>
+        </div>
+
+        {% if error %}
+        <p class="notice error top-gap" role="alert" id="destination-error">{{ error }}</p>
+        {% endif %}
+
+        <form method="post" action="{{ form_action }}" class="stack top-gap" autocomplete="off">
+          {% if not destination %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
+          <label>
+            <span>Label</span>
+            <input type="text" name="label" value="{{ label }}" maxlength="{{ label_max }}" placeholder="{{ 'Telegram' if is_telegram else 'Webhook' }}"{% if error_field == "label" %} aria-invalid="true" aria-describedby="destination-error"{% endif %}>
+          </label>
+          <label>
+            <span>{{ "Bot token" if is_telegram else "Webhook URL" }}</span>
+            <input type="password" name="secret" value="" autocomplete="off" spellcheck="false"
+              {% if destination %}placeholder="Leave empty to keep the saved {{ 'token' if is_telegram else 'URL' }}"{% else %}required placeholder="{{ '123456789:AA…' if is_telegram else 'https://' }}"{% endif %}
+              {% if error_field == "secret" %} aria-invalid="true" aria-describedby="destination-error"{% endif %}>
+          </label>
+          {% if is_telegram %}
+          <label>
+            <span>Chat ID</span>
+            <input type="text" name="chat_id" value="{{ chat_id }}" placeholder="-1001234567890 or @channelname" required spellcheck="false"{% if error_field == "chat_id" %} aria-invalid="true" aria-describedby="destination-error"{% endif %}>
+          </label>
+          {% endif %}
+          <fieldset{% if error_field == "events" %} aria-invalid="true" aria-describedby="destination-error"{% endif %}>
+            <legend>Events</legend>
+            <div class="checkbox-grid">
+              {% for value, text, checked in event_options %}
+              <label class="checkbox-row">
+                <input type="checkbox" name="events" value="{{ value }}"
+                  {% if checked %}checked{% endif %}>
+                <span>{{ text }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </fieldset>
+          <label class="checkbox-row">
+            <input type="checkbox" name="enabled"{% if enabled %} checked{% endif %}>
+            <span>Enabled</span>
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary">Save destination</button>
+            <a href="/automation#notifications-section">Cancel</a>
+          </div>
+        </form>
+      </section>
+{% endblock %}

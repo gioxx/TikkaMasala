@@ -54,7 +54,7 @@ Website: <https://tikkamasala.gioxx.org>
 - Switch between system, dark, and light theme
 - Schedule automatic backups for all tunnels or a selected subset of tunnels in the account from the **Automation** section (overview, per-tunnel schedule, run history), and edit the backup retention per profile
 - Set per-tunnel backup frequency (every run, once per week, once per month)
-- Send notifications through a generic webhook and/or Telegram (destinations from the environment are shown read-only on Automation, with a test button)
+- Send notifications through webhooks and/or Telegram: each profile has its own destinations, added and edited on **Automation** (URLs and bot tokens stored encrypted, never shown again), each with its own **Test** button; destinations from the environment belong to the Default profile and are shown read-only
 - Customize the notification message for each event with plain text and dynamic placeholders under **Settings**
 - Run in demo mode without persisting authentication data, scheduler state, or notifications
 
@@ -299,7 +299,9 @@ Tikka Masala can send server-side notifications through:
 
 You can use either channel on its own or enable both at the same time.
 
-Set:
+Each profile has its own destinations. On **Automation → Notification destinations**, use **Add webhook** or **Add Telegram**, pick the events, and save: the webhook URL or bot token is stored encrypted and never shown again (leave the field empty when editing to keep it). Each destination can be disabled, edited, deleted and tested on its own. A destination only receives the events of its profile.
+
+Destinations can also come from the environment. They belong to the Default profile only. Set:
 
 - `NOTIFICATION_WEBHOOK_URL` to the target endpoint
 - `NOTIFICATION_WEBHOOK_EVENTS` to a comma-separated list of events
@@ -341,9 +343,9 @@ Telegram notifications send the same information as a formatted plain-text messa
 When notifications are configured:
 
 - container logs show the active channels and event counts at startup
-- the **Automation** page shows the destinations read-only: the webhook only by its host, Telegram as "chat ending in" the last four characters of the chat ID; the webhook path and the bot token are never shown
+- the **Automation** page shows the webhook only by its host and Telegram as "chat ending in" the last four characters of the chat ID; the webhook path and the bot token are never shown. Destinations from the environment appear only on the Default profile, read-only, marked **From environment**
 - **Back up all now** sends one `manual_backup_*` notification per tunnel, like the per-row **Back up**
-- you can use `Send test notification` on the **Automation** page to verify webhook and/or Telegram delivery immediately
+- **Send test to all destinations** on the **Automation** page sends a test to every enabled destination of the active profile (plus the environment ones on Default); the **Test** button on a destination's row tests that one only. A failed test names only the HTTP status or the error type, never the URL, the token or the response
 - the test notification uses the `notification_test` event
 - notification results are shown directly inside the section that triggered them instead of at the top of the page
 
@@ -357,7 +359,7 @@ Messages support `{placeholder}` tokens that are replaced at runtime with event-
 - `{timestamp}` — ISO 8601 UTC timestamp of the notification
 - `{profile}` — name of the profile the event belongs to (`Other accounts` for backups no profile covers)
 
-When more than one profile exists, the built-in default messages start with `[profile name] `. Custom messages are sent as written.
+When more than one profile exists, the built-in default messages start with `[profile name] `. Custom messages are sent as written. Format specs such as `{profile:>12}` work; a spec that asks for a width or precision above 1000, or that does not fit the value, is ignored and the plain value is used.
 
 Available tokens per event:
 

@@ -223,7 +223,6 @@
         {% endif %}
       </section>
 
-      {% set any_destination = destinations | selectattr("configured") | list | length > 0 %}
       <section class="card notification-panel" id="notifications-section">
         <div class="section-heading section-header-row">
           <div>
@@ -237,35 +236,76 @@
               </svg>
               <span>Notification destinations</span>
             </h2>
-            <p class="hint">Destinations come from environment variables and are read-only here.</p>
+            <p class="hint">Where this profile's notifications go. Saved URLs and tokens are never shown again.</p>
           </div>
-          <a href="/settings/notifications" class="secondary-link-button">Edit message templates</a>
+          <div class="destination-header-actions">
+            <a href="/automation/destinations/new?kind=webhook" class="secondary-link-button">Add webhook</a>
+            <a href="/automation/destinations/new?kind=telegram" class="secondary-link-button">Add Telegram</a>
+            <a href="/settings/notifications" class="secondary-link-button">Edit message templates</a>
+          </div>
         </div>
         {{ notice_for(notice, "notifications") }}
+        {% if env_destinations or destinations %}
         <ul class="destination-list">
-          {% for destination in destinations %}
-          <li class="destination-row">
+          {% for destination in env_destinations %}
+          <li class="destination-row" id="destination-env-{{ destination.kind }}">
             <div class="destination-head">
               <strong>{{ destination.label }}</strong>
-              {% if destination.configured %}
-              <span class="status-pill status-match status-pill-compact">Configured</span>
-              {% else %}
-              <span class="status-pill status-muted status-pill-compact">Not configured</span>
-              {% endif %}
+              <span class="status-pill status-alt status-pill-compact">From environment</span>
               {% if destination.target_hint %}<span class="destination-hint">{{ destination.target_hint }}</span>{% endif %}
             </div>
             {% if destination.events %}
             <p class="destination-events">{{ destination.events | join(", ") }}</p>
-            {% elif destination.configured %}
+            {% else %}
             <p class="destination-events">No valid events enabled.</p>
             {% endif %}
             <p class="hint">Set with {{ destination.env_names }}</p>
+            <div class="destination-actions">
+              <form method="post" action="/automation/destinations/env/{{ destination.kind }}/test">
+                <button type="submit" class="secondary-button">Test</button>
+              </form>
+            </div>
+          </li>
+          {% endfor %}
+          {% for destination in destinations %}
+          {% set event_labels = destination_event_labels(destination.events) %}
+          <li class="destination-row" id="destination-{{ destination.id }}">
+            <div class="destination-head">
+              <strong>{{ destination.label }}</strong>
+              <span class="destination-kind">{{ "Telegram" if destination.kind == "telegram" else "Webhook" }}</span>
+              {% if destination.enabled %}
+              <span class="status-pill status-match status-pill-compact">Enabled</span>
+              {% else %}
+              <span class="status-pill status-muted status-pill-compact">Disabled</span>
+              {% endif %}
+              {% if not destination.unreadable %}<span class="destination-hint">{{ destination.target_hint }}</span>{% endif %}
+            </div>
+            {% if destination.unreadable %}
+            <p class="notice warn top-gap">{{ destination.target_hint }}</p>
+            {% endif %}
+            <p class="destination-events">{{ event_labels | join(", ") if event_labels else "Tests only: no event selected." }}</p>
+            <div class="destination-actions">
+              <form method="post" action="/automation/destinations/{{ destination.id }}/test">
+                <button type="submit" class="secondary-button"{% if not destination.enabled or destination.unreadable %} disabled{% endif %}>Test</button>
+              </form>
+              <a href="/automation/destinations/{{ destination.id }}/edit" class="secondary-link-button">Edit</a>
+              <details class="destination-delete">
+                <summary>Delete…</summary>
+                <form method="post" action="/automation/destinations/{{ destination.id }}/delete" class="top-gap">
+                  <p class="hint">Remove {{ destination.label }}? This cannot be undone.</p>
+                  <button type="submit" class="danger">Delete destination</button>
+                </form>
+              </details>
+            </div>
           </li>
           {% endfor %}
         </ul>
+        {% else %}
+        <p class="hint top-gap">No destinations yet.</p>
+        {% endif %}
         <form method="post" action="/automation/notifications/test" class="notification-test-form">
-          <button type="submit" class="secondary-button"{% if not any_destination %} disabled{% endif %}>
-            Send test notification
+          <button type="submit" class="secondary-button"{% if not can_test_all %} disabled{% endif %}>
+            Send test to all destinations
           </button>
         </form>
       </section>

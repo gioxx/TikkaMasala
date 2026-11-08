@@ -188,8 +188,19 @@ async def automation_notifications_test_action(request: Request) -> HTMLResponse
     if DEMO_MODE:
         return _home()
     profile_id = current_profile_id(request)
+    destinations = list_destinations(profile_id)
     channel_labels = [target.label for target in env_delivery_targets()] if profile_id == DEFAULT_PROFILE_ID else []
-    channel_labels += [destination.label for destination in list_destinations(profile_id)]
+    channel_labels += [d.label for d in destinations if d.enabled and not d.unreadable]
+    if not channel_labels and destinations:
+        logger.warning("Notification test requested, but no destination of profile %s is usable.", profile_id)
+        return render_automation_page(
+            request,
+            notice=(
+                "notifications",
+                "error",
+                "No enabled destinations to test. Enable one or add a new destination.",
+            ),
+        )
     if not channel_labels:
         logger.warning("Notification test requested, but profile %s has no notification destination.", profile_id)
         return render_automation_page(

@@ -264,30 +264,57 @@ def create_destination(profile_id: int, data: DestinationInput) -> DestinationVi
     return get_destination(destination_id)
 
 
-def update_destination(destination_id: int, data: DestinationInput) -> DestinationView:
-    """Save the edited values; an empty secret keeps the saved one. The kind cannot change."""
+def update_destination(
+    destination_id: int, data: DestinationInput, *, profile_id: int | None = None
+) -> DestinationView:
+    """Save the edited values; an empty secret keeps the saved one. The kind cannot change.
+
+    With ``profile_id``, a destination of another profile is treated as missing (``LookupError``).
+    """
     with closing(db()) as conn:
-        stored_kind = str(_row(conn, destination_id)["kind"])
+        row = _row(conn, destination_id)
+    if profile_id is not None and int(row["profile_id"]) != profile_id:
+        raise LookupError(f"Notification destination {destination_id} not found.")
+    stored_kind = str(row["kind"])
     clean = validate_destination(data, creating=False)
     if clean.kind != stored_kind:
         raise DestinationInputError("kind", "The kind of a destination cannot change.")
     target = _encrypt(clean.secret) if clean.secret else None
+    owner = int(row["profile_id"]) if profile_id is None else profile_id
     with closing(db()) as conn:
-        conn.execute(
+        cursor = conn.execute(
             """
             UPDATE notification_destinations
             SET label = ?, target = COALESCE(?, target), chat_id = ?, events = ?, enabled = ?
-            WHERE id = ?
+            WHERE id = ? AND profile_id = ?
             """,
-            (clean.label, target, clean.chat_id, encode_events(clean.events), int(clean.enabled), destination_id),
+            (
+                clean.label,
+                target,
+                clean.chat_id,
+                encode_events(clean.events),
+                int(clean.enabled),
+                destination_id,
+                owner,
+            ),
         )
         conn.commit()
+        if cursor.rowcount == 0:
+            raise LookupError(f"Notification destination {destination_id} not found.")
     return get_destination(destination_id)
 
 
-def delete_destination(destination_id: int) -> None:
+def delete_destination(destination_id: int, *, profile_id: int | None = None) -> None:
+    """Delete a destination. With ``profile_id``, only one of that profile, else ``LookupError``."""
     with closing(db()) as conn:
-        conn.execute("DELETE FROM notification_destinations WHERE id = ?", (destination_id,))
+        if profile_id is None:
+            conn.execute("DELETE FROM notification_destinations WHERE id = ?", (destination_id,))
+        else:
+            cursor = conn.execute(
+                "DELETE FROM notification_destinations WHERE id = ? AND profile_id = ?", (destination_id, profile_id)
+            )
+            if cursor.rowcount == 0:
+                raise LookupError(f"Notification destination {destination_id} not found.")
         conn.commit()
 
 

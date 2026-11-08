@@ -97,6 +97,31 @@ def test_custom_template_with_unknown_or_broken_placeholders(second_profile):
     assert render_notification_message("restore_failed", {}, profile_id=second_profile.id) == "{profile"
 
 
+@pytest.mark.parametrize(
+    "template",
+    ["{profile:>1000000000}", "{backup_id:01000000000d}", "{backup_id:.1000000000f}", "{profile:x<99999999999999999999}", "{profile:>" + "9" * 5000 + "}"],
+)
+def test_huge_format_spec_falls_back_to_plain_value(second_profile, template):
+    set_notification_message_templates({"restore_success": template})
+    text = render_notification_message("restore_success", {"backup_id": 5}, profile_id=second_profile.id)
+    assert text in ("Client", "5")
+
+
+def test_reasonable_format_spec_still_applies(second_profile):
+    set_notification_message_templates({"restore_success": "[{profile:>8}] {backup_id:03d}"})
+    text = render_notification_message("restore_success", {"backup_id": 5}, profile_id=second_profile.id)
+    assert text == "[  Client] 005"
+
+
+def test_memory_error_while_formatting_falls_back(second_profile, monkeypatch):
+    def _oom(value, spec=""):
+        raise MemoryError
+
+    monkeypatch.setattr(notifications, "format", _oom, raising=False)
+    set_notification_message_templates({"restore_success": "{profile:>5}"})
+    assert render_notification_message("restore_success", {}, profile_id=second_profile.id) == "Client"
+
+
 def test_profile_name_in_details_cannot_be_overridden(second_profile):
     set_notification_message_templates({"restore_success": "{profile}"})
     text = render_notification_message("restore_success", {"profile": "spoof"}, profile_id=second_profile.id)

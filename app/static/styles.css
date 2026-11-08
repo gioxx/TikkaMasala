@@ -711,7 +711,35 @@ details.forget-credentials > summary { color: var(--danger-text); }
   gap: 0.5rem;
 }
 .destination-hint { color: var(--muted); overflow-wrap: anywhere; }
-.destination-events { margin: 0.4rem 0 0; }
+.destination-kind { color: var(--muted); font-size: 0.85rem; }
+.destination-events { margin: 0.4rem 0 0; overflow-wrap: anywhere; }
+.destination-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+.destination-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+.destination-actions form { margin: 0; }
+.destination-actions .secondary-button { min-height: 2.2rem; }
+.destination-delete { flex-basis: 100%; }
+.destination-delete > summary { color: var(--danger-text); }
+.destination-delete .hint { margin: 0 0 0.5rem; }
+.destination-form .checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 0.45rem 1rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  border: 0;
+}
+.destination-form fieldset legend { font-weight: 600; padding: 0; }
 
 /* === Archive Stats === */
 .archive-stats-grid {
@@ -1771,6 +1799,7 @@ a.tile:hover {
 /* === Tunnels home on phones: tiles two per row, the table becomes compact rows ===
    Its own breakpoint: between this and the nav collapse (960px) the full table stays. */
 @media (max-width: 640px) {
+  .destination-header-actions { justify-content: flex-start; }
   .archive-filters { align-items: stretch; flex-direction: column; }
   .archive-filters select { max-width: none; width: 100%; }
   .archive-header-actions { justify-content: flex-start; }

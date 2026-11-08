@@ -24,7 +24,17 @@ from app.config import (
 )
 from app.notifications import get_notification_log_context, get_notification_status
 from app.profiles import DEFAULT_PROFILE_ID, stale_profile_cookie_guard
-from app.routers import automation, backups, dashboard, ingress, legacy, notifications, profiles, settings
+from app.routers import (
+    automation,
+    backups,
+    dashboard,
+    destinations,
+    ingress,
+    legacy,
+    notifications,
+    profiles,
+    settings,
+)
 from app.scheduler import auto_backup_scheduler, configure_all_auto_backup_jobs
 
 logger = logging.getLogger(__name__)
@@ -100,6 +110,7 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 app.include_router(setup.router)
 app.include_router(dashboard.router)
 app.include_router(automation.router)
+app.include_router(destinations.router)
 app.include_router(notifications.router)
 app.include_router(backups.router)
 app.include_router(ingress.router)

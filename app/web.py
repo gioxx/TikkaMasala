@@ -33,8 +33,9 @@ from app.credentials import (
     resolve_restore_target,
 )
 from app.ingress import IngressDiff, extract_ingress, fragile_rules, origin_request_delta
-from app.notifications import env_notification_destinations
-from app.profiles import current_profile_id, get_profile, list_profiles
+from app.destinations import DESTINATION_EVENTS, list_destinations
+from app.notifications import env_notification_destinations, humanize_notification_event
+from app.profiles import DEFAULT_PROFILE_ID, current_profile_id, get_profile, list_profiles
 from app.scheduler import (
     build_auto_backup_status,
     get_scheduled_runs_page,
@@ -189,6 +190,18 @@ def _profile_retention_value(profile_id: int) -> int | None:
     return value if value is not None and value > 0 else None
 
 
+_DESTINATION_NOTICES = {
+    "added": "Destination added.",
+    "saved": "Destination saved.",
+    "deleted": "Destination deleted.",
+}
+
+
+def destination_event_labels(events: frozenset[str]) -> list[str]:
+    """The events of a destination as the UI names them, in ``DESTINATION_EVENTS`` order."""
+    return [humanize_notification_event(event) for event in DESTINATION_EVENTS if event in events]
+
+
 def render_automation_page(
     request: Request,
     *,
@@ -197,15 +210,29 @@ def render_automation_page(
     status_code: int = 200,
 ) -> HTMLResponse:
     """The Automation overview. ``notice`` is ``(section, tone, message)``; the section names the card
-    the notice sits in (``schedule``, ``run``, ``retention``, ``notifications``)."""
+    the notice sits in (``schedule``, ``run``, ``retention``, ``notifications``). Without one, the
+    ``?destination=`` result of a destination form becomes the notifications notice."""
     profile_id = current_profile_id(request)
+    destinations = list_destinations(profile_id)
+    env_destinations = (
+        [destination for destination in env_notification_destinations() if destination.configured]
+        if profile_id == DEFAULT_PROFILE_ID
+        else []
+    )
+    destination_notice = _DESTINATION_NOTICES.get(request.query_params.get("destination", ""))
+    if notice is None and destination_notice:
+        notice = ("notifications", "success", destination_notice)
+    can_test_all = bool(env_destinations) or any(d.enabled and not d.unreadable for d in destinations)
     return templates.TemplateResponse(
         request,
         "automation.html",
         {
             "auto_backup": build_auto_backup_status(profile_id),
             "backup_retention": get_backup_retention_status(profile_id),
-            "destinations": env_notification_destinations(),
+            "destinations": destinations,
+            "env_destinations": env_destinations,
+            "destination_event_labels": destination_event_labels,
+            "can_test_all": can_test_all,
             "notice": notice,
             "retention_input": retention_input,
             "retention_value": _profile_retention_value(profile_id),

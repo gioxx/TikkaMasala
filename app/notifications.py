@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -426,6 +427,24 @@ def notification_profile_name(profile_id: int | None) -> str:
         return f"Profile {profile_id}"
 
 
+FORMAT_SPEC_NUMBER_MAX = 1000
+_SPEC_NUMBER_RE = re.compile(r"\d+")
+
+
+def _format_value(value: Any, spec: str) -> str:
+    """``format(value, spec)``, or ``str(value)`` when the spec is invalid or asks for a huge width or
+    precision: a custom template must never exhaust memory or break the backup it reports."""
+    for number in _SPEC_NUMBER_RE.findall(spec):
+        digits = number.lstrip("0")
+        # Length first: ``int()`` refuses strings of more than 4300 digits.
+        if len(digits) > len(str(FORMAT_SPEC_NUMBER_MAX)) or int(digits or "0") > FORMAT_SPEC_NUMBER_MAX:
+            return str(value)
+    try:
+        return format(value, spec)
+    except (TypeError, ValueError, OverflowError, MemoryError):
+        return str(value)
+
+
 def _format_template(template: str, ctx: dict[str, Any]) -> str:
     """``str.format`` limited to plain names: unknown, dotted or indexed fields are left as written.
 
@@ -449,10 +468,7 @@ def _format_template(template: str, ctx: dict[str, Any]) -> str:
                 value = ascii(value)
             elif conversion == "s":
                 value = str(value)
-            try:
-                out.append(format(value, spec or ""))
-            except (TypeError, ValueError):
-                out.append(str(value))
+            out.append(_format_value(value, spec or ""))
         else:
             out.append(
                 "{" + field_name + (f"!{conversion}" if conversion else "") + (f":{spec}" if spec else "") + "}"
