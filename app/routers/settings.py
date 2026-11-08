@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
@@ -35,6 +37,8 @@ from app.profiles import (
 )
 from app.scheduler import configure_auto_backup_job
 from app.web import templates
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -119,6 +123,14 @@ def _render_settings(
     )
 
 
+def _reconfigure_job(profile_id: int) -> None:
+    """Re-sync the profile's job; the credentials are already saved, so a scheduler error must not fail the request."""
+    try:
+        configure_auto_backup_job(profile_id)
+    except Exception:
+        logger.exception("Could not reconfigure the automatic backup job of profile %s.", profile_id)
+
+
 def _ensure_profile(profile_id: int) -> None:
     try:
         get_profile(profile_id)
@@ -152,7 +164,7 @@ async def save_credentials(
             form_values={profile_id: account_id},
             status_code=400,
         )
-    configure_auto_backup_job(profile_id)
+    _reconfigure_job(profile_id)
     return RedirectResponse(f"{SETTINGS_PATH}?{'saved' if changed else 'unchanged'}=1", status_code=303)
 
 
@@ -162,7 +174,7 @@ async def clear_credentials(request: Request, profile_id: int) -> Response:
         return RedirectResponse(SETTINGS_PATH, status_code=303)
     _ensure_profile(profile_id)
     clear_saved_credentials(profile_id)
-    configure_auto_backup_job(profile_id)
+    _reconfigure_job(profile_id)
     return RedirectResponse(f"{SETTINGS_PATH}?cleared=1", status_code=303)
 
 

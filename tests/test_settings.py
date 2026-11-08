@@ -268,3 +268,19 @@ def test_settings_clear_without_env_goes_to_setup(client, configured_default, mo
     response = client.get("/settings", follow_redirects=False)
     assert response.status_code == 303
     assert response.headers["location"] == "/setup"
+
+
+def test_scheduler_error_after_save_or_clear_still_succeeds(client, configured_default, fake_check, monkeypatch, caplog):
+    def boom(profile_id):
+        raise RuntimeError("scheduler down")
+
+    monkeypatch.setattr(settings_router, "configure_auto_backup_job", boom)
+    response = client.post(
+        "/settings/profiles/1/credentials", data={"account_id": GOOD, "api_token": "new-token-1234-abcd"}, follow_redirects=False
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/settings?saved=1"
+    response = client.post("/settings/profiles/1/clear-credentials", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/settings?cleared=1"
+    assert "Could not reconfigure" in caplog.text
