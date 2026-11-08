@@ -16,8 +16,6 @@ from app.cloudflare import fetch_tunnel_configuration
 from app.config import (
     BACKUP_DIR,
     BACKUP_RETENTION_DAYS_RAW,
-    BACKUPS_PAGE_SIZE,
-    BACKUPS_PAGE_SIZE_OPTIONS,
     DB_PATH,
 )
 from app.credentials import get_saved_account_id
@@ -209,43 +207,6 @@ def count_backups_for_account(account_id: str) -> int:
     with closing(db()) as conn:
         row = conn.execute("SELECT COUNT(*) FROM backups WHERE lower(account_id) = lower(?)", (account_id,)).fetchone()
     return int(row[0])
-
-
-def get_backups_page(page: int, page_size: int = BACKUPS_PAGE_SIZE) -> tuple[list[BackupRecord], dict[str, int | bool]]:
-    page = max(page, 1)
-    page_size = page_size if page_size in BACKUPS_PAGE_SIZE_OPTIONS else BACKUPS_PAGE_SIZE
-    offset = (page - 1) * page_size
-
-    with closing(db()) as conn:
-        total_count = int(conn.execute("SELECT COUNT(*) FROM backups").fetchone()[0])
-        rows = conn.execute(
-            """
-            SELECT id, created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin
-            FROM backups
-            ORDER BY id DESC
-            LIMIT ? OFFSET ?
-            """,
-            (page_size, offset),
-        ).fetchall()
-
-    backups = [BackupRecord(**dict(row)) for row in rows]
-    total_pages = max((total_count + page_size - 1) // page_size, 1)
-    current_page = min(page, total_pages)
-    start_index = offset + 1 if total_count and backups else 0
-    end_index = offset + len(backups)
-
-    return backups, {
-        "current_page": current_page,
-        "page_size": page_size,
-        "total_count": total_count,
-        "total_pages": total_pages,
-        "has_previous": current_page > 1,
-        "has_next": current_page < total_pages,
-        "previous_page": current_page - 1,
-        "next_page": current_page + 1,
-        "start_index": start_index,
-        "end_index": end_index,
-    }
 
 
 def get_database_stats() -> dict[str, Any]:

@@ -6,22 +6,161 @@
 
 {% block content %}
       {% if not demo_mode %}
+      {% set query = archive.query %}
+      {% set pagination = archive.pagination %}
+      {% set other_scope = query.scope == "other" %}
       <section class="card" id="saved-backups-section">
-        <div class="section-heading">
-          <h2 class="heading-with-icon">
-            <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v3h-18z" />
-              <path d="M4 10v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-8" />
-              <path d="M10 12l4 0" />
-            </svg>
-            <span>Saved backups</span>
-          </h2>
-          <p class="hint">Browse the local archive of saved tunnel snapshots, review database statistics, and manage how much backup history Tikka Masala keeps over time.</p>
+        <div class="section-heading section-header-row">
+          <div>
+            <h2 class="heading-with-icon">
+              <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v3h-18z" />
+                <path d="M4 10v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-8" />
+                <path d="M10 12l4 0" />
+              </svg>
+              <span>Backups</span>
+            </h2>
+            <p class="hint">Saved snapshots of this profile's tunnels. Backups of accounts no profile uses stay readable under Other accounts.</p>
+          </div>
+          <div class="archive-header-actions">
+            <a class="secondary-link-button" href="/backups/new">Back up with a note</a>
+            <a class="secondary-link-button" href="/automation/runs">Automatic run history</a>
+          </div>
         </div>
-        <div class="saved-backups-overview">
+
+        <nav class="subnav" aria-label="Archive scope">
+          <a href="/backups"{% if not other_scope %} aria-current="page"{% endif %}>{{ profile_name }} ({{ archive.profile_count }})</a>
+          {% if archive.other_count or other_scope %}
+          <a href="/backups?scope=other"{% if other_scope %} aria-current="page"{% endif %}>Other accounts ({{ archive.other_count }})</a>
+          {% endif %}
+        </nav>
+
+        {% if not other_scope and not archive.account_id %}
+        <p class="notice top-gap">Set the Account ID in <a href="/settings">Settings</a> to see this profile's backups.</p>
+        {% else %}
+        <form method="get" action="/backups" class="archive-filters">
+          {% if other_scope %}<input type="hidden" name="scope" value="other">{% endif %}
+          {% if pagination.page_size != default_page_size %}<input type="hidden" name="page_size" value="{{ pagination.page_size }}">{% endif %}
+          <label>
+            <span>Tunnel</span>
+            <select name="tunnel">
+              <option value="">All tunnels</option>
+              {% set ns = namespace(known=false) %}
+              {% for tunnel_id, tunnel_name in archive.tunnel_options %}
+              {% if tunnel_id == query.tunnel_id %}{% set ns.known = true %}{% endif %}
+              <option value="{{ tunnel_id }}"{% if tunnel_id == query.tunnel_id %} selected{% endif %}>{{ tunnel_name }}</option>
+              {% endfor %}
+              {% if query.tunnel_id and not ns.known %}
+              <option value="{{ query.tunnel_id }}" selected>{{ query.tunnel_id }}</option>
+              {% endif %}
+            </select>
+          </label>
+          <label>
+            <span>Origin</span>
+            <select name="origin">
+              <option value="">All origins</option>
+              <option value="manual"{% if query.origin == "manual" %} selected{% endif %}>Manual</option>
+              <option value="automatic"{% if query.origin == "automatic" %} selected{% endif %}>Automatic</option>
+            </select>
+          </label>
+          <button type="submit">Filter</button>
+          {% if archive.filtered %}
+          <a href="{{ archive_url(query, tunnel_id=None, origin=None, page=1) }}">Clear filters</a>
+          {% endif %}
+        </form>
+
+        {% if archive.backups %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">#ID</th>
+                <th scope="col">Created</th>
+                <th scope="col">Tunnel</th>
+                <th scope="col">Origin</th>
+                <th scope="col">Routes</th>
+                <th scope="col">Notes</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for backup in archive.backups %}
+              <tr id="backup-row-{{ backup.id }}">
+                <td data-label="ID"><a href="/backup/{{ backup.id }}">#{{ backup.id }}</a></td>
+                <td data-label="Created"><time datetime="{{ backup.created_at }}" title="{{ backup.created_at }}">{{ backup.created_at|when }}</time></td>
+                <td data-label="Tunnel">
+                  <div>{{ backup.tunnel_name or 'Unknown tunnel' }}</div>
+                  <small><code>{{ backup.tunnel_id }}</code></small>
+                </td>
+                <td data-label="Origin">
+                  {% if backup.origin == "automatic" %}
+                  <span class="status-pill status-pill-compact status-alt">Automatic</span>
+                  {% else %}
+                  <span class="status-pill status-pill-compact status-muted">Manual</span>
+                  {% endif %}
+                </td>
+                <td data-label="Routes">{{ backup.route_count }}</td>
+                <td data-label="Notes">
+                  {% if backup.notes %}<span class="archive-notes" title="{{ backup.notes }}">{{ backup.notes }}</span>{% else %}—{% endif %}
+                </td>
+                <td data-label="Actions">
+                  <div class="inline-actions">
+                    <a href="/backup/{{ backup.id }}">View</a>
+                    <a href="/backup/{{ backup.id }}/download">Download</a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination-bar">
+          <div class="pagination-summary">
+            Showing {{ pagination.start_index }}–{{ pagination.end_index }} of {{ pagination.total_count }} backup(s)
+          </div>
+          <form method="get" action="/backups" class="page-size-form">
+            {% if other_scope %}<input type="hidden" name="scope" value="other">{% endif %}
+            {% if query.tunnel_id %}<input type="hidden" name="tunnel" value="{{ query.tunnel_id }}">{% endif %}
+            {% if query.origin %}<input type="hidden" name="origin" value="{{ query.origin }}">{% endif %}
+            <label class="page-size-label">
+              <span>Per page</span>
+              <select name="page_size" onchange="this.form.submit()">
+                {% for option in backup_page_size_options %}
+                <option value="{{ option }}"{% if pagination.page_size == option %} selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <noscript><button type="submit">Apply</button></noscript>
+          </form>
+          {% if pagination.total_pages > 1 %}
+          <div class="pagination-actions">
+            {% if pagination.has_previous %}
+            <a href="{{ archive_url(query, page=pagination.previous_page) }}" class="secondary-link-button">Previous</a>
+            {% else %}
+            <span class="secondary-link-button is-disabled" aria-disabled="true">Previous</span>
+            {% endif %}
+
+            <span class="pagination-current">Page {{ pagination.current_page }} of {{ pagination.total_pages }}</span>
+
+            {% if pagination.has_next %}
+            <a href="{{ archive_url(query, page=pagination.next_page) }}" class="secondary-link-button">Next</a>
+            {% else %}
+            <span class="secondary-link-button is-disabled" aria-disabled="true">Next</span>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+        {% elif archive.filtered %}
+        <p class="top-gap">No backups match these filters. <a href="{{ archive_url(query, tunnel_id=None, origin=None, page=1) }}">Clear filters</a></p>
+        {% else %}
+        <p class="top-gap">No backups yet.</p>
+        {% endif %}
+        {% endif %}
+        <div class="saved-backups-overview top-gap">
           <section class="saved-backups-panel">
             <h3>Archive statistics</h3>
+            <p class="hint">The whole archive, every account included.</p>
             <dl class="status-grid archive-stats-grid">
               <div>
                 <dt>Unique tunnels</dt>
@@ -38,6 +177,18 @@
               <div>
                 <dt>Scheduled runs</dt>
                 <dd>{{ database_stats.scheduled_run_count }}</dd>
+              </div>
+              <div>
+                <dt>Backups kept</dt>
+                <dd>{{ database_stats.backup_count }}</dd>
+              </div>
+              <div>
+                <dt>Backup storage</dt>
+                <dd>{{ database_stats.backup_storage_size }}</dd>
+              </div>
+              <div>
+                <dt>Database size</dt>
+                <dd>{{ database_stats.database_size }}</dd>
               </div>
               <div class="archive-stats-wide">
                 <dt>Oldest backup</dt>
@@ -58,93 +209,12 @@
               <span class="status-pill status-match status-pill-compact">Keep all backups</span>
               {% endif %}
             </div>
-            <dl class="status-grid archive-stats-grid">
-              <div>
-                <dt>Backups kept</dt>
-                <dd>{{ database_stats.backup_count }}</dd>
-              </div>
-              <div>
-                <dt>Backup storage</dt>
-                <dd>{{ database_stats.backup_storage_size }}</dd>
-              </div>
-              <div>
-                <dt>Database size</dt>
-                <dd>{{ database_stats.database_size }}</dd>
-              </div>
-            </dl>
-            <p class="hint">{{ backup_retention.summary }}</p>
+            <p class="hint">{{ profile_name }}: {{ backup_retention.summary }}</p>
+            <p class="hint">Other accounts: {{ other_retention.summary }}</p>
             <p class="hint">{{ backup_retention.detail }}</p>
+            <p class="top-gap"><a href="/automation#retention-section">Change retention in Automation</a></p>
           </section>
         </div>
-        {% if backups %}
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Created</th>
-                <th>Tunnel</th>
-                <th>Routes</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for backup in backups %}
-              <tr>
-                <td data-label="ID">#{{ backup.id }}</td>
-                <td data-label="Created">{{ backup.created_at }}</td>
-                <td data-label="Tunnel">
-                  <div>{{ backup.tunnel_name or 'Unknown tunnel' }}</div>
-                  <small><code>{{ backup.tunnel_id }}</code></small>
-                </td>
-                <td data-label="Routes">{{ backup.route_count }}</td>
-                <td data-label="Actions">
-                  <div class="inline-actions">
-                    <a href="/backup/{{ backup.id }}">View</a>
-                    <a href="/backup/{{ backup.id }}/download">Download</a>
-                  </div>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        <div class="pagination-bar">
-          <div class="pagination-summary">
-            Showing {{ backup_pagination.start_index }}-{{ backup_pagination.end_index }} of {{ backup_pagination.total_count }} backup(s)
-          </div>
-          <form method="get" action="/backups" class="page-size-form">
-            <input type="hidden" name="page" value="1">
-            <label class="page-size-label">
-              <span>Per page</span>
-              <select name="page_size" onchange="this.form.submit()">
-                {% for option in backup_page_size_options %}
-                <option value="{{ option }}" {% if backup_pagination.page_size == option %}selected{% endif %}>{{ option }}</option>
-                {% endfor %}
-              </select>
-            </label>
-          </form>
-          {% if backup_pagination.total_pages > 1 %}
-          <div class="pagination-actions">
-            {% if backup_pagination.has_previous %}
-            <a href="/backups?page={{ backup_pagination.previous_page }}&page_size={{ backup_pagination.page_size }}#saved-backups-section" class="secondary-link-button">Previous</a>
-            {% else %}
-            <span class="secondary-link-button is-disabled" aria-disabled="true">Previous</span>
-            {% endif %}
-
-            <span class="pagination-current">Page {{ backup_pagination.current_page }} of {{ backup_pagination.total_pages }}</span>
-
-            {% if backup_pagination.has_next %}
-            <a href="/backups?page={{ backup_pagination.next_page }}&page_size={{ backup_pagination.page_size }}#saved-backups-section" class="secondary-link-button">Next</a>
-            {% else %}
-            <span class="secondary-link-button is-disabled" aria-disabled="true">Next</span>
-            {% endif %}
-          </div>
-          {% endif %}
-        </div>
-        {% else %}
-        <p>No backups yet.</p>
-        {% endif %}
       </section>
       {% endif %}
 {% endblock %}

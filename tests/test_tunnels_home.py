@@ -106,7 +106,7 @@ def test_tiles_from_local_data_and_tunnel_list(configured_default, seeded, fake_
     tile = home.tile("tunnels")
     assert (tile.value, tile.detail, tile.tone, tile.href) == ("4", "1 degraded, 1 down", "warn", None)
     tile = home.tile("hostnames")
-    assert (tile.value, tile.detail, tile.tone, tile.href) == ("3", "1 host-local origin", "warn", "/ingress")
+    assert (tile.value, tile.detail, tile.tone, tile.href) == ("3", "1 host-local origin in this account", "warn", "/ingress")
     tile = home.tile("backups")
     assert (tile.value, tile.detail, tile.href) == ("2", "Kept until deleted", "/backups")
     tile = home.tile("auto_backup")
@@ -305,3 +305,10 @@ def test_tunnel_id_pattern():
     assert TUNNEL_ID_PATTERN.match(T1)
     for bad in ("t1", "../x", T1 + "x"):
         assert not TUNNEL_ID_PATTERN.match(bad)
+
+
+def test_hostnames_tile_says_it_counts_this_account(configured_default, fake_list, make_backup):
+    fake_list([])
+    assert _build().tile("hostnames").detail == "No snapshots in this account yet"
+    make_backup(T1, "Home", account_id=GOOD, ingress=[{"hostname": "a.example.com", "service": "http://10.0.0.1"}])
+    assert _build().tile("hostnames").detail == "No host-local origins in this account"

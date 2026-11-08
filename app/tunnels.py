@@ -192,16 +192,19 @@ def _tunnels_tile(
     return tile(str(len(tunnel_list)), detail, "ok")
 
 
-def _hostnames_tile(overview: IngressOverview) -> Tile:
+def _hostnames_tile(overview: IngressOverview, account_id: str | None) -> Tile:
+    """Counts the active account's snapshots only; the Hostnames page itself lists every account."""
+
     def tile(value: str, detail: str, tone: str) -> Tile:
         return Tile(key="hostnames", label="Hostnames", value=value, detail=detail, tone=tone, href="/ingress")
 
     if not overview.tunnels:
-        return tile("0", "No snapshots yet", "muted")
+        return tile("0", "No snapshots in this account yet" if account_id else "No snapshots yet", "muted")
     fragile = overview.fragile_count
     if fragile:
-        return tile(str(overview.hostname_count), _plural(fragile, "host-local origin", "host-local origins"), "warn")
-    return tile(str(overview.hostname_count), "No host-local origins", "ok")
+        detail = _plural(fragile, "host-local origin", "host-local origins") + " in this account"
+        return tile(str(overview.hostname_count), detail, "warn")
+    return tile(str(overview.hostname_count), "No host-local origins in this account", "ok")
 
 
 def _auto_backup_tile(profile_id: int) -> Tile:
@@ -287,7 +290,7 @@ async def build_tunnels_home(profile_id: int, *, fresh: bool = False) -> Tunnels
 
     tiles = [
         _tunnels_tile(tunnel_list, list_error, credentials_message),
-        _hostnames_tile(overview),
+        _hostnames_tile(overview, account_id),
         _auto_backup_tile(profile_id),
         _backups_tile(profile_id, account_id),
     ]

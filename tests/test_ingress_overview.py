@@ -295,3 +295,16 @@ def test_undecodable_snapshot_marks_tunnel_unreadable(make_backup, data_dir):
     (data_dir / "backups" / filename).write_bytes(b"\xff\xfe\x00 not utf-8")
     tunnel = next(t for t in ingress_overview.snapshot_overview().tunnels if t.tunnel_id == "bad-1")
     assert tunnel.error == "Snapshot file could not be read."
+
+
+def test_ingress_snapshots_keep_every_account(client, configured_default, make_backup):
+    # Controller ruling (step 5): Hostnames keeps listing every account's snapshots.
+    make_backup(tunnel_id="good-1", tunnel_name="Mine", account_id=configured_default.account_id, ingress=[
+        {"hostname": "home.example.com", "service": "http://10.0.0.1:80"},
+    ])
+    make_backup(tunnel_id="other-1", tunnel_name="Theirs", account_id="acc-other", ingress=[
+        {"hostname": "far.example.com", "service": "http://10.0.0.2:80"},
+    ])
+    body = client.get("/ingress").text
+    assert "home.example.com" in body
+    assert "far.example.com" in body

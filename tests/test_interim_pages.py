@@ -3,23 +3,6 @@
 from __future__ import annotations
 
 
-def test_backups_page_lists_archive(client, make_backup):
-    backup_id = make_backup(tunnel_name="Archive Tunnel")
-    response = client.get("/backups")
-    assert response.status_code == 200
-    assert 'id="saved-backups-section"' in response.text
-    assert f"/backup/{backup_id}" in response.text
-    assert "Archive Tunnel" in response.text
-
-
-def test_backups_page_pagination_links(client, make_backup):
-    for index in range(6):
-        make_backup(tunnel_id=f"t-{index}", tunnel_name=f"Tunnel {index}")
-    text = client.get("/backups?page_size=5").text
-    assert 'href="/backups?page=2&page_size=5' in text
-    assert "/?page=" not in text
-
-
 def test_automation_page_has_panels(client):
     text = client.get("/automation").text
     assert 'id="auto-backup-section"' in text

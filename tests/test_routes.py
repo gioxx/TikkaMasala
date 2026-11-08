@@ -22,8 +22,8 @@ def test_index_renders(client):
     assert "/static/app.js" in body or "smoothScrollToY" in body
 
 
-def test_backups_lists_saved_backup(client, make_backup):
-    backup_id = make_backup(tunnel_name="Index Tunnel")
+def test_backups_lists_saved_backup(client, configured_default, make_backup):
+    backup_id = make_backup(tunnel_name="Index Tunnel", account_id=configured_default.account_id)
     response = client.get("/backups")
     assert response.status_code == 200
     assert f"/backup/{backup_id}" in response.text

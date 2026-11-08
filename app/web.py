@@ -11,10 +11,10 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.access import ACCESS_LOGOUT_PATH, access_identity
+from app.archive import archive_url, build_archive_page, parse_archive_query
 from app.backups import (
     get_backup,
     get_backup_retention_status,
-    get_backups_page,
     get_database_stats,
     get_restore_history,
     load_backup_json,
@@ -79,25 +79,9 @@ templates.env.globals["access_identity"] = access_identity
 templates.env.globals["access_logout_path"] = ACCESS_LOGOUT_PATH
 templates.env.globals["origin_request_delta"] = origin_request_delta
 templates.env.globals["nav_sections"] = nav_sections
+templates.env.globals["archive_url"] = archive_url
 # Short, human times in the scheduler timezone ("today 03:00", "3 days ago").
 templates.env.filters["when"] = lambda value: format_when(value)
-
-
-def get_requested_backup_page(request: Request) -> int:
-    raw_page = (request.query_params.get("page") or "1").strip()
-    try:
-        return max(int(raw_page), 1)
-    except ValueError:
-        return 1
-
-
-def get_requested_backup_page_size(request: Request) -> int:
-    raw_page_size = (request.query_params.get("page_size") or str(BACKUPS_PAGE_SIZE)).strip()
-    try:
-        page_size = int(raw_page_size)
-    except ValueError:
-        return BACKUPS_PAGE_SIZE
-    return page_size if page_size in BACKUPS_PAGE_SIZE_OPTIONS else BACKUPS_PAGE_SIZE
 
 
 def get_requested_scheduled_runs_page(request: Request) -> int:
@@ -153,19 +137,20 @@ def render_tunnels_page(
 
 
 def render_backups_page(request: Request) -> HTMLResponse:
-    backups, backup_pagination = get_backups_page(
-        get_requested_backup_page(request),
-        get_requested_backup_page_size(request),
-    )
+    """The backup archive of the active profile (or of other accounts), filtered and paginated."""
+    profile_id = current_profile_id(request)
+    archive = build_archive_page(profile_id, parse_archive_query(request.query_params))
     return templates.TemplateResponse(
         request,
         "backups.html",
         {
-            "backups": backups,
-            "backup_pagination": backup_pagination,
+            "archive": archive,
+            "profile_name": get_profile(profile_id).name,
+            "default_page_size": BACKUPS_PAGE_SIZE,
             "backup_page_size_options": sorted(BACKUPS_PAGE_SIZE_OPTIONS),
             "database_stats": get_database_stats(),
-            "backup_retention": get_backup_retention_status(current_profile_id(request)),
+            "backup_retention": get_backup_retention_status(profile_id),
+            "other_retention": get_backup_retention_status(None),
             "demo_mode": DEMO_MODE,
         },
     )
