@@ -1,19 +1,26 @@
 {% extends "base.html" %}
 {% set active_section = "automation" %}
 
+{% macro notice_for(notice, section) -%}
+{% if notice and notice[0] == section %}
+<p class="notice {{ notice[1] }} top-gap" id="{{ section }}-notice" role="status">{{ notice[2] }}</p>
+{% endif %}
+{%- endmacro %}
+
 {% block title %}Automation - Tikka Masala{% endblock %}
 {% block main_class %}container{% endblock %}
-{% block main_attrs %} data-success-target="{{ success_target or '' }}" data-auto-backup-timezone="{{ auto_backup.timezone_name }}" data-auto-backup-timezone-source="{{ auto_backup.timezone_source }}"{% endblock %}
+{% block main_attrs %} data-notice-target="{{ notice[0] if notice else '' }}" data-auto-backup-timezone="{{ auto_backup.timezone_name }}" data-auto-backup-timezone-source="{{ auto_backup.timezone_source }}"{% endblock %}
 
 {% block content %}
       {% if not demo_mode %}
+      {% set prereqs = auto_backup.prereqs %}
       <section class="card" id="auto-backup-section">
         <div class="section-heading">
           <div class="panel-heading-inline">
             <h2 class="heading-with-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                class="icon icon-tabler icons-tabler-outline icon-tabler-calendar-clock">
+                class="icon icon-tabler icons-tabler-outline icon-tabler-calendar-clock" aria-hidden="true">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                 <path d="M10.5 21h-4.5a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v3" />
                 <path d="M16 3v4" />
@@ -22,45 +29,45 @@
                 <path d="M14 18a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
                 <path d="M18 16.5v1.5l.5 .5" />
               </svg>
-              <span>Automatic backups</span>
+              <span>Schedule</span>
             </h2>
-            {% if not demo_mode %}
             <div class="panel-heading-badges">
-              {% if auto_backup.tunnel_schedule_mode == "selected" %}
-              <a href="/auto-backup/tunnel-filters" class="status-pill status-alt status-pill-compact">{{ auto_backup.tunnel_schedule_count }} selected tunnel(s)</a>
+              {% if prereqs.ready %}
+              <span class="status-pill status-match status-pill-compact">Can run</span>
               {% else %}
-              <a href="/auto-backup/tunnel-filters" class="status-pill status-match status-pill-compact">All tunnels{% if auto_backup.tunnel_schedule_count %} · {{ auto_backup.tunnel_schedule_count }} override(s){% endif %}</a>
+              <span class="status-pill status-warn status-pill-compact">Needs credentials</span>
+              {% endif %}
+              {% if backup_retention.enabled %}
+              <a href="/backups#backup-retention-status" class="status-pill status-alt status-pill-compact">Keep {{ backup_retention.days }} day(s)</a>
+              {% else %}
+              <a href="/backups#backup-retention-status" class="status-pill status-match status-pill-compact">Keep all backups</a>
               {% endif %}
             </div>
-            {% endif %}
           </div>
-          <p class="hint">Schedule recurring backups for all tunnels in the configured account.</p>
+          <p class="hint">Recurring backups of this profile's tunnels, with the credentials saved in <a href="/settings">Settings</a> or set in the environment.</p>
         </div>
-        {% if message and success_target == "auto-backup" %}
-        <section class="notice success top-gap" id="auto-backup-notice">{{ message }}</section>
-        {% endif %}
-        {% if error and success_target == "auto-backup" %}
-        <section class="notice error top-gap" id="auto-backup-notice">{{ error }}</section>
+        {{ notice_for(notice, "schedule") }}
+        {% if not prereqs.ready %}
+        <p class="notice warn top-gap">
+          Automatic backups are not ready yet.
+          Missing: {{ prereqs.missing_items | join(', ') }}.
+          Add them in <a href="/settings">Settings</a>, or provide them from the environment.
+        </p>
         {% endif %}
 
         <div class="auto-backup-grid">
           <section class="auto-backup-panel">
-            <h3>Scheduler configuration</h3>
-            <form method="post" action="/auto-backup/settings" class="stack auto-backup-stack">
+            <h3>Configuration</h3>
+            <form method="post" action="/automation/schedule" class="stack auto-backup-stack">
               <label class="checkbox-row">
                 <input
                   type="checkbox"
                   name="enabled"
                   {% if auto_backup.enabled %}checked{% endif %}
-                  {% if not auto_backup.prereqs.ready and not auto_backup.enabled %}disabled{% endif %}
+                  {% if not prereqs.ready and not auto_backup.enabled %}disabled{% endif %}
                 >
                 <span>Enable automatic backups</span>
               </label>
-              {% if not auto_backup.prereqs.ready and not auto_backup.enabled %}
-              <p class="hint">
-                Enable is locked until the profile has an Account ID and API token. Manage them in <a href="/settings">Settings</a>.
-              </p>
-              {% endif %}
               <label>
                 <span>Cron expression</span>
                 <small class="hint cron-timezone-note" id="cron-timezone-note">Automatic backups currently use UTC.</small>
@@ -79,40 +86,7 @@
           </section>
 
           <section class="auto-backup-panel">
-            <div class="panel-heading-inline">
-              <h3>Scheduler status</h3>
-              <div class="panel-heading-badges">
-                {% if auto_backup.prereqs.ready %}
-                <span class="status-pill status-match status-pill-compact">Can run</span>
-                {% else %}
-                <span class="status-pill status-warn status-pill-compact">Needs credentials</span>
-                {% endif %}
-                {% if backup_retention.enabled %}
-                <a href="/backups#backup-retention-status" class="status-pill status-alt status-pill-compact">Keep {{ backup_retention.days }} day(s)</a>
-                {% else %}
-                <a href="/backups#backup-retention-status" class="status-pill status-match status-pill-compact">Keep all backups</a>
-                {% endif %}
-              </div>
-            </div>
-            <div class="server-readiness">
-              {% if auto_backup.prereqs.ready %}
-              <div class="server-readiness-item">
-                <span class="hint">
-                  Automatic backups use the credentials saved in <a href="/settings">Settings</a> or set in the environment.<br>
-                  Credentials are available. Account ID comes from {{ auto_backup.prereqs.account_id_source or 'unknown source' }},
-                  API token comes from {{ auto_backup.prereqs.api_token_source or 'unknown source' }}.
-                </span>
-              </div>
-              {% else %}
-              <div class="server-readiness-item">
-                <span class="hint">
-                  Automatic backups use the credentials saved in Settings or set in the environment.<br>
-                  Missing: {{ auto_backup.prereqs.missing_items | join(', ') }}.
-                  Add them in <a href="/settings">Settings</a>, or provide them from the environment.
-                </span>
-              </div>
-              {% endif %}
-            </div>
+            <h3>Status</h3>
             <dl class="status-grid">
               <div>
                 <dt>Enabled</dt>
@@ -120,180 +94,152 @@
               </div>
               <div>
                 <dt>Scheduler can run</dt>
-                <dd>{% if auto_backup.prereqs.ready %}Yes{% else %}Not yet{% endif %}</dd>
-              </div>
-              <div>
-                <dt>Account source</dt>
-                <dd>{{ auto_backup.prereqs.account_id_source or 'missing' }}</dd>
-              </div>
-              <div>
-                <dt>API token source</dt>
-                <dd>{{ auto_backup.prereqs.api_token_source or 'missing' }}</dd>
-              </div>
-              <div>
-                <dt>Notifications</dt>
-                <dd>{{ auto_backup.notifications.summary_label }}</dd>
-              </div>
-              <div>
-                <dt>Enabled events</dt>
-                <dd>{{ auto_backup.notifications.event_count }}</dd>
+                <dd>{% if prereqs.ready %}Yes{% else %}Not yet{% endif %}</dd>
               </div>
               <div>
                 <dt>Last run</dt>
                 <dd>
                   {% if auto_backup.last_run_at %}
-                  <span class="local-datetime" data-utc-datetime="{{ auto_backup.last_run_at }}" data-display-timezone="{{ auto_backup.timezone_name }}">{{ auto_backup.last_run_at }}</span>
+                  <time datetime="{{ auto_backup.last_run_at }}" title="{{ auto_backup.last_run_at }}">{{ auto_backup.last_run_at|when }}</time>
                   {% else %}
-                  Never
+                  No run yet
                   {% endif %}
                 </dd>
               </div>
               <div>
                 <dt>Last status</dt>
-                <dd>{{ auto_backup.last_status or 'Never run' }}</dd>
+                <dd>{{ auto_backup.last_status|capitalize if auto_backup.last_status else 'No run yet' }}</dd>
               </div>
               <div>
                 <dt>Next run</dt>
                 <dd>
                   {% if auto_backup.next_run_at %}
-                  <span class="local-datetime" data-utc-datetime="{{ auto_backup.next_run_at }}" data-display-timezone="{{ auto_backup.timezone_name }}">{{ auto_backup.next_run_at }}</span>
+                  <time datetime="{{ auto_backup.next_run_at }}" title="{{ auto_backup.next_run_at }}">{{ auto_backup.next_run_at|when }}</time>
                   {% else %}
                   Not scheduled
                   {% endif %}
                 </dd>
               </div>
+              <div>
+                <dt>Tunnels</dt>
+                <dd>
+                  {% if auto_backup.tunnel_schedule_mode == "selected" %}
+                  <a href="/auto-backup/tunnel-filters" class="status-pill status-alt status-pill-compact">{{ auto_backup.tunnel_schedule_count }} selected tunnel(s)</a>
+                  {% else %}
+                  <a href="/auto-backup/tunnel-filters" class="status-pill status-match status-pill-compact">All tunnels{% if auto_backup.tunnel_schedule_count %} · {{ auto_backup.tunnel_schedule_count }} override(s){% endif %}</a>
+                  {% endif %}
+                </dd>
+              </div>
             </dl>
-            {% if not auto_backup.prereqs.ready %}
-            <section class="notice error inline-notice">
-              Automatic backups are not ready yet.
-              Missing: {{ auto_backup.prereqs.missing_items | join(', ') }}.
-              Add them in <a href="/settings">Settings</a>, or provide them from the environment.
-            </section>
-            {% endif %}
-            <form method="post" action="/auto-backup/run" class="auto-backup-footer-form">
-              <button type="submit" class="auto-backup-primary auto-backup-footer-button" {% if not auto_backup.prereqs.ready %}disabled{% endif %}>Run now</button>
+            {{ notice_for(notice, "run") }}
+            <form method="post" action="/automation/run" class="auto-backup-footer-form">
+              <button type="submit" class="auto-backup-primary auto-backup-footer-button" {% if not prereqs.ready %}disabled{% endif %}>Run now</button>
             </form>
           </section>
         </div>
+      </section>
 
-        <section class="top-gap">
-          <div class="section-heading">
-            <h3 class="heading-with-icon">
+      <section class="card" id="runs-section">
+        <div class="section-heading section-header-row">
+          <div>
+            <h2 class="heading-with-icon">
               <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M12 8l0 4l2 2" />
                 <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5" />
               </svg>
-              <span>Recent automatic backup runs</span>
-            </h3>
-            <p class="hint">
-              Below you will find the five most recent runs. To view the entire archive, open the
-              <a href="/auto-backup/runs">Automatic Backup Archive</a>.
-            </p>
+              <span>Recent runs</span>
+            </h2>
+            <p class="hint">The five most recent automatic backup runs of this profile.</p>
           </div>
-          {% if auto_backup.recent_runs %}
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Started</th>
-                  <th>Status</th>
-                  <th>Tunnels</th>
-                  <th>Backups</th>
-                  <th>Errors</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for run in auto_backup.recent_runs %}
-                <tr>
-                  <td data-label="ID">#{{ run.id }}</td>
-                  <td data-label="Started">{{ run.started_at }}</td>
-                  <td data-label="Status">
-                    {% if run.status == "success" %}
-                    <span class="status-pill status-match">Success</span>
-                    {% elif run.status == "partial" %}
-                    <span class="status-pill status-alt">Partial</span>
-                    {% elif run.status == "skipped" %}
-                    <span class="status-pill status-muted">Skipped</span>
-                    {% elif run.status == "running" %}
-                    <span class="status-pill status-info">Running</span>
-                    {% else %}
-                    <span class="status-pill status-warn">Failed</span>
-                    {% endif %}
-                  </td>
-                  <td data-label="Tunnels">{{ run.tunnel_count }}</td>
-                  <td data-label="Backups">{{ run.backup_count }}</td>
-                  <td data-label="Errors">{{ run.error_count }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          <div class="archive-link-row">
-            <a href="/auto-backup/runs" class="secondary-link-button secondary-link-button-small">View full archive</a>
-          </div>
-          {% else %}
-          <p>No automatic backup runs yet.</p>
-          {% endif %}
-        </section>
-      </section>
-      {% endif %}
-
-      {% if not demo_mode %}
-      <section class="card notification-panel" id="notifications-section">
-        <div class="section-heading">
-          <div class="panel-heading-inline">
-          <h2 class="heading-with-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="icon icon-tabler icons-tabler-outline icon-tabler-bell">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-              <path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6" />
-              <path d="M9 17v1a3 3 0 0 0 6 0v-1" />
-            </svg>
-            <span>Notifications</span>
-          </h2>
-            <div class="panel-heading-badges">
-              {% if auto_backup.notifications.configured %}
-              <span class="status-pill status-match status-pill-compact">{{ auto_backup.notifications.channel_label }}</span>
-              {% else %}
-              <span class="status-pill status-muted status-pill-compact">Disabled</span>
-              {% endif %}
-              {% if not demo_mode %}
-              <a href="/notifications/messages" class="status-pill status-alt status-pill-compact">Customize messages</a>
-              {% endif %}
-            </div>
-          </div>
-          <p class="hint">Review the configured notification channels and send a live test message to the currently enabled destinations.</p>
+          <a href="/auto-backup/runs" class="secondary-link-button">Full run history</a>
         </div>
-        {% if message and success_target == "notifications" %}
-        <section class="notice success top-gap" id="notifications-notice">{{ message }}</section>
+        {% if auto_backup.recent_runs %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Started</th>
+                <th>Status</th>
+                <th>Tunnels</th>
+                <th>Backups</th>
+                <th>Errors</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for run in auto_backup.recent_runs %}
+              <tr>
+                <td data-label="ID">#{{ run.id }}</td>
+                <td data-label="Started"><time datetime="{{ run.started_at }}" title="{{ run.started_at }}">{{ run.started_at|when }}</time></td>
+                <td data-label="Status">
+                  {% if run.status == "success" %}
+                  <span class="status-pill status-match">Success</span>
+                  {% elif run.status == "partial" %}
+                  <span class="status-pill status-alt">Partial</span>
+                  {% elif run.status == "skipped" %}
+                  <span class="status-pill status-muted">Skipped</span>
+                  {% elif run.status == "running" %}
+                  <span class="status-pill status-info">Running</span>
+                  {% else %}
+                  <span class="status-pill status-warn">Failed</span>
+                  {% endif %}
+                </td>
+                <td data-label="Tunnels">{{ run.tunnel_count }}</td>
+                <td data-label="Backups">{{ run.backup_count }}</td>
+                <td data-label="Errors">{{ run.error_count }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="hint">No automatic backup runs yet.</p>
         {% endif %}
-        {% if error and success_target == "notifications" %}
-        <section class="notice error top-gap" id="notifications-notice">{{ error }}</section>
-        {% endif %}
-        <dl class="status-grid top-gap">
+      </section>
+
+      {% set any_destination = destinations | selectattr("configured") | list | length > 0 %}
+      <section class="card notification-panel" id="notifications-section">
+        <div class="section-heading section-header-row">
           <div>
-            <dt>Channels</dt>
-            <dd>{{ auto_backup.notifications.channel_label }}</dd>
+            <h2 class="heading-with-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="icon icon-tabler icons-tabler-outline icon-tabler-bell" aria-hidden="true">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                <path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6" />
+                <path d="M9 17v1a3 3 0 0 0 6 0v-1" />
+              </svg>
+              <span>Notification destinations</span>
+            </h2>
+            <p class="hint">Destinations come from environment variables and are read-only here.</p>
           </div>
-          <div>
-            <dt>Enabled events</dt>
-            <dd>{{ auto_backup.notifications.event_count }}</dd>
-          </div>
-          <div>
-            <dt>Webhook events</dt>
-            <dd>{{ auto_backup.notifications.webhook_event_count }}</dd>
-          </div>
-          <div>
-            <dt>Telegram events</dt>
-            <dd>{{ auto_backup.notifications.telegram_event_count }}</dd>
-          </div>
-        </dl>
-        <p class="hint top-gap">{{ auto_backup.notifications.summary }}</p>
-        <form method="post" action="/notifications/test" class="notification-test-form">
-          <button type="submit" class="secondary-button" {% if not auto_backup.notifications.webhook_enabled and not auto_backup.notifications.telegram_enabled %}disabled{% endif %}>
+          <a href="/notifications/messages" class="secondary-link-button">Edit message templates</a>
+        </div>
+        {{ notice_for(notice, "notifications") }}
+        <ul class="destination-list">
+          {% for destination in destinations %}
+          <li class="destination-row">
+            <div class="destination-head">
+              <strong>{{ destination.label }}</strong>
+              {% if destination.configured %}
+              <span class="status-pill status-match status-pill-compact">Configured</span>
+              {% else %}
+              <span class="status-pill status-muted status-pill-compact">Not configured</span>
+              {% endif %}
+              {% if destination.target_hint %}<span class="destination-hint">{{ destination.target_hint }}</span>{% endif %}
+            </div>
+            {% if destination.events %}
+            <p class="destination-events">{{ destination.events | join(", ") }}</p>
+            {% elif destination.configured %}
+            <p class="destination-events">No valid events enabled.</p>
+            {% endif %}
+            <p class="hint">Set with {{ destination.env_names }}</p>
+          </li>
+          {% endfor %}
+        </ul>
+        <form method="post" action="/automation/notifications/test" class="notification-test-form">
+          <button type="submit" class="secondary-button"{% if not any_destination %} disabled{% endif %}>
             Send test notification
           </button>
         </form>
@@ -303,35 +249,24 @@
 
 {% block scripts %}
     <script>
-      const pageContainer = document.querySelector("[data-success-target]");
-      const successTarget = pageContainer?.dataset.successTarget || "";
+      const pageContainer = document.querySelector("[data-notice-target]");
+      const noticeTarget = pageContainer?.dataset.noticeTarget || "";
       const schedulerTimezone = pageContainer?.dataset.autoBackupTimezone || "UTC";
       const schedulerTimezoneSource = pageContainer?.dataset.autoBackupTimezoneSource || "default";
       const browserTimezoneName = Intl.DateTimeFormat().resolvedOptions().timeZone || "your local timezone";
       const effectiveSchedulerTimezone = schedulerTimezoneSource === "default" ? browserTimezoneName : schedulerTimezone;
-      const autoBackupSection = document.getElementById("auto-backup-section");
       const cronExpressionInput = document.querySelector('input[name="cron_expression"]');
       const cronTimezoneNote = document.getElementById("cron-timezone-note");
       const cronExplanation = document.getElementById("cron-explanation");
       const browserTimezoneInput = document.getElementById("browser-timezone-input");
 
-      const scrollToTargetNotice = (targetName, fallbackElement) => {
-        const noticeElement = document.getElementById(`${targetName}-notice`);
-        const targetElement = noticeElement || fallbackElement;
-        if (!targetElement) return false;
-        window.requestAnimationFrame(() => {
-          smoothScrollToElement(targetElement, 68);
-        });
-        return true;
-      };
-
-      if (successTarget === "auto-backup" && autoBackupSection) {
-        scrollToTargetNotice("auto-backup", autoBackupSection);
-      }
-
-      if (successTarget === "notifications") {
-        const notificationsSection = document.getElementById("notifications-section");
-        scrollToTargetNotice("notifications", notificationsSection);
+      if (noticeTarget) {
+        const noticeElement = document.getElementById(`${noticeTarget}-notice`);
+        if (noticeElement) {
+          window.requestAnimationFrame(() => {
+            smoothScrollToElement(noticeElement, 68);
+          });
+        }
       }
 
       document.querySelectorAll("[data-cron-preset]").forEach((button) => {

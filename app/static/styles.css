@@ -378,6 +378,11 @@ body {
 }
 .notice.success { background: var(--success); border-color: var(--success-border); }
 .notice.error { background: var(--error); border-color: var(--error-border); }
+.notice.muted {
+  background: var(--status-muted-bg);
+  border-color: var(--status-muted-border);
+  color: var(--status-muted-text);
+}
 .notice.warn {
   background: var(--status-warn-bg);
   border-color: var(--status-warn-border);
@@ -587,6 +592,28 @@ details.forget-credentials > summary { color: var(--danger-text); }
 /* === Notifications === */
 .notification-panel { margin-bottom: 1.1rem; }
 .notification-test-form { margin-top: 0.85rem; }
+.destination-list {
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+.destination-row {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+}
+.destination-row .hint { margin: 0.35rem 0 0; overflow-wrap: anywhere; }
+.destination-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.destination-hint { color: var(--muted); overflow-wrap: anywhere; }
+.destination-events { margin: 0.4rem 0 0; }
 
 /* === Archive Stats === */
 .archive-stats-grid {

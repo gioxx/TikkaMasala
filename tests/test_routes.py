@@ -100,21 +100,21 @@ def test_backup_missing_returns_404(client):
 
 def test_auto_backup_settings_rejects_enable_without_credentials(client):
     response = client.post(
-        "/auto-backup/settings",
+        "/automation/schedule",
         data={"enabled": "on", "cron_expression": "0 3 * * *"},
     )
-    assert response.status_code == 200
+    assert response.status_code == 400
     assert "require a server-side Account ID" in response.text
 
 
 def test_auto_backup_settings_rejects_bad_cron(client):
-    response = client.post("/auto-backup/settings", data={"cron_expression": "not a cron"})
-    assert response.status_code == 200
+    response = client.post("/automation/schedule", data={"cron_expression": "not a cron"})
+    assert response.status_code == 400
     assert "Invalid cron expression" in response.text
 
 
 def test_notifications_test_without_channels(client):
-    response = client.post("/notifications/test")
+    response = client.post("/automation/notifications/test")
     assert response.status_code == 200
     assert "no configured channel found" in response.text
 

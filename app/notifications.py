@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -95,6 +97,48 @@ def get_notification_status() -> dict[str, Any]:
         "telegram_event_count": len(telegram_events),
         "summary": summary,
     }
+
+
+@dataclass(frozen=True)
+class EnvDestination:
+    """A notification destination set from the environment, shown read-only (no secret in it)."""
+
+    kind: str
+    label: str
+    configured: bool
+    target_hint: str | None
+    events: list[str]
+    env_names: str
+
+
+def env_notification_destinations() -> list[EnvDestination]:
+    """The webhook and Telegram destinations as the UI may show them.
+
+    Only the webhook host and the last four characters of the Telegram chat ID are exposed:
+    the webhook path and the bot token are secrets.
+    """
+    webhook_configured = bool(NOTIFICATION_WEBHOOK_URL)
+    telegram_configured = bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
+    webhook_events = get_webhook_notification_events() if webhook_configured else set()
+    telegram_events = get_telegram_notification_events() if telegram_configured else set()
+    return [
+        EnvDestination(
+            kind="webhook",
+            label="Webhook",
+            configured=webhook_configured,
+            target_hint=urlsplit(NOTIFICATION_WEBHOOK_URL).hostname if webhook_configured else None,
+            events=sorted(humanize_notification_event(event) for event in webhook_events),
+            env_names="NOTIFICATION_WEBHOOK_URL, NOTIFICATION_WEBHOOK_EVENTS",
+        ),
+        EnvDestination(
+            kind="telegram",
+            label="Telegram",
+            configured=telegram_configured,
+            target_hint=f"chat ending in {TELEGRAM_CHAT_ID[-4:]}" if telegram_configured else None,
+            events=sorted(humanize_notification_event(event) for event in telegram_events),
+            env_names="TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_NOTIFICATION_EVENTS",
+        ),
+    ]
 
 
 def humanize_notification_event(event: str) -> str:

@@ -33,6 +33,7 @@ from app.credentials import (
     resolve_restore_target,
 )
 from app.ingress import IngressDiff, extract_ingress, fragile_rules, origin_request_delta
+from app.notifications import env_notification_destinations
 from app.profiles import current_profile_id, get_profile
 from app.scheduler import (
     build_auto_backup_status,
@@ -157,22 +158,26 @@ def render_backups_page(request: Request) -> HTMLResponse:
 
 def render_automation_page(
     request: Request,
-    message: str | None = None,
-    error: str | None = None,
-    success_target: str | None = None,
+    *,
+    notice: tuple[str, str, str] | None = None,
+    retention_input: str | None = None,
+    status_code: int = 200,
 ) -> HTMLResponse:
+    """The Automation overview. ``notice`` is ``(section, tone, message)``; the section names the card
+    the notice sits in (``schedule``, ``run``, ``retention``, ``notifications``)."""
     profile_id = current_profile_id(request)
     return templates.TemplateResponse(
         request,
         "automation.html",
         {
-            "message": message,
-            "error": error,
-            "success_target": success_target,
             "auto_backup": build_auto_backup_status(profile_id),
             "backup_retention": get_backup_retention_status(profile_id),
+            "destinations": env_notification_destinations(),
+            "notice": notice,
+            "retention_input": retention_input,
             "demo_mode": DEMO_MODE,
         },
+        status_code=status_code,
     )
 
 

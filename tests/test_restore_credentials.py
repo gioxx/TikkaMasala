@@ -103,7 +103,7 @@ CROSS_SITE = {"Sec-Fetch-Site": "cross-site"}
 
 @pytest.fixture
 def run_calls(monkeypatch):
-    import app.routers.auto_backup as auto_backup
+    import app.routers.automation as automation
 
     recorded: list[tuple] = []
 
@@ -111,8 +111,8 @@ def run_calls(monkeypatch):
         recorded.append((args, kwargs))
         return {"status": "success", "tunnel_count": 0, "backup_count": 0, "error_count": 0}
 
-    monkeypatch.setattr(auto_backup, "DEMO_MODE", False)
-    monkeypatch.setattr(auto_backup, "run_auto_backup_job", fake_run)
+    monkeypatch.setattr(automation, "DEMO_MODE", False)
+    monkeypatch.setattr(automation, "run_auto_backup_job", fake_run)
     return recorded
 
 
@@ -127,7 +127,7 @@ def test_cross_site_restore_rejected(client, make_backup, calls):
 
 
 def test_cross_site_automation_post_rejected(client, run_calls):
-    response = client.post("/auto-backup/run", headers=CROSS_SITE)
+    response = client.post("/automation/run", headers=CROSS_SITE)
     assert response.status_code == 403
     assert run_calls == []
 
@@ -140,7 +140,7 @@ def test_same_origin_or_headerless_posts_allowed(client, make_backup, calls, run
     )
     assert response.status_code == 200
     assert len(calls["put"]) == 1
-    response = client.post("/auto-backup/run", headers=headers)
+    response = client.post("/automation/run", headers=headers)
     assert response.status_code == 200
     assert len(run_calls) == 1
 

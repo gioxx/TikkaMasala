@@ -60,6 +60,19 @@ def _fake_tunnel_list(monkeypatch):
     app.tunnels.clear_tunnel_list_cache()
 
 
+@pytest.fixture(autouse=True)
+def _fresh_run_locks():
+    """Module-level asyncio locks and tasks belong to one event loop: never let them leak between tests."""
+    import app.background
+    import app.scheduler
+
+    app.scheduler._profile_run_locks.clear()
+    app.background._background_tasks.clear()
+    yield
+    app.scheduler._profile_run_locks.clear()
+    app.background._background_tasks.clear()
+
+
 @pytest.fixture(scope="session")
 def data_dir() -> Path:
     return _DATA_DIR
