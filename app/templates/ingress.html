@@ -24,6 +24,9 @@
             <span>Hostnames</span>
           </h2>
           <p class="hint">Every public hostname of every tunnel and the origin it points to.</p>
+          {% if has_account %}
+          <p class="hint">Hostnames of the {{ profile_name }} profile's account.{% if other_account_backups > 0 %} Backups of other accounts are in <a href="/backups?scope=other">Backups &rarr; Other accounts</a>.{% endif %}</p>
+          {% endif %}
         </div>
 
         <div class="ingress-toolbar top-gap">

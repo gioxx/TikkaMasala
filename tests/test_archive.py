@@ -90,3 +90,49 @@ def test_make_backup_notes_and_origin(configured_default, make_backup):
     _home, renamed, lab, _old = _seed(make_backup)
     assert get_backup(lab).notes == "before upgrade"
     assert get_backup(renamed).origin == "automatic"
+
+
+def test_two_profiles_scopes(configured_default, second_profile, make_backup):
+    from app.profiles import DEFAULT_PROFILE_ID
+
+    client_account = "fedcba9876543210fedcba9876543210"
+    a = make_backup(T1, "Home", account_id=GOOD)
+    b = make_backup(T2, "Site", account_id=client_account)
+    c = make_backup("t-old", "Old", account_id=OTHER)
+    ids = lambda pid, scope: {r.id for r in build_archive_page(pid, ArchiveQuery(scope=scope)).backups}  # noqa: E731
+    assert ids(DEFAULT_PROFILE_ID, "profile") == {a}
+    assert ids(second_profile.id, "profile") == {b}
+    assert ids(DEFAULT_PROFILE_ID, "other") == {c}
+    assert ids(second_profile.id, "other") == {c}
+
+
+def test_profile_without_account_sees_nothing(second_profile, make_backup):
+    from app.profiles import update_profile
+
+    update_profile(second_profile.id, account_id=None)
+    make_backup(T1, "Home", account_id=GOOD)
+    page = build_archive_page(second_profile.id, ArchiveQuery())
+    assert page.backups == [] and page.account_id is None
+
+
+def test_hostile_tunnel_param(configured_default, make_backup):
+    make_backup(T1, "Home", account_id=GOOD)
+    page = build_archive_page(1, ArchiveQuery(tunnel_id="<script>alert(1)</script>"))
+    assert page.backups == []
+
+
+def test_page_below_one(configured_default):
+    assert parse_archive_query({"page": "0"}).page == 1
+    assert parse_archive_query({"page": "-5"}).page == 1
+    assert build_archive_page(1, ArchiveQuery(page=0)).pagination["current_page"] == 1
+
+
+def test_multi_page_clamp_and_order(configured_default, make_backup):
+    ids = [make_backup(T1, "Home", account_id=GOOD) for _ in range(12)]
+    pages = [build_archive_page(1, ArchiveQuery(page=n, page_size=5)) for n in (1, 2, 3)]
+    seen = [r.id for p in pages for r in p.backups]
+    assert seen == sorted(ids, reverse=True)
+    assert len(set(seen)) == 12
+    last = build_archive_page(1, ArchiveQuery(page=999, page_size=5))
+    assert last.pagination["current_page"] == 3
+    assert [r.id for r in last.backups] == [r.id for r in pages[2].backups]

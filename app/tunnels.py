@@ -204,7 +204,7 @@ def _tunnels_tile(
 
 
 def _hostnames_tile(overview: IngressOverview, account_id: str | None) -> Tile:
-    """Counts the active account's snapshots only; the Hostnames page itself lists every account."""
+    """Counts the active account's snapshots only; the Hostnames page lists the same set."""
 
     def tile(value: str, detail: str, tone: str) -> Tile:
         return Tile(key="hostnames", label="Hostnames", value=value, detail=detail, tone=tone, href="/ingress")

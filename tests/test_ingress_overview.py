@@ -297,8 +297,8 @@ def test_undecodable_snapshot_marks_tunnel_unreadable(make_backup, data_dir):
     assert tunnel.error == "Snapshot file could not be read."
 
 
-def test_ingress_snapshots_keep_every_account(client, configured_default, make_backup):
-    # Controller ruling (step 5): Hostnames keeps listing every account's snapshots.
+def test_ingress_snapshots_follow_active_account(client, configured_default, make_backup):
+    # Step 6 ruling: Hostnames lists the active profile's account; other accounts live in Backups.
     make_backup(tunnel_id="good-1", tunnel_name="Mine", account_id=configured_default.account_id, ingress=[
         {"hostname": "home.example.com", "service": "http://10.0.0.1:80"},
     ])
@@ -307,4 +307,19 @@ def test_ingress_snapshots_keep_every_account(client, configured_default, make_b
     ])
     body = client.get("/ingress").text
     assert "home.example.com" in body
-    assert "far.example.com" in body
+    assert "far.example.com" not in body
+
+
+def test_ingress_hint_links_other_accounts(client, configured_default, make_backup):
+    make_backup("t-home", "Home", account_id=configured_default.account_id)
+    make_backup("t-old", "Old", account_id="acc-other")
+    page = client.get("/ingress").text
+    assert 'href="/backups?scope=other"' in page
+    assert "profile's account." in page or "profile&#39;s account." in page
+
+
+def test_ingress_no_hint_without_account(client, make_backup):
+    make_backup("t-old", "Old", account_id="acc-other")
+    page = client.get("/ingress").text
+    assert "Hostnames of the" not in page
+    assert 'href="/backups?scope=other"' not in page
