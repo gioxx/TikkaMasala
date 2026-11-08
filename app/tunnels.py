@@ -40,7 +40,12 @@ from app.credentials import (
 from app.db import BackupRecord
 from app.ingress_overview import IngressOverview, build_overview, snapshot_overview
 from app.notifications import queue_notification, render_notification_message
-from app.scheduler import build_auto_backup_status, get_auto_backup_timezone
+from app.scheduler import (
+    RUN_IN_PROGRESS_MESSAGE,
+    build_auto_backup_status,
+    get_auto_backup_timezone,
+    profile_run_lock,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +235,7 @@ def _auto_backup_tile(profile_id: int) -> Tile:
         return tile("Failing", f"Last run {last_status} {format_when(last_run_at)}", "error")
     next_run_at = status.get("next_run_at")
     next_text = f"next {format_when(next_run_at)}" if next_run_at else "next not scheduled"
-    detail = f"Last {format_when(last_run_at)}, {next_text}"
+    detail = f"Last {format_when(last_run_at)}, {next_text}" if last_run_at else f"No run yet, {next_text}"
     if last_status is None:
         return tile("Waiting", detail, "muted")
     return tile("OK", detail, "ok")
@@ -398,15 +403,10 @@ class BulkOutcome:
     feedback: dict[str, RowFeedback]
 
 
-_bulk_locks: dict[int, asyncio.Lock] = {}
-
-
 def _bulk_lock(profile_id: int) -> asyncio.Lock:
-    """One lock per profile, so a second "Back up all now" is refused while one runs."""
-    lock = _bulk_locks.get(profile_id)
-    if lock is None:
-        lock = _bulk_locks[profile_id] = asyncio.Lock()
-    return lock
+    """The profile's run lock, shared with the scheduler: "Back up all now" is refused while
+    another bulk run, "Run now" or a scheduled run of the same profile holds it."""
+    return profile_run_lock(profile_id)
 
 
 async def back_up_all_tunnels(profile_id: int) -> BulkOutcome:
@@ -416,7 +416,7 @@ async def back_up_all_tunnels(profile_id: int) -> BulkOutcome:
     """
     lock = _bulk_lock(profile_id)
     if lock.locked():
-        return BulkOutcome("error", "Back up all is already running.", {})
+        return BulkOutcome("error", RUN_IN_PROGRESS_MESSAGE, {})
     async with lock:
         try:
             creds = require_api_credentials(profile_id)

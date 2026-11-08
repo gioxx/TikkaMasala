@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
 
+import app.background as background
 import app.credentials as credentials
 import app.routers.dashboard as dashboard
+import app.scheduler as scheduler
 import app.tunnels as tunnels
 import app.web as web
 from app.profiles import DEFAULT_PROFILE_ID
@@ -172,11 +175,22 @@ def test_row_backup_failure_inline(client, configured_default, fake_list, fake_c
     assert level == "warning"
 
 
-@pytest.mark.parametrize("tunnel_id", ["not-a-uuid", "..%2F..%2Fsecrets", f"{T1}%0A", f"{T1}x"])
+@pytest.mark.parametrize("tunnel_id", ["not-a-uuid", f"{T1}x"])
 def test_row_backup_rejects_bad_tunnel_id(client, configured_default, fake_list, fake_create, events, tunnel_id):
     fake_list(_listing(T1))
     create = fake_create()
     response = client.post(f"/tunnels/{tunnel_id}/backup", headers=HX)
+    assert response.status_code == 200
+    assert "Unknown tunnel ID." in response.text
+    assert create.calls == []
+    assert events == []
+
+
+def test_row_backup_path_traversal_never_reaches_cloudflare(client, configured_default, fake_list, fake_create, events):
+    fake_list(_listing(T1))
+    create = fake_create()
+    response = client.post("/tunnels/..%2F..%2Fsecrets/backup", headers=HX)
+    # The encoded slashes may be decoded before routing (404) or reach the handler (200).
     assert response.status_code in (200, 404)
     if response.status_code == 200:
         assert "Unknown tunnel ID." in response.text
@@ -367,13 +381,100 @@ def test_backup_all_refuses_concurrent_run(client, configured_default, monkeypat
     fake_list(_listing(T1))
     create = fake_create()
     response = client.post("/tunnels/backup-all", headers=HX)
-    assert "Back up all is already running." in response.text
+    assert "Another backup run is already in progress for this profile." in response.text
     assert create.calls == []
 
 
 def test_bulk_lock_is_per_profile():
     assert tunnels._bulk_lock(1) is tunnels._bulk_lock(1)
     assert tunnels._bulk_lock(1) is not tunnels._bulk_lock(2)
+
+
+def test_bulk_and_scheduler_share_lock():
+    assert tunnels._bulk_lock(1) is scheduler.profile_run_lock(1)
+
+
+def test_bulk_run_refused_while_scheduler_holds_lock(configured_default, fake_list, fake_create, events):
+    fake_list(_listing(T1))
+    create = fake_create()
+
+    async def scenario():
+        async with scheduler.profile_run_lock(DEFAULT_PROFILE_ID):
+            return await tunnels.back_up_all_tunnels(DEFAULT_PROFILE_ID)
+
+    outcome = asyncio.run(scenario())
+    assert (outcome.tone, outcome.message) == ("error", "Another backup run is already in progress for this profile.")
+    assert create.calls == []
+
+
+def test_backup_all_continues_in_background(client, configured_default, monkeypatch, fake_list, fake_create, events):
+    fake_list(_listing(T1))
+    fake_create()
+
+    async def _still_running(coro, *, name, grace=None):
+        coro.close()
+        return False, None
+
+    monkeypatch.setattr(dashboard, "finish_or_continue", _still_running)
+    response = client.post("/tunnels/backup-all", headers=HX)
+    assert response.status_code == 200
+    assert "Back up all continues in the background." in response.text
+    assert "Reload the page to see each tunnel&#39;s last backup." in response.text
+    assert "Backup #42 saved." not in response.text
+
+
+def _slow_create(delay: float, error: BaseException | None = None):
+    async def _create(account_id, tunnel_id, api_token, notes=None, *rest):
+        await asyncio.sleep(delay)
+        if error is not None:
+            raise error
+        return SimpleNamespace(id=7, tunnel_name="Home", route_count=1, filename="x.json")
+
+    return _create
+
+
+@pytest.mark.parametrize("error", [None, RuntimeError("disk full")])
+def test_background_bulk_run_releases_lock(configured_default, monkeypatch, fake_list, events, caplog, error):
+    """A bulk run that outlives the grace period keeps the lock until it ends, then releases it."""
+    fake_list(_listing(T1))
+    monkeypatch.setattr(tunnels, "create_backup", _slow_create(0.05, error))
+    lock = scheduler.profile_run_lock(DEFAULT_PROFILE_ID)
+
+    async def scenario():
+        done, outcome = await background.finish_or_continue(
+            tunnels.back_up_all_tunnels(DEFAULT_PROFILE_ID), name="bulk", grace=0.01
+        )
+        held_during_run = lock.locked()
+        await asyncio.sleep(0.2)
+        return done, outcome, held_during_run
+
+    done, outcome, held_during_run = asyncio.run(scenario())
+    assert (done, outcome) == (False, None)
+    assert held_during_run
+    assert not lock.locked()
+    # A failing create_backup is reported per tunnel by back_up_tunnel, so the task itself never fails.
+    assert not [r for r in caplog.records if r.getMessage() == "Background task bulk failed."]
+
+
+def test_background_run_that_raises_releases_lock(caplog):
+    lock = scheduler.profile_run_lock(DEFAULT_PROFILE_ID)
+
+    async def _run():
+        async with lock:
+            await asyncio.sleep(0.03)
+            raise RuntimeError("boom")
+
+    async def scenario():
+        result = await background.finish_or_continue(_run(), name="locked", grace=0.01)
+        held_during_run = lock.locked()
+        await asyncio.sleep(0.1)
+        return result, held_during_run
+
+    result, held_during_run = asyncio.run(scenario())
+    assert result == (False, None)
+    assert held_during_run
+    assert not lock.locked()
+    assert [r.getMessage() for r in caplog.records if r.levelname == "ERROR"] == ["Background task locked failed."]
 
 
 def test_backup_all_does_not_mutate_cached_list(client, configured_default, fake_list, fake_create, events):

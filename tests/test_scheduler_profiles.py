@@ -141,7 +141,7 @@ def test_profiles_do_not_block_each_other(recorder):
     client_id = recorder["client_id"]
 
     async def scenario():
-        async with scheduler._profile_lock(DEFAULT_PROFILE_ID):
+        async with scheduler.profile_run_lock(DEFAULT_PROFILE_ID):
             client_result = await run_auto_backup_job(client_id, trigger="manual")
             default_result = await run_auto_backup_job(DEFAULT_PROFILE_ID, trigger="manual")
         return client_result, default_result
@@ -149,6 +149,8 @@ def test_profiles_do_not_block_each_other(recorder):
     client_result, default_result = asyncio.run(scenario())
     assert client_result["status"] != "skipped"
     assert default_result["status"] == "skipped"
+    latest = get_all_scheduled_runs(DEFAULT_PROFILE_ID)[0]
+    assert "another backup run is already in progress" in (latest.details or "")
 
 
 def test_runs_are_recorded_per_profile(recorder):

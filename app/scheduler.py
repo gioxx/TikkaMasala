@@ -35,16 +35,19 @@ from app.profiles import get_profile, list_profiles, update_profile
 logger = logging.getLogger(__name__)
 auto_backup_scheduler = AsyncIOScheduler(timezone="UTC")
 AUTO_BACKUP_JOB_ID_PREFIX = "auto-backup-profile-"
-# One lock per profile, so a long run of one profile never blocks another.
-_profile_locks: dict[int, asyncio.Lock] = {}
+# One lock per profile, shared by scheduled runs, "Run now" and "Back up all now": a long run of
+# one profile never blocks another, and two runs of the same profile never overlap.
+_profile_run_locks: dict[int, asyncio.Lock] = {}
+RUN_IN_PROGRESS_MESSAGE = "Another backup run is already in progress for this profile."
 
 
 def auto_backup_job_id(profile_id: int) -> str:
     return f"{AUTO_BACKUP_JOB_ID_PREFIX}{profile_id}"
 
 
-def _profile_lock(profile_id: int) -> asyncio.Lock:
-    return _profile_locks.setdefault(profile_id, asyncio.Lock())
+def profile_run_lock(profile_id: int) -> asyncio.Lock:
+    """The run lock of one profile (created on first use)."""
+    return _profile_run_locks.setdefault(profile_id, asyncio.Lock())
 
 
 def _now_iso() -> str:
@@ -461,10 +464,10 @@ def configure_all_auto_backup_jobs() -> None:
 
 
 async def run_auto_backup_job(profile_id: int, trigger: str = "schedule") -> dict[str, Any]:
-    lock = _profile_lock(profile_id)
+    lock = profile_run_lock(profile_id)
     if lock.locked():
         logger.info("Automatic backup run of profile %s skipped because another run is already in progress.", profile_id)
-        details = json.dumps({"message": "Skipped because another automatic backup is already running."}, ensure_ascii=False)
+        details = json.dumps({"message": "Skipped because another backup run is already in progress."}, ensure_ascii=False)
         run_id = create_scheduled_run(profile_id, get_saved_account_id(profile_id) or "unknown", "skipped", details)
         complete_scheduled_run(run_id, "skipped", 0, 0, 0, details)
         _record_last_run(profile_id, "skipped")

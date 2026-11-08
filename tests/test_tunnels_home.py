@@ -263,7 +263,7 @@ def test_auto_backup_tile(monkeypatch, configured_default, fake_list, enabled, r
     elif value == "Failing":
         assert tile.detail == f"Last run {last_status} 2020-01-01"
     elif value == "Waiting":
-        assert tile.detail == "Last never, next not scheduled"
+        assert tile.detail == "No run yet, next not scheduled"
     else:
         assert tile.detail == "Last 2020-01-01, next not scheduled"
 

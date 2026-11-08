@@ -7,6 +7,7 @@ import json
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
+from app.background import finish_or_continue
 from app.config import DEMO_MODE
 from app.credentials import require_api_credentials
 from app.profiles import current_profile_id
@@ -22,6 +23,8 @@ from app.tunnels import (
 from app.web import render_tunnels_page
 
 router = APIRouter()
+
+BACKGROUND_NOTICE = "Back up all continues in the background. Reload the page to see each tunnel's last backup."
 
 
 def _is_htmx(request: Request) -> bool:
@@ -50,7 +53,10 @@ async def index(request: Request) -> HTMLResponse:
 async def backup_all_action(request: Request) -> Response:
     if DEMO_MODE:
         return RedirectResponse("/", status_code=303)
-    outcome = await back_up_all_tunnels(current_profile_id(request))
+    profile_id = current_profile_id(request)
+    done, outcome = await finish_or_continue(back_up_all_tunnels(profile_id), name=f"backup-all-{profile_id}")
+    if not done or outcome is None:
+        return await _render_home(request, notice=("muted", BACKGROUND_NOTICE))
     return await _render_home(request, feedback=outcome.feedback, notice=(outcome.tone, outcome.message))
 
 
