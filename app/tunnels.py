@@ -307,22 +307,33 @@ async def build_tunnels_home(profile_id: int, *, fresh: bool = False) -> Tunnels
 async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str) -> BackupRecord:
     """Back up one tunnel now and queue the matching manual backup notification.
 
-    Re-raises the ``HTTPException`` of a failed backup after queuing ``manual_backup_failed``.
+    On failure queues ``manual_backup_failed`` and raises an ``HTTPException``: the original one, or a
+    502 with a generic message for any other exception.
     """
     account_id = creds.account_id
     logger.info("Manual backup requested (account_id=%s, tunnel_id=%s).", account_id, tunnel_id)
-    try:
-        backup = await create_backup(account_id, tunnel_id, creds.api_token, None)
-    except HTTPException as exc:
-        logger.warning("Manual backup failed (tunnel_id=%s): %s", tunnel_id, exc.detail)
-        failed_details = {"account_id": account_id, "tunnel_id": tunnel_id, "error": str(exc.detail)}
+    def queue_failed(error: str) -> None:
+        failed_details = {"account_id": account_id, "tunnel_id": tunnel_id, "error": error}
         queue_notification(
             "manual_backup_failed",
             render_notification_message("manual_backup_failed", failed_details),
             failed_details,
             level="warning",
         )
+
+    try:
+        backup = await create_backup(account_id, tunnel_id, creds.api_token, None)
+    except HTTPException as exc:
+        logger.warning("Manual backup failed (tunnel_id=%s): %s", tunnel_id, exc.detail)
+        queue_failed(str(exc.detail))
         raise
+    except Exception as exc:
+        # Network errors, non-JSON answers, file write errors: report the type only, never the text
+        # (it could quote a request), and turn it into the usual failure path.
+        logger.exception("Unexpected error during manual backup (account_id=%s, tunnel_id=%s).", account_id, tunnel_id)
+        error = f"Unexpected error ({type(exc).__name__})."
+        queue_failed(error)
+        raise HTTPException(status_code=502, detail=error) from exc
     logger.info(
         "Manual backup created successfully (backup_id=%s, account_id=%s, tunnel_id=%s, tunnel_name=%s).",
         backup.id,

@@ -355,3 +355,46 @@ def test_backup_all_rejects_cross_site(client, configured_default, fake_create):
     response = client.post("/tunnels/backup-all", headers={"Sec-Fetch-Site": "cross-site"})
     assert response.status_code == 403
     assert create.calls == []
+
+
+# --- unexpected errors and id case ------------------------------------------
+
+
+def _connect_error() -> Exception:
+    import httpx
+
+    return httpx.ConnectError("connection refused", request=httpx.Request("GET", "https://api.cloudflare.com/x"))
+
+
+def test_row_backup_unexpected_error_inline(client, configured_default, fake_list, fake_create, events):
+    fake_list(_listing(T1))
+    fake_create(errors={T1: _connect_error()})
+    response = client.post(f"/tunnels/{T1}/backup", headers=HX)
+    assert response.status_code == 200
+    assert "Unexpected error (ConnectError)." in _row(response.text, T1)
+    assert "connection refused" not in response.text
+    assert TOKEN not in response.text
+    assert [event for event, _, _ in events] == ["manual_backup_failed"]
+    assert events[0][1]["error"] == "Unexpected error (ConnectError)."
+
+
+def test_backup_all_continues_after_unexpected_error(client, configured_default, fake_list, fake_create, events):
+    fake_list(_listing(T1, T2))
+    create = fake_create(errors={T1: _connect_error()})
+    response = client.post("/tunnels/backup-all", headers=HX)
+    assert response.status_code == 200
+    assert [call[1] for call in create.calls] == [T1, T2]
+    assert "Backed up 1 of 2 tunnels. Failed: Home (Unexpected error (ConnectError).)." in response.text
+    assert "Backup #42 saved." in _row(response.text, T2)
+    assert [event for event, _, _ in events] == ["manual_backup_failed", "manual_backup_success"]
+
+
+def test_row_feedback_matches_upper_case_stored_id(client, configured_default, make_backup, fake_list, fake_create, events):
+    upper = "AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE"
+    make_backup(upper, "Home", account_id=GOOD)
+    fake_list(error=HTTPException(status_code=502, detail="down"))  # fallback rows from local backups
+    fake_create()
+    response = client.post(f"/tunnels/{upper}/backup", headers=HX)
+    assert response.status_code == 200
+    assert "Backup #42 saved." in _row(response.text, upper)
+    assert "Home: Backup #42 saved." in text_of_live(response.text)

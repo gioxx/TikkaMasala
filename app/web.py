@@ -138,7 +138,8 @@ def render_tunnels_page(
         "partials/tunnels_home.html" if partial else "tunnels.html",
         {
             "home": home,
-            "feedback": feedback or {},
+            # Keyed by lower-case tunnel ID; the template looks rows up the same way.
+            "feedback": {tunnel_id.lower(): outcome for tunnel_id, outcome in (feedback or {}).items()},
             "notice": notice,
             "live_oob": partial,
             "demo_mode": DEMO_MODE,

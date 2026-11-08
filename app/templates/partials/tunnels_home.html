@@ -60,7 +60,7 @@
               </thead>
               <tbody>
                 {% for row in home.rows %}
-                {% set fb = feedback.get(row.tunnel_id) %}
+                {% set fb = feedback.get(row.tunnel_id|lower) %}
                 <tr id="tunnel-row-{{ row.tunnel_id }}" class="tunnel-row{% if fb %} has-feedback{% endif %}">
                   <td class="col-name">
                     {%- if home.account_id -%}
@@ -117,6 +117,6 @@
 {%- if live_oob %}
       <div id="tunnels-live" hx-swap-oob="innerHTML">
         {%- if notice %}{{ notice[1] }}{% endif -%}
-        {%- for row in home.rows if feedback.get(row.tunnel_id) and not notice %}{{ " " if not loop.first }}{{ row.name }}: {{ feedback[row.tunnel_id].message }}{% endfor -%}
+        {%- for row in home.rows if feedback.get(row.tunnel_id|lower) and not notice %}{{ " " if not loop.first }}{{ row.name }}: {{ feedback[row.tunnel_id|lower].message }}{% endfor -%}
       </div>
 {%- endif %}
