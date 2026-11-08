@@ -25,9 +25,9 @@
 
         {% if not prereqs.ready %}
         <section class="notice error top-gap">
-          Server-side credentials are required to load the tunnel list.
+          Credentials are required to load the tunnel list.
           Missing: {{ prereqs.missing_items | join(', ') }}.
-          Add them through the app and save them, or provide them from the environment.
+          Add them in <a href="/settings">Settings</a>, or provide them from the environment.
         </section>
         {% elif load_error %}
         <section class="notice error top-gap">{{ load_error }}</section>

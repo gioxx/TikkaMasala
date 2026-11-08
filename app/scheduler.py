@@ -150,9 +150,9 @@ def get_auto_backup_prerequisites(profile_id: int) -> dict[str, Any]:
     api_token_source = get_server_api_token_source(profile_id)
     missing_items: list[str] = []
     if not account_id:
-        missing_items.append("Server-side Account ID")
+        missing_items.append("Account ID")
     if not api_token:
-        missing_items.append("Server-side API token")
+        missing_items.append("API token")
     return {
         "account_id_available": bool(account_id),
         "account_id_source": account_source,

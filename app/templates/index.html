@@ -284,7 +284,7 @@
               </label>
               {% if not auto_backup.prereqs.ready and not auto_backup.enabled %}
               <p class="hint">
-                Enable is locked until all required server-side credentials are available.
+                Enable is locked until the profile has an Account ID and API token. Manage them in <a href="/settings">Settings</a>.
               </p>
               {% endif %}
               <label>
@@ -324,19 +324,17 @@
               {% if auto_backup.prereqs.ready %}
               <div class="server-readiness-item">
                 <span class="hint">
-                  Automatic backups use only server-side credentials from the database or environment.
-                  Browser cookies are ignored.<br>
-                  Server-side credentials are available. Account ID comes from {{ auto_backup.prereqs.account_id_source or 'unknown source' }},
+                  Automatic backups use the credentials saved in <a href="/settings">Settings</a> or set in the environment.<br>
+                  Credentials are available. Account ID comes from {{ auto_backup.prereqs.account_id_source or 'unknown source' }},
                   API token comes from {{ auto_backup.prereqs.api_token_source or 'unknown source' }}.
                 </span>
               </div>
               {% else %}
               <div class="server-readiness-item">
                 <span class="hint">
-                  Automatic backups use only server-side credentials from the database or environment.
-                  Browser cookies are ignored.<br>
+                  Automatic backups use the credentials saved in Settings or set in the environment.<br>
                   Missing: {{ auto_backup.prereqs.missing_items | join(', ') }}.
-                  Add them through the app and save them, or provide them from the environment.
+                  Add them in <a href="/settings">Settings</a>, or provide them from the environment.
                 </span>
               </div>
               {% endif %}
@@ -395,7 +393,7 @@
             <section class="notice error inline-notice">
               Automatic backups are not ready yet.
               Missing: {{ auto_backup.prereqs.missing_items | join(', ') }}.
-              You need values available to the server from the database or environment.
+              Add them in <a href="/settings">Settings</a>, or provide them from the environment.
             </section>
             {% endif %}
             <form method="post" action="/auto-backup/run" class="auto-backup-footer-form">

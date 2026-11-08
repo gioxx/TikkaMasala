@@ -144,3 +144,14 @@ def test_dashboard_never_renders_token(client, configured_default):
     text = client.get("/").text
     assert configured_default.account_id in text
     assert configured_default.api_token not in text
+
+
+def test_missing_credentials_wording_points_to_settings(client):
+    """No cookie or in-page credential forms any more: missing values are added in Settings."""
+    for path in ("/", "/auto-backup/tunnel-filters"):
+        text = client.get(path).text
+        assert "Browser cookies" not in text, path
+        assert "through the app" not in text, path
+        assert "Server-side Account ID" not in text, path
+        assert "Missing: Account ID, API token." in text, path
+        assert "Add them in <a href=\"/settings\">Settings</a>" in text, path
