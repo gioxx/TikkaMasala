@@ -9,6 +9,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.access import ACCESS_LOGOUT_PATH, access_identity
 from app.backups import (
     get_backup,
     get_backup_retention_status,
@@ -38,6 +39,8 @@ from app.scheduler import (
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
+templates.env.globals["access_identity"] = access_identity
+templates.env.globals["access_logout_path"] = ACCESS_LOGOUT_PATH
 templates.env.globals["origin_request_delta"] = origin_request_delta
 
 

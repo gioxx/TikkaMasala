@@ -29,6 +29,13 @@
               This small web app fetches a tunnel configuration through the Cloudflare API,
               stores JSON snapshots locally, and can restore a saved configuration later.
             </p>
+            {% set identity = access_identity(request) %}
+            {% if identity %}
+            <p class="access-identity">
+              Signed in as <strong>{{ identity.label }}</strong>
+              &middot; <a href="{{ access_logout_path }}">Sign out</a>
+            </p>
+            {% endif %}
           </div>
           <img src="/static/cloudflare-logo.png" alt="Cloudflare logo" class="hero-logo">
         </div>

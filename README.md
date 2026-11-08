@@ -28,6 +28,7 @@ Website: <https://tikkamasala.gioxx.org>
 - [Automatic Backups](#automatic-backups)
 - [Notifications](#notifications)
 - [Demo Mode](#demo-mode)
+- [Cloudflare Access](#cloudflare-access)
 - [Security Notes](#security-notes)
 - [Project Notes](#project-notes)
 - [Credits](#credits)
@@ -77,6 +78,8 @@ You can configure the app through environment variables, whether you use Docker 
 | `CLOUDFLARE_ACCOUNT_ID` | No | Prefills the Cloudflare account ID in the UI. |
 | `CLOUDFLARE_API_TOKEN` | No | Prefills the API token in the UI. |
 | `TOKEN_ENCRYPTION_KEY` | Recommended | Fernet key used to encrypt the API token before saving it in SQLite. |
+| `CF_ACCESS_TEAM_DOMAIN` | No | Cloudflare Zero Trust team domain, e.g. `yourteam.cloudflareaccess.com` (or just `yourteam`). Set together with `CF_ACCESS_AUD` to require a valid Cloudflare Access login on every request. See [Cloudflare Access](#cloudflare-access). |
+| `CF_ACCESS_AUD` | No | Application Audience (AUD) tag of the Access application that protects Tikka Masala. Set together with `CF_ACCESS_TEAM_DOMAIN`. |
 | `AUTO_BACKUP_TIMEZONE` | No | Force automatic backups to use a specific IANA timezone such as `Europe/Rome`. |
 | `BACKUP_RETENTION_DAYS` | No | Automatically delete backups older than this many days after new backups are created. |
 | `NOTIFICATION_WEBHOOK_URL` | No | Send JSON notifications to a generic webhook endpoint. |
@@ -370,11 +373,32 @@ In demo mode:
 
 Manual tunnel listing and manual backup downloads still work.
 
+## Cloudflare Access
+
+If you publish Tikka Masala through a Cloudflare Tunnel, you can protect it with a Cloudflare Access application (Zero Trust → Access → Applications). Access handles the login (Google, GitHub, one-time PIN by email, and so on); Tikka Masala has no accounts or passwords of its own.
+
+By default the app trusts whoever reaches it. Set both variables below and it also verifies, on every request, the signed token that Cloudflare Access adds (`Cf-Access-Jwt-Assertion` header). Requests without a valid token get a `403` page, so nobody can get in by reaching the container around Access (LAN IP and port, another proxy).
+
+| Variable | Where to find it |
+| --- | --- |
+| `CF_ACCESS_TEAM_DOMAIN` | Zero Trust dashboard → Settings, under your team name and domain, e.g. `yourteam.cloudflareaccess.com`. `yourteam` alone also works. |
+| `CF_ACCESS_AUD` | Zero Trust → Access → Applications → your application → Overview → Application Audience (AUD) Tag. |
+
+Neither value is a secret. Setting only one of them stops the app at startup with an explicit error, so a half-finished configuration never runs unprotected.
+
+Things to know:
+
+- A **Bypass** policy on the application skips Access entirely, so Cloudflare sends no token and the app answers `403`. Use Allow policies (and log in) for everyone who should reach Tikka Masala.
+- `/healthz` is never checked, so the Docker healthcheck keeps working.
+- The signed-in email (or "service token") and a **Sign out** link appear in the page header.
+- Rejected requests are logged with the client address and the reason, never with the token.
+
 ## Security Notes
 
 - The API token is never persisted in plaintext in the database by current versions of the app.
 - If `TOKEN_ENCRYPTION_KEY` is missing, the token is not written to SQLite.
 - The API token can still be temporarily reused through the browser cookie or environment prefill.
+- When `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are set, every request except `/healthz` must carry a valid Cloudflare Access token. See [Cloudflare Access](#cloudflare-access).
 - Older plaintext tokens already present in the database are upgraded to encrypted form the first time they are read successfully with a valid `TOKEN_ENCRYPTION_KEY`.
 
 ## Project Notes

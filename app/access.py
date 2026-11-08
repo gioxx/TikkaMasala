@@ -9,11 +9,13 @@ behaves as before. Setting only one of them is a configuration error.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
 import jwt
+from fastapi import Request
+from fastapi.responses import Response
 
 logger = logging.getLogger(__name__)
 
@@ -124,3 +126,39 @@ class AccessVerifier:
             raise AccessDenied("invalid token") from None
         email = claims.get("email")
         return AccessIdentity(email=email if isinstance(email, str) and email else None, subject=str(claims.get("sub") or ""))
+
+
+# --- request enforcement -----------------------------------------------------
+
+ACCESS_JWT_HEADER = "Cf-Access-Jwt-Assertion"
+ACCESS_EXEMPT_PATHS = frozenset({"/healthz"})
+ACCESS_LOGOUT_PATH = "/cdn-cgi/access/logout"
+
+
+def access_identity(request: Request) -> AccessIdentity | None:
+    """The verified Access identity of this request, or ``None`` when Access is off."""
+
+    return getattr(request.state, "access_identity", None)
+
+
+def _denied_response(request: Request) -> Response:
+    from app.web import templates  # deferred: app.web pulls in the whole template stack
+
+    response = templates.TemplateResponse(request, "access_denied.html", status_code=403)
+    if request.headers.get("HX-Request"):
+        # htmx does not swap 4xx responses: reload the page so Cloudflare can show its login.
+        response.headers["HX-Refresh"] = "true"
+    return response
+
+
+async def access_guard(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    verifier: AccessVerifier | None = getattr(request.app.state, "access_verifier", None)
+    if verifier is None or request.url.path in ACCESS_EXEMPT_PATHS:
+        return await call_next(request)
+    try:
+        request.state.access_identity = verifier.verify(request.headers.get(ACCESS_JWT_HEADER))
+    except AccessDenied as exc:
+        client_host = request.client.host if request.client else "unknown"
+        logger.warning("Cloudflare Access rejected %s %s from %s: %s.", request.method, request.url.path, client_host, exc.reason)
+        return _denied_response(request)
+    return await call_next(request)

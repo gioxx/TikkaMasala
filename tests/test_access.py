@@ -145,3 +145,78 @@ def test_verify_fails_closed_when_keys_unavailable(settings, make_token):
     with pytest.raises(AccessDenied) as exc:
         AccessVerifier(settings, key_resolver=broken).verify(make_token())
     assert exc.value.reason == "signing key unavailable"
+
+
+# --- enforcement -------------------------------------------------------------
+
+ACCESS_HEADER = "Cf-Access-Jwt-Assertion"
+
+
+@pytest.fixture
+def access_on(client, verifier):
+    client.app.state.access_verifier = verifier
+    yield
+    client.app.state.access_verifier = None
+
+
+def test_access_off_by_default(client):
+    assert client.app.state.access_verifier is None
+    assert client.get("/").status_code == 200
+
+
+def test_healthz_exempt(client, access_on):
+    assert client.get("/healthz").status_code == 200
+
+
+def test_request_without_token_rejected(client, access_on, caplog):
+    caplog.set_level("WARNING", logger="app.access")
+    response = client.get("/")
+    assert response.status_code == 403
+    assert "Cloudflare Access" in response.text
+    assert "/static/" not in response.text
+    assert "missing token" in caplog.text
+
+
+def test_garbage_token_is_403_not_500(client, access_on):
+    assert client.get("/", headers={ACCESS_HEADER: "garbage"}).status_code == 403
+
+
+def test_static_assets_also_protected(client, access_on):
+    assert client.get("/static/styles.css").status_code == 403
+
+
+def test_htmx_rejection_asks_for_refresh(client, access_on):
+    response = client.get("/ingress", headers={"HX-Request": "true"})
+    assert response.status_code == 403
+    assert response.headers["HX-Refresh"] == "true"
+
+
+def test_plain_rejection_has_no_refresh_header(client, access_on):
+    assert "HX-Refresh" not in client.get("/ingress").headers
+
+
+def test_valid_token_shows_identity_and_sign_out(client, access_on, make_token):
+    token = make_token()
+    response = client.get("/", headers={ACCESS_HEADER: token})
+    assert response.status_code == 200
+    assert "user@example.org" in response.text
+    assert 'href="/cdn-cgi/access/logout"' in response.text
+    assert token not in response.text
+
+
+def test_valid_token_reaches_other_pages(client, access_on, make_token):
+    headers = {ACCESS_HEADER: make_token()}
+    assert client.get("/ingress", headers=headers).status_code == 200
+    assert client.get("/static/styles.css", headers=headers).status_code == 200
+
+
+def test_token_never_logged(client, access_on, make_token, caplog):
+    caplog.set_level("WARNING", logger="app.access")
+    token = make_token(aud=["other-app"])
+    assert client.get("/", headers={ACCESS_HEADER: token}).status_code == 403
+    assert token not in caplog.text
+    assert "wrong audience" in caplog.text
+
+
+def test_no_identity_markup_when_access_off(client):
+    assert "/cdn-cgi/access/logout" not in client.get("/").text
