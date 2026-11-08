@@ -146,10 +146,14 @@ def get_api_token_source(request: Request, profile_id: int) -> str | None:
 
 def get_server_api_token(profile_id: int) -> str:
     """The token for server-side work (no browser cookie): database first, then environment."""
+    if DEMO_MODE:
+        return _env_api_token(profile_id)
     return _read_stored_api_token(profile_id) or _env_api_token(profile_id)
 
 
 def get_server_api_token_source(profile_id: int) -> str | None:
+    if DEMO_MODE:
+        return "environment" if _env_api_token(profile_id) else None
     if _read_stored_api_token(profile_id):
         return "database"
     if _env_api_token(profile_id):

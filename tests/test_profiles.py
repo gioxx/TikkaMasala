@@ -218,3 +218,13 @@ def test_remember_is_noop_in_demo(monkeypatch):
     profile = get_profile(DEFAULT_PROFILE_ID)
     assert profile.account_id == "keep-acc"
     assert profile.api_token == "keep-tok"
+
+
+def test_server_token_reads_env_only_in_demo_mode(monkeypatch):
+    update_profile(DEFAULT_PROFILE_ID, api_token="db-tok")
+    monkeypatch.setattr(credentials, "DEMO_MODE", True)
+    assert get_server_api_token(DEFAULT_PROFILE_ID) == ""
+    assert get_server_api_token_source(DEFAULT_PROFILE_ID) is None
+    monkeypatch.setattr(credentials, "DEFAULT_API_TOKEN", "env-tok")
+    assert get_server_api_token(DEFAULT_PROFILE_ID) == "env-tok"
+    assert get_server_api_token_source(DEFAULT_PROFILE_ID) == "environment"
