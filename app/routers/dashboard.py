@@ -54,7 +54,9 @@ async def backup_all_action(request: Request) -> Response:
 @router.post("/tunnels/{tunnel_id}/backup", response_model=None)
 async def backup_tunnel_action(request: Request, tunnel_id: str) -> Response:
     if not is_valid_tunnel_id(tunnel_id):
-        return await _render_home(request, notice=("error", "Unknown tunnel ID."), status_code=400)
+        return await _render_home(
+            request, notice=("error", "Unknown tunnel ID."), status_code=200 if _is_htmx(request) else 400
+        )
     tunnel_id = tunnel_id.lower()
     try:
         creds = require_api_credentials(current_profile_id(request))

@@ -415,7 +415,7 @@ async def back_up_all_tunnels(profile_id: int) -> BulkOutcome:
                 backup = await back_up_tunnel(creds, tunnel_id)
             except HTTPException as exc:
                 feedback[tunnel_id] = RowFeedback(ok=False, message=str(exc.detail))
-                failures.append(f"{name} ({exc.detail})")
+                failures.append(f"{name} ({str(exc.detail).rstrip('.')})")
             else:
                 feedback[tunnel_id] = backup_saved_feedback(backup)
 

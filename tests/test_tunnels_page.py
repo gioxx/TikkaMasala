@@ -245,8 +245,8 @@ def test_partial_region_with_feedback_and_notice(configured_default, seeded, fak
     assert response.headers["vary"] == "HX-Request"
     assert text.lstrip().startswith("<div id=\"tunnels-home\" class=\"tunnels-home\">")
     assert "<html" not in text
-    assert '<p class="notice success top-gap" role="status">All done.</p>' in text
+    assert '<p class="notice success top-gap">All done.</p>' in text
     assert f'<tr id="tunnel-row-{T1}" class="tunnel-row has-feedback">' in text
-    assert '<span class="row-feedback row-feedback-ok" role="status"><a href="/backup/42">Backup #42 created.</a></span>' in text
-    assert '<span class="row-feedback row-feedback-error" role="status">Nope.</span>' in text
+    assert '<span class="row-feedback row-feedback-ok"><a href="/backup/42">Backup #42 created.</a></span>' in text
+    assert '<span class="row-feedback row-feedback-error">Nope.</span>' in text
     assert f'<tr id="tunnel-row-{T3}" class="tunnel-row">' in text

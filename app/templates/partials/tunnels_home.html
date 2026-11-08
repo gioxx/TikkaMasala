@@ -35,7 +35,7 @@
           </div>
 
           {% if notice %}
-          <p class="notice{% if notice[0] == 'success' %} success{% elif notice[0] == 'error' %} error{% endif %} top-gap" role="status">{{ notice[1] }}</p>
+          <p class="notice{% if notice[0] == 'success' %} success{% elif notice[0] == 'error' %} error{% endif %} top-gap">{{ notice[1] }}</p>
           {% endif %}
 
           {% if home.credentials_message %}
@@ -87,7 +87,7 @@
                       <button type="submit" class="secondary-button row-backup-button" aria-label="Back up {{ row.name }}">Back up</button>
                     </form>
                     {% if fb %}
-                    <span class="row-feedback row-feedback-{{ 'ok' if fb.ok else 'error' }}" role="status">
+                    <span class="row-feedback row-feedback-{{ 'ok' if fb.ok else 'error' }}">
                       {%- if fb.ok and fb.backup_id -%}
                       <a href="/backup/{{ fb.backup_id }}">{{ fb.message }}</a>
                       {%- else -%}

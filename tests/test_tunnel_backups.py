@@ -177,8 +177,8 @@ def test_row_backup_rejects_bad_tunnel_id(client, configured_default, fake_list,
     fake_list(_listing(T1))
     create = fake_create()
     response = client.post(f"/tunnels/{tunnel_id}/backup", headers=HX)
-    assert response.status_code in (400, 404)
-    if response.status_code == 400:
+    assert response.status_code in (200, 404)
+    if response.status_code == 200:
         assert "Unknown tunnel ID." in response.text
     assert create.calls == []
     assert events == []
@@ -188,7 +188,7 @@ def test_row_backup_rejects_trailing_newline(client, configured_default, fake_li
     fake_list(_listing(T1))
     create = fake_create()
     response = client.post(f"/tunnels/{T1}%0A/backup", headers=HX)
-    assert response.status_code == 400
+    assert response.status_code == 200
     assert "Unknown tunnel ID." in response.text
     assert create.calls == []
 
@@ -384,7 +384,7 @@ def test_backup_all_continues_after_unexpected_error(client, configured_default,
     response = client.post("/tunnels/backup-all", headers=HX)
     assert response.status_code == 200
     assert [call[1] for call in create.calls] == [T1, T2]
-    assert "Backed up 1 of 2 tunnels. Failed: Home (Unexpected error (ConnectError).)." in response.text
+    assert "Backed up 1 of 2 tunnels. Failed: Home (Unexpected error (ConnectError))." in response.text
     assert "Backup #42 saved." in _row(response.text, T2)
     assert [event for event, _, _ in events] == ["manual_backup_failed", "manual_backup_success"]
 
@@ -398,3 +398,11 @@ def test_row_feedback_matches_upper_case_stored_id(client, configured_default, m
     assert response.status_code == 200
     assert "Backup #42 saved." in _row(response.text, upper)
     assert "Home: Backup #42 saved." in text_of_live(response.text)
+
+
+def test_row_backup_bad_tunnel_id_without_htmx_is_400(client, configured_default, fake_list, fake_create, events):
+    fake_list(_listing(T1))
+    create = fake_create()
+    response = client.post("/tunnels/not-a-uuid/backup")
+    assert response.status_code == 400
+    assert create.calls == []
