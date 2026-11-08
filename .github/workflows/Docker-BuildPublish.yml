@@ -10,7 +10,7 @@ on:
 
 # Runs for the same ref never overlap. On main a newer push cancels the run in progress,
 # so `dev` always ends on the newest commit. Release tags each have their own ref and are
-# never cancelled; `latest` is not set by push order but by version (see the last step).
+# never cancelled; `latest` is not set by push order but by version (see the promote-latest job).
 concurrency:
   group: docker-publish-${{ github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
@@ -74,11 +74,47 @@ jobs:
           tags: ${{ steps.docker_meta.outputs.tags }}
           labels: ${{ steps.docker_meta.outputs.labels }}
 
-      # Point `latest` at this release only if it is still the highest version once the
-      # build is done. An older release finishing after a newer one leaves `latest` alone,
-      # whatever order the runs started or finished in.
+      - name: Update repo description
+        uses: peter-evans/dockerhub-description@v5.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: gfsolone/${{ github.event.repository.name }}
+          short-description: ${{ github.event.repository.description }}
+        if: github.ref != 'refs/heads/main'
+
+  # Point `latest` at a release only if it is the highest version. This job runs after the
+  # build, in ONE concurrency group shared by every release tag, and checks the tags again
+  # while it holds the group: the check and the retag never interleave with another
+  # release's, so an older release can never move `latest` back, whatever the run order.
+  promote-latest:
+    needs: docker
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: docker-promote-latest
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.4.1
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v4.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Promote to latest
-        if: startsWith(github.ref, 'refs/tags/')
         env:
           RELEASE: ${{ github.ref_name }}
           DOCKERHUB_IMAGE: gfsolone/${{ github.event.repository.name }}
@@ -93,12 +129,3 @@ jobs:
           for image in "${DOCKERHUB_IMAGE,,}" "${GHCR_IMAGE,,}"; do
             docker buildx imagetools create --tag "$image:latest" "$image:$RELEASE"
           done
-
-      - name: Update repo description
-        uses: peter-evans/dockerhub-description@v5.0.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: gfsolone/${{ github.event.repository.name }}
-          short-description: ${{ github.event.repository.description }}
-        if: github.ref != 'refs/heads/main'
