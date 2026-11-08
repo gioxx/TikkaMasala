@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from typing import Any
@@ -101,6 +102,20 @@ def profile_switcher(request: Request) -> ProfileSwitcher:
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
+
+
+def _static_version() -> str:
+    """Content hash of the app's own stylesheet and script, so browsers fetch new copies after an upgrade."""
+    digest = hashlib.sha256()
+    for name in ("styles.css", "app.js"):
+        try:
+            digest.update((BASE_DIR / "static" / name).read_bytes())
+        except OSError:
+            continue
+    return digest.hexdigest()[:12]
+
+
+templates.env.globals["static_version"] = _static_version()
 templates.env.globals["access_identity"] = access_identity
 templates.env.globals["access_logout_path"] = ACCESS_LOGOUT_PATH
 templates.env.globals["origin_request_delta"] = origin_request_delta

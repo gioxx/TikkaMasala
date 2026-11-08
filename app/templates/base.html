@@ -16,7 +16,7 @@
         document.documentElement.dataset.themePreference = storedTheme;
       })();
     </script>
-    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v={{ static_version }}">
   </head>
   <body>
 {%- macro nav_icon(name) -%}
@@ -128,7 +128,7 @@
       ↑
     </button>
     <script src="/static/vendor/htmx.min.js?v=2.0.4"></script>
-    <script src="/static/app.js?v={{ app_version }}"></script>
+    <script src="/static/app.js?v={{ static_version }}"></script>
 {% block scripts %}{% endblock %}
   </body>
 </html>

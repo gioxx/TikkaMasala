@@ -210,3 +210,15 @@ def test_version_tag_never_hidden_without_switcher():
     for selector, _body in re.findall(r"([^{}]+)\{([^{}]*)\}", block):
         if ".topbar-inner" in selector or ".topnav-link" in selector:
             assert ".has-profile-switcher" in selector, selector
+
+
+def test_static_assets_are_cache_busted_by_content(client):
+    import re
+
+    from app.web import templates
+
+    version = templates.env.globals["static_version"]
+    assert re.fullmatch(r"[0-9a-f]{12}", version)
+    page = client.get("/settings").text
+    assert f'href="/static/styles.css?v={version}"' in page
+    assert f'src="/static/app.js?v={version}"' in page
