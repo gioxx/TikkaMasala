@@ -347,3 +347,27 @@ def test_cookie_with_env_token_different_not_saved(client, monkeypatch):
     assert get_profile(DEFAULT_PROFILE_ID).api_token is None
     assert credentials.get_server_api_token_source(DEFAULT_PROFILE_ID) == "environment"
     _assert_cookie_deleted(response)
+
+
+def test_setup_without_token_uses_saved_token(client, monkeypatch, fake_check):
+    credentials.remember_api_token(DEFAULT_PROFILE_ID, "saved-token-1234-wxyz")
+    page = client.get("/setup")
+    assert page.status_code == 200
+    assert "Leave empty to keep the saved token" in page.text
+    assert "configured, ending in" in page.text
+    response = client.post("/setup", data={"account_id": GOOD}, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+    assert fake_check.calls == [(GOOD, "saved-token-1234-wxyz")]
+
+
+def test_setup_without_token_and_none_saved_is_400(client, fake_check):
+    response = client.post("/setup", data={"account_id": GOOD})
+    assert response.status_code == 400
+    assert "Account ID and API token are required." in response.text
+    assert fake_check.calls == []
+
+
+def test_setup_page_never_shows_saved_token(client):
+    credentials.remember_api_token(DEFAULT_PROFILE_ID, "saved-token-1234-wxyz")
+    assert "saved-token-1234-wxyz" not in client.get("/setup").text

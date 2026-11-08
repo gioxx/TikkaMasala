@@ -182,7 +182,8 @@ def test_env_destinations_hide_secrets(client, monkeypatch):
     assert "bot-secret" not in text
     assert "-100987654321" not in text
     section = _section(text, "notifications-section")
-    assert section.count(">Configured<") == 2
+    assert section.count(">From environment<") == 2
+    assert 'id="destination-env-webhook"' in section and 'id="destination-env-telegram"' in section
     assert "Set with NOTIFICATION_WEBHOOK_URL, NOTIFICATION_WEBHOOK_EVENTS" in section
     assert "Set with TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_NOTIFICATION_EVENTS" in section
 
@@ -206,8 +207,9 @@ def test_env_notification_destinations_shape(monkeypatch):
 def test_destinations_not_configured(client):
     text = client.get("/automation").text
     section = _section(text, "notifications-section")
-    assert section.count(">Not configured<") == 2
-    assert "Destinations come from environment variables and are read-only here." in section
+    assert "No destinations yet." in section
+    assert "destination-env-" not in section
+    assert "Where this profile's notifications go. Saved URLs and tokens are never shown again." in section
     form_start = text.index('action="/automation/notifications/test"')
     form = text[form_start:text.index("</form>", form_start)]
     assert "disabled" in form

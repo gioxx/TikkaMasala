@@ -30,18 +30,32 @@
 
         {% if credentials_missing %}
         <p class="notice top-gap">Account ID and API token are not configured. Add them in <a href="/settings">Settings</a>.</p>
-        {% elif list_error %}
+        {% if form_notes %}
+        <label class="top-gap">
+          <span>Your note</span>
+          <textarea rows="4" readonly aria-describedby="backup-note-kept">{{ form_notes }}</textarea>
+        </label>
+        <p class="hint" id="backup-note-kept">Your note was not saved. Copy it before leaving this page.</p>
+        {% endif %}
+        {% elif list_error and not selected_tunnel %}
         <p class="notice error top-gap">Could not load tunnels from Cloudflare: {{ list_error }}</p>
-        {% elif not tunnels %}
+        {% elif not tunnels and not (list_error and selected_tunnel) %}
         <p class="hint top-gap">No tunnels in this account yet.</p>
         {% else %}
+        {% if list_error %}
+        <p class="notice error top-gap">Could not load tunnels from Cloudflare: {{ list_error }}</p>
+        {% endif %}
         <form method="post" action="/backups/new" class="stack top-gap backup-new-form">
           <label>
             <span>Tunnel</span>
             <select name="tunnel_id" required>
+              {% if list_error %}
+              <option value="{{ selected_tunnel }}" selected>{{ selected_tunnel }}</option>
+              {% else %}
               {% for tunnel in tunnels %}
               <option value="{{ tunnel.id }}"{% if selected_tunnel and tunnel.id|lower == selected_tunnel %} selected{% endif %}>{{ tunnel.name }}</option>
               {% endfor %}
+              {% endif %}
             </select>
           </label>
           <label>

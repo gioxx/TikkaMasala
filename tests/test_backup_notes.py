@@ -84,7 +84,7 @@ def fake_list(monkeypatch):
 def events(monkeypatch):
     recorded: list[str] = []
 
-    def _queue(event, message, details=None, level="info"):
+    def _queue(event, message, details=None, level="info", *, profile_id):
         recorded.append(event)
 
     monkeypatch.setattr(tunnels, "queue_notification", _queue)
@@ -280,3 +280,34 @@ def test_tunnels_panel_links_note_page(client, configured_default):
 
 def test_tunnels_panel_hides_note_link_without_credentials(client):
     assert 'href="/backups/new"' not in client.get("/").text
+
+
+def test_clean_notes_strips_controls_and_bidi():
+    assert backups.clean_notes("a\x00b\u202ec\td\ne\x7f") == "abc\td\ne"
+    assert backups.clean_notes("x\u2066y\u2069z\x1b") == "xyz"
+    assert backups.clean_notes("\x00\u202e") is None
+
+
+def test_clean_notes_length_checked_after_removal():
+    assert backups.clean_notes("x" * 500 + "\x00\u202e") == "x" * 500
+    with pytest.raises(ValueError):
+        backups.clean_notes("x" * 501 + "\x00")
+
+
+def test_note_kept_when_list_fails_on_post(client, configured_default, fake_config, fake_list, cleanup_backups):
+    fake_config(error=HTTPException(status_code=502, detail="Cloudflare down"))
+    fake_list(error=HTTPException(status_code=502, detail="list down"))
+    response = client.post("/backups/new", data={"tunnel_id": T1, "notes": "keep this note"})
+    assert response.status_code == 502
+    assert "keep this note" in response.text
+    assert f'<option value="{T1}" selected>' in response.text
+    assert 'name="tunnel_id"' in response.text
+    assert "list down" in response.text
+
+
+def test_note_kept_without_credentials(client):
+    response = client.post("/backups/new", data={"tunnel_id": T1, "notes": "keep me"})
+    assert response.status_code == 400
+    assert "<textarea" in response.text and "readonly" in response.text and "keep me" in response.text
+    assert "Your note was not saved. Copy it before leaving this page." in response.text
+    assert 'action="/backups/new"' not in response.text

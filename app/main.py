@@ -23,8 +23,18 @@ from app.config import (
     LOG_LEVEL,
 )
 from app.notifications import get_notification_log_context, get_notification_status
-from app.profiles import DEFAULT_PROFILE_ID
-from app.routers import automation, backups, dashboard, ingress, legacy, notifications, settings
+from app.profiles import DEFAULT_PROFILE_ID, stale_profile_cookie_guard
+from app.routers import (
+    automation,
+    backups,
+    dashboard,
+    destinations,
+    ingress,
+    legacy,
+    notifications,
+    profiles,
+    settings,
+)
 from app.scheduler import auto_backup_scheduler, configure_all_auto_backup_jobs
 
 logger = logging.getLogger(__name__)
@@ -91,7 +101,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Tikka Masala", lifespan=lifespan)
 app.state.access_verifier = AccessVerifier(ACCESS_SETTINGS) if ACCESS_SETTINGS else None
 # Last registered runs first: Access stays outermost, then the cross-site guard for
-# unsafe methods, then the setup gate.
+# unsafe methods, then the setup gate, then the stale profile cookie cleanup (innermost).
+app.middleware("http")(stale_profile_cookie_guard)
 app.middleware("http")(setup.credentials_guard)
 app.middleware("http")(cross_site_guard)
 app.middleware("http")(access_guard)
@@ -99,10 +110,12 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 app.include_router(setup.router)
 app.include_router(dashboard.router)
 app.include_router(automation.router)
+app.include_router(destinations.router)
 app.include_router(notifications.router)
 app.include_router(backups.router)
 app.include_router(ingress.router)
 app.include_router(settings.router)
+app.include_router(profiles.router)
 # Old URLs last: they only redirect to the routes above.
 app.include_router(legacy.router)
 

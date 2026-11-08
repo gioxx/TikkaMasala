@@ -10,7 +10,16 @@
       </section>
       {% endif %}
       {% if notice %}
-      <section class="notice success">{{ notice }}</section>
+      <section class="notice success">
+        {{ notice }}
+        {% if added_profile %}
+        <form method="post" action="/profiles/active" class="actions top-gap">
+          <input type="hidden" name="profile_id" value="{{ added_profile.id }}">
+          <input type="hidden" name="next" value="/automation">
+          <button type="submit">Switch to {{ added_profile.name }}</button>
+        </form>
+        {% endif %}
+      </section>
       {% endif %}
 
       <section class="card" id="profiles-section">
@@ -25,15 +34,20 @@
             </svg>
             <span>Profiles</span>
           </h2>
-          <p class="hint">Cloudflare credentials of each profile. The API token is never shown after it is saved.</p>
+          <p class="hint">Each profile is one Cloudflare account with its own credentials, schedule and notifications. The API token is never shown after it is saved.</p>
         </div>
 
         {% for profile in profiles %}
         {% set pid = profile.profile_id %}
         {% set env_only = profile.account_id.source != 'database' and profile.api_token.source != 'database'
              and 'environment' in [profile.account_id.source, profile.api_token.source] %}
+        {% set no_credentials = not profile.account_id.value and not profile.api_token.value %}
+        {% set rename_error = rename_open == pid %}
         <section class="profile-block" id="profile-{{ pid }}">
           <h3>{{ profile.name }}</h3>
+          {% if pid == default_profile_id %}
+          <p class="hint">Environment variables apply to this profile only.</p>
+          {% endif %}
 
           {% if profile.saved_token_unreadable %}
           <section class="notice warn top-gap">The saved API token cannot be decrypted with the current encryption key. Save it again.</section>
@@ -60,8 +74,20 @@
           </dl>
 
           {% if not demo_mode %}
-          <details class="top-gap"{% if errors.get(pid) %} open{% endif %}>
-            <summary>{% if env_only %}Save a different value{% else %}Replace credentials{% endif %}</summary>
+          <details class="rename-profile top-gap"{% if rename_error %} open{% endif %}>
+            <summary>Rename<span class="sr-only"> {{ profile.name }}</span></summary>
+            <form method="post" action="/settings/profiles/{{ pid }}/name" class="stack top-gap">
+              <label>
+                <span>Profile name</span>
+                <input type="text" name="name" value="{{ rename_value if rename_error else profile.name }}" maxlength="{{ profile_name_max }}" required autocomplete="off">
+              </label>
+              <div class="actions">
+                <button type="submit">Save name</button>
+              </div>
+            </form>
+          </details>
+          <details class="top-gap"{% if errors.get(pid) and not rename_error and pid in form_values %} open{% endif %}>
+            <summary>{% if no_credentials %}Set credentials{% elif env_only %}Save a different value{% else %}Replace credentials{% endif %}</summary>
             <form method="post" action="/settings/profiles/{{ pid }}/credentials" class="stack top-gap">
               <label>
                 <span>Account ID</span>
@@ -86,9 +112,43 @@
             </form>
           </details>
           {% endif %}
+          {% if pid != default_profile_id %}
+          <div class="actions top-gap">
+            <a class="secondary-link-button" href="/settings/profiles/{{ pid }}/remove">Remove profile…<span class="sr-only"> {{ profile.name }}</span></a>
+          </div>
+          {% endif %}
           {% endif %}
         </section>
         {% endfor %}
+
+        {% if demo_mode %}
+        <p class="hint">Adding profiles is disabled in demo mode.</p>
+        {% else %}
+        <details id="add-profile"{% if add_error %} open{% endif %}>
+          <summary>Add profile</summary>
+          {% if add_error %}
+          <section class="notice error top-gap" role="alert">{{ add_error }}</section>
+          {% endif %}
+          <form method="post" action="/settings/profiles" class="stack top-gap">
+            <label>
+              <span>Profile name</span>
+              <input type="text" name="name" value="{{ add_values.get('name', '') }}" maxlength="{{ profile_name_max }}" required autocomplete="off">
+            </label>
+            <label>
+              <span>Account ID</span>
+              <input type="text" name="account_id" value="{{ add_values.get('account_id', '') }}" placeholder="32-character Account ID" required autocomplete="off">
+            </label>
+            <label>
+              <span>API token</span>
+              <input type="password" name="api_token" value="" required autocomplete="off">
+            </label>
+            <p class="hint">Checked against Cloudflare before it is saved.</p>
+            <div class="actions">
+              <button type="submit">Verify and add</button>
+            </div>
+          </form>
+        </details>
+        {% endif %}
       </section>
 
       <section class="card" id="settings-notifications-section">

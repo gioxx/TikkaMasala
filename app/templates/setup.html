@@ -52,7 +52,8 @@
           </label>
           <label>
             <span>API token</span>
-            <input type="password" name="api_token" value="" placeholder="Paste the Cloudflare API token" autocomplete="off" required>
+            <input type="password" name="api_token" value="" placeholder="{% if token_available %}Leave empty to keep the saved token{% else %}Paste the Cloudflare API token{% endif %}" autocomplete="off"{% if not token_available %} required{% endif %}>
+            {% if token_available %}<span class="hint">A token is already saved ({{ token_hint }}).</span>{% endif %}
             {% if api_token_in_env %}<span class="hint">Found in CLOUDFLARE_API_TOKEN</span>{% endif %}
           </label>
           <div class="actions">

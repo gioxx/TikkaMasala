@@ -58,6 +58,7 @@ async def _render_new_backup_page(
                 ),
                 key=lambda tunnel: (tunnel["name"].casefold(), tunnel["id"]),
             )
+    chosen = (selected_tunnel or "").strip().lower()
     return templates.TemplateResponse(
         request,
         "backup_new.html",
@@ -65,7 +66,7 @@ async def _render_new_backup_page(
             "credentials_missing": creds is None,
             "list_error": list_error,
             "tunnels": tunnels,
-            "selected_tunnel": (selected_tunnel or "").strip().lower() or None,
+            "selected_tunnel": chosen if is_valid_tunnel_id(chosen) else None,
             "form_notes": form_notes,
             "notes_max_length": NOTES_MAX_LENGTH,
             "error": error,
@@ -108,7 +109,7 @@ async def new_backup_action(
         # The page shows the credentials notice in place of the form.
         return await fail(None, 400)
     try:
-        backup = await back_up_tunnel(creds, tunnel_id.lower(), cleaned_notes)
+        backup = await back_up_tunnel(creds, tunnel_id.lower(), cleaned_notes, profile_id=current_profile_id(request))
     except HTTPException as exc:
         return await fail(f"Backup failed: {exc.detail}", 502)
     return RedirectResponse(url=f"/backup/{backup.id}?created=1", status_code=303)
@@ -191,9 +192,10 @@ async def restore_backup(
         }
         queue_notification(
             "restore_success",
-            render_notification_message("restore_success", _rs_details),
+            render_notification_message("restore_success", _rs_details, profile_id=target.profile_id),
             _rs_details,
             level="info",
+            profile_id=target.profile_id,
         )
         return render_backup_page(
             request,
@@ -219,9 +221,10 @@ async def restore_backup(
         }
         queue_notification(
             "restore_failed",
-            render_notification_message("restore_failed", _rf_details),
+            render_notification_message("restore_failed", _rf_details, profile_id=target.profile_id),
             _rf_details,
             level="warning",
+            profile_id=target.profile_id,
         )
         return render_backup_page(
             request,

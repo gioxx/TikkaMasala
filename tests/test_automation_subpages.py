@@ -116,3 +116,12 @@ def test_subpages_redirect_in_demo(client, monkeypatch):
         response = client.get(path, follow_redirects=False)
         assert response.status_code == 303
         assert response.headers["location"] == "/"
+
+
+def test_demo_post_tunnels_redirects(client, monkeypatch):
+    import app.routers.automation as automation
+
+    monkeypatch.setattr(automation, "DEMO_MODE", True)
+    response = client.post("/automation/tunnels", data={"mode": "all"}, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"

@@ -59,7 +59,7 @@ def _env_retention_days() -> int | None:
     return days
 
 
-def _profile_value(profile_id: int | None) -> int | None:
+def get_profile_retention_value(profile_id: int | None) -> int | None:
     """The retention set on the profile itself (valid values only)."""
     if profile_id is None:
         return None
@@ -101,6 +101,8 @@ def get_last_backup_time_for_tunnel(tunnel_id: str) -> datetime | None:
 
 
 NOTES_MAX_LENGTH = 500
+# C0 controls except \n and \t, DEL, and the bidi controls U+202A-U+202E and U+2066-U+2069.
+_UNSAFE_NOTE_CHARS = re.compile("[\x00-\x08\x0b-\x1f\x7f\u202a-\u202e\u2066-\u2069]")
 
 
 def clean_notes(raw: str | None) -> str | None:
@@ -110,7 +112,8 @@ def clean_notes(raw: str | None) -> str | None:
     """
     if raw is None:
         return None
-    notes = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
+    notes = raw.replace("\r\n", "\n").replace("\r", "\n")
+    notes = _UNSAFE_NOTE_CHARS.sub("", notes).strip()
     if not notes:
         return None
     if len(notes) > NOTES_MAX_LENGTH:
@@ -221,6 +224,8 @@ def _purge_group(
     reference_time: datetime,
     where: str,
     params: tuple,
+    *,
+    profile_id: int | None,
 ) -> int:
     cutoff_iso = (reference_time - timedelta(days=retention_days)).replace(microsecond=0).isoformat()
     rows = conn.execute(
@@ -249,9 +254,10 @@ def _purge_group(
         }
         queue_notification(
             "retention_cleanup",
-            render_notification_message("retention_cleanup", _rc_details),
+            render_notification_message("retention_cleanup", _rc_details, profile_id=profile_id),
             _rc_details,
             level="info",
+            profile_id=profile_id,
         )
     return deleted_count
 
@@ -263,7 +269,7 @@ def purge_expired_backups(reference_time: datetime | None = None) -> int:
 
     with closing(db()) as conn:
         for profile in list_profiles():
-            account_id = get_saved_account_id(profile.id)
+            account_id = (get_saved_account_id(profile.id) or "").lower()
             # No account: owns nothing. Shared account: the first profile in id order owns it.
             if not account_id or account_id in claimed:
                 continue
@@ -271,14 +277,18 @@ def purge_expired_backups(reference_time: datetime | None = None) -> int:
             retention_days = get_backup_retention_days(profile.id)
             if retention_days is None:
                 continue
-            deleted_total += _purge_group(conn, retention_days, reference_time, "account_id = ?", (account_id,))
+            deleted_total += _purge_group(
+                conn, retention_days, reference_time, "lower(account_id) = ?", (account_id,), profile_id=profile.id
+            )
 
         # Backups of accounts that match no profile follow the environment rule.
         retention_days = get_backup_retention_days(None)
         if retention_days is not None:
             placeholders = ",".join("?" for _ in claimed)
-            where = f"account_id NOT IN ({placeholders})" if claimed else "1 = 1"
-            deleted_total += _purge_group(conn, retention_days, reference_time, where, tuple(claimed))
+            where = f"lower(account_id) NOT IN ({placeholders})" if claimed else "1 = 1"
+            deleted_total += _purge_group(
+                conn, retention_days, reference_time, where, tuple(claimed), profile_id=None
+            )
 
     return deleted_total
 
@@ -296,6 +306,53 @@ def count_backups_for_account(account_id: str) -> int:
     with closing(db()) as conn:
         row = conn.execute("SELECT COUNT(*) FROM backups WHERE lower(account_id) = lower(?)", (account_id,)).fetchone()
     return int(row[0])
+
+
+def delete_backup_rows_for_account_in(conn, account_id: str) -> list[str]:
+    """Delete the ``backups`` and ``restores`` rows of one account through ``conn`` (the caller commits).
+
+    The Account ID is compared case-insensitively. Returns the filenames of the deleted backups, so
+    the caller removes the files once the transaction has committed.
+    """
+    rows = conn.execute(
+        "SELECT id, filename FROM backups WHERE lower(account_id) = lower(?) ORDER BY id",
+        (account_id,),
+    ).fetchall()
+    for row in rows:
+        conn.execute("DELETE FROM restores WHERE backup_id = ?", (int(row["id"]),))
+        conn.execute("DELETE FROM backups WHERE id = ?", (int(row["id"]),))
+    return [str(row["filename"]) for row in rows]
+
+
+def remove_backup_files(filenames: list[str]) -> None:
+    """Unlink backup JSON files; a missing file is fine, any other error is logged and skipped.
+
+    A name that resolves outside the backup directory (``../x``) is never touched.
+    """
+    backup_root = BACKUP_DIR.resolve()
+    for filename in filenames:
+        try:
+            file_path = (BACKUP_DIR / filename).resolve()
+            if not file_path.is_relative_to(backup_root) or file_path == backup_root:
+                logger.warning("Skipping backup file outside the backup directory: %r", filename)
+                continue
+            file_path.unlink(missing_ok=True)
+        except (OSError, ValueError):
+            logger.exception("Failed to remove backup file: %r", filename)
+
+
+def delete_backups_for_account(account_id: str) -> int:
+    """Delete every backup of one account (rows in one transaction, then files). Returns the row count."""
+    with closing(db()) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            filenames = delete_backup_rows_for_account_in(conn, account_id)
+        except BaseException:
+            conn.rollback()
+            raise
+        conn.commit()
+    remove_backup_files(filenames)
+    return len(filenames)
 
 
 def get_database_stats() -> dict[str, Any]:
@@ -343,7 +400,7 @@ def get_backup_retention_status(profile_id: int | None) -> dict[str, Any]:
     default_days = _env_retention_days() if uses_env else None
     if retention_days is None:
         source, label = "none", "Kept until deleted (no retention set)"
-    elif retention_days == default_days and not _profile_value(profile_id):
+    elif retention_days == default_days and not get_profile_retention_value(profile_id):
         source, label = "environment", f"Kept for {retention_days} days (from BACKUP_RETENTION_DAYS)"
     else:
         source, label = "profile", f"Kept for {retention_days} days (set on this profile)"

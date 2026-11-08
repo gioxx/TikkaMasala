@@ -336,9 +336,99 @@ body {
   font-weight: 600;
 }
 .topnav-identity a { flex: none; margin-left: 0.15rem; font-weight: 600; }
-/* Between the collapse width and a wide screen there is no room for the label next to the nav. */
+/* Between the collapse width and a wide screen there is no room for the label next to the nav:
+   it stays for screen readers, visually hidden. */
 @media (min-width: 961px) and (max-width: 1200px) {
-  .topnav-identity-label { display: none; }
+  .topnav-identity-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+/* Profile switcher: shown with more than one profile, outside the collapsible menu. The top bar then
+   carries .has-profile-switcher; every layout change it needs is scoped to that class, so a
+   single-profile install sees the bar exactly as before. */
+.profile-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 1 auto;
+  /* Never narrower than the icon, a readable select (6rem) and the Switch button. */
+  min-width: 12.5rem;
+  margin-left: auto;
+}
+.profile-switcher ~ .topnav-identity { margin-left: 0; }
+.profile-switcher label {
+  display: inline-flex;
+  flex: none;
+  color: var(--muted);
+}
+.profile-switcher select {
+  flex: 1 1 auto;
+  min-width: 6rem;
+  max-width: 12rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.profile-switcher select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 5px var(--input-focus-ring);
+}
+.profile-switcher-submit {
+  flex: none;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+}
+/* With the switcher in the bar there is no room for "Signed in as" at any width: screen readers only. */
+@media (min-width: 961px) {
+  .topbar.has-profile-switcher .topnav-identity-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+/* Between the collapse width and a wide screen brand, nav, switcher and identity do not fit on one row:
+   the switcher moves to a compact row under the bar, aligned right; the identity keeps the first row. */
+@media (min-width: 961px) and (max-width: 1200px) {
+  .topbar.has-profile-switcher .topbar-inner { flex-wrap: wrap; }
+  /* Keep the first row as tall as the single-row bar (the nav underline sits on its bottom edge). */
+  .topbar.has-profile-switcher .topnav { min-height: 3.5rem; }
+  .topbar.has-profile-switcher .topnav-identity {
+    flex: 1 1 0;
+    justify-content: flex-end;
+  }
+  .topbar.has-profile-switcher .profile-switcher {
+    order: 1;
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    margin: 0;
+    padding: 0 0 0.6rem;
+  }
 }
 .topnav-toggle {
   display: none;
@@ -420,6 +510,14 @@ details[open] > summary::before { transform: rotate(45deg); }
   border-top: 1px solid var(--border);
 }
 .profile-block h3 { margin: 0; }
+/* Add profile sits under the last profile block, separated the same way */
+#add-profile {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+/* Remove profile: the Account ID wraps instead of widening the page on phones */
+#profile-remove code { overflow-wrap: anywhere; }
 details > summary:hover { color: var(--accent); }
 details.forget-credentials > summary { color: var(--danger-text); }
 .origin-delta {
@@ -613,7 +711,35 @@ details.forget-credentials > summary { color: var(--danger-text); }
   gap: 0.5rem;
 }
 .destination-hint { color: var(--muted); overflow-wrap: anywhere; }
-.destination-events { margin: 0.4rem 0 0; }
+.destination-kind { color: var(--muted); font-size: 0.85rem; }
+.destination-events { margin: 0.4rem 0 0; overflow-wrap: anywhere; }
+.destination-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+.destination-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+.destination-actions form { margin: 0; }
+.destination-actions .secondary-button { min-height: 2.2rem; }
+.destination-delete { flex-basis: 100%; }
+.destination-delete > summary { color: var(--danger-text); }
+.destination-delete .hint { margin: 0 0 0.5rem; }
+.destination-form .checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 0.45rem 1rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  border: 0;
+}
+.destination-form fieldset legend { font-weight: 600; padding: 0; }
 
 /* === Archive Stats === */
 .archive-stats-grid {
@@ -1673,6 +1799,7 @@ a.tile:hover {
 /* === Tunnels home on phones: tiles two per row, the table becomes compact rows ===
    Its own breakpoint: between this and the nav collapse (960px) the full table stays. */
 @media (max-width: 640px) {
+  .destination-header-actions { justify-content: flex-start; }
   .archive-filters { align-items: stretch; flex-direction: column; }
   .archive-filters select { max-width: none; width: 100%; }
   .archive-header-actions { justify-content: flex-start; }
@@ -1759,5 +1886,19 @@ a.tile:hover {
   }
   .topnav-identity strong { overflow-wrap: anywhere; }
   .topbar:not(.is-open) .topnav ~ .topnav-identity { display: none; }
+  /* The switcher stays visible on its own full-width row, after the menu and the identity. */
+  .profile-switcher {
+    flex: 1 1 100%;
+    order: 1;
+    margin: 0;
+    padding: 0.5rem 0 0.65rem;
+    border-top: 1px solid var(--border);
+  }
+  .profile-switcher select {
+    flex: 1 1 auto;
+    max-width: none;
+    min-height: 44px;
+  }
+  .profile-switcher-submit { min-height: 44px; }
 }
 .subnav.subnav-page { margin: 0 0 1rem; }

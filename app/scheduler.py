@@ -30,7 +30,7 @@ from app.credentials import (
 )
 from app.db import ScheduledRunRecord, db, get_setting, set_setting
 from app.notifications import get_notification_status, queue_notification, render_notification_message
-from app.profiles import get_profile, list_profiles, update_profile
+from app.profiles import get_profile, list_profiles, profile_exists, update_profile
 
 logger = logging.getLogger(__name__)
 auto_backup_scheduler = AsyncIOScheduler(timezone="UTC")
@@ -443,6 +443,14 @@ def configure_auto_backup_job(profile_id: int) -> None:
     )
 
 
+def forget_profile_runtime(profile_id: int) -> None:
+    """Drop what the scheduler keeps for a removed profile: its job, and its run lock when free."""
+    _remove_job(auto_backup_job_id(profile_id))
+    lock = _profile_run_locks.get(profile_id)
+    if lock is not None and not lock.locked():
+        _profile_run_locks.pop(profile_id, None)
+
+
 def configure_all_auto_backup_jobs() -> None:
     """Sync scheduler jobs with every profile; safe to call again after any change.
 
@@ -463,7 +471,18 @@ def configure_all_auto_backup_jobs() -> None:
             logger.exception("Could not configure the automatic backup job of profile %s.", profile_id)
 
 
+_SKIPPED_RESULT: dict[str, Any] = {"status": "skipped", "tunnel_count": 0, "backup_count": 0, "error_count": 0}
+
+
+def _skip_removed_profile(profile_id: int) -> dict[str, Any]:
+    logger.info("Automatic backup run of profile %s skipped: the profile no longer exists.", profile_id)
+    return dict(_SKIPPED_RESULT)
+
+
 async def run_auto_backup_job(profile_id: int, trigger: str = "schedule") -> dict[str, Any]:
+    # A job or a click may outlive its profile: never write a run row for a profile that is gone.
+    if not profile_exists(profile_id):
+        return _skip_removed_profile(profile_id)
     lock = profile_run_lock(profile_id)
     if lock.locked():
         logger.info("Automatic backup run of profile %s skipped because another run is already in progress.", profile_id)
@@ -474,6 +493,8 @@ async def run_auto_backup_job(profile_id: int, trigger: str = "schedule") -> dic
         return {"status": "skipped", "tunnel_count": 0, "backup_count": 0, "error_count": 0}
 
     async with lock:
+        if not profile_exists(profile_id):
+            return _skip_removed_profile(profile_id)
         account_id = get_saved_account_id(profile_id)
         api_token = get_server_api_token(profile_id)
         if not account_id or not api_token:
@@ -590,9 +611,10 @@ async def run_auto_backup_job(profile_id: int, trigger: str = "schedule") -> dic
             }
             queue_notification(
                 f"auto_backup_{status}",
-                render_notification_message(f"auto_backup_{status}", _ab_details),
+                render_notification_message(f"auto_backup_{status}", _ab_details, profile_id=profile_id),
                 _ab_details,
                 level="warning" if status in {"partial", "failed"} else "info",
+                profile_id=profile_id,
             )
         return {
             "status": status,

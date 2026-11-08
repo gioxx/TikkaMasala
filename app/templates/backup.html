@@ -44,6 +44,7 @@
             <dd class="meta-value wrap-anywhere">
               {% if restore_target.profile_name %}<span>{{ restore_target.profile_name }}</span>{% else %}<span>Other account</span>{% endif %}
               <code>{{ backup.account_id }}</code>
+              {% if restore_target.profile_name and not restore_target.can_restore %}<span class="hint">(profile credentials incomplete)</span>{% endif %}
             </dd>
           </div>
           <div>

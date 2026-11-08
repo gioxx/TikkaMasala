@@ -150,3 +150,55 @@ def configured_default():
     remember_api_token(DEFAULT_PROFILE_ID, creds.api_token)
     yield creds
     update_profile(DEFAULT_PROFILE_ID, account_id=None, api_token=None)
+
+
+SECOND_PROFILE_ACCOUNT_ID = "fedcba9876543210fedcba9876543210"
+SECOND_PROFILE_API_TOKEN = "client-token-0000-abcd"
+
+
+def use_profile(client, profile_id) -> None:
+    """Make ``client`` work on ``profile_id`` from its next request (sets the ``tm_profile`` cookie)."""
+    client.cookies.set("tm_profile", str(profile_id))
+
+
+@pytest.fixture(autouse=True)
+def _clear_client_cookies(request):
+    """The session-scoped client keeps cookies: never let ``tm_profile`` leak into later tests."""
+    yield
+    if "client" in request.fixturenames:
+        request.getfixturevalue("client").cookies.clear()
+
+
+@pytest.fixture
+def second_profile(data_dir: Path):
+    """A second profile, "Client", with its own account and token.
+
+    Afterwards every profile but Default is removed, with its jobs, destinations and runs, and the
+    backups of the Client account (rows and files).
+    """
+    from app.credentials import remember_api_token
+    from app.profiles import create_profile, get_profile, update_profile
+    from app.scheduler import AUTO_BACKUP_JOB_ID_PREFIX, auto_backup_job_id, auto_backup_scheduler
+
+    profile = create_profile("Client")
+    update_profile(profile.id, account_id=SECOND_PROFILE_ACCOUNT_ID)
+    remember_api_token(profile.id, SECOND_PROFILE_API_TOKEN)
+    yield get_profile(profile.id)
+
+    default_job_id = auto_backup_job_id(1)
+    for job in auto_backup_scheduler.get_jobs():
+        if job.id.startswith(AUTO_BACKUP_JOB_ID_PREFIX) and job.id != default_job_id:
+            auto_backup_scheduler.remove_job(job.id)
+    with closing(sqlite3.connect(data_dir / "app.db")) as conn:
+        # Backups of the second profile's account (made by the test or by a run) go too, files included.
+        rows = conn.execute(
+            "SELECT id, filename FROM backups WHERE lower(account_id) = lower(?)", (SECOND_PROFILE_ACCOUNT_ID,)
+        ).fetchall()
+        for backup_id, filename in rows:
+            (data_dir / "backups" / filename).unlink(missing_ok=True)
+            conn.execute("DELETE FROM restores WHERE backup_id = ?", (backup_id,))
+            conn.execute("DELETE FROM backups WHERE id = ?", (backup_id,))
+        conn.execute("DELETE FROM notification_destinations WHERE profile_id != 1")
+        conn.execute("DELETE FROM scheduled_runs WHERE profile_id != 1")
+        conn.execute("DELETE FROM profiles WHERE id != 1")
+        conn.commit()

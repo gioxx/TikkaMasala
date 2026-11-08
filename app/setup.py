@@ -121,6 +121,8 @@ def _render_setup(
             "account_id": account_id if account_id is not None else view.account_id.value,
             "account_id_in_env": view.account_id.env_value_present,
             "api_token_in_env": view.api_token.env_value_present,
+            "token_available": bool(view.api_token.value),
+            "token_hint": view.api_token.value,
             "saved_token_unreadable": view.saved_token_unreadable,
         },
         status_code=status_code,
@@ -145,7 +147,9 @@ async def setup_submit(
     if DEMO_MODE or not setup_required():
         return RedirectResponse("/", status_code=303)
     account_id = account_id.strip()
-    if not account_id or not api_token.strip():
+    if not account_id:
+        return _render_setup(request, error="Account ID is required.", account_id=account_id, status_code=400)
+    if not api_token.strip() and not describe_profile_credentials(DEFAULT_PROFILE_ID).api_token.value:
         return _render_setup(
             request, error="Account ID and API token are required.", account_id=account_id, status_code=400
         )

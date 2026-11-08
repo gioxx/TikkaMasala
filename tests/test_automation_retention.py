@@ -99,10 +99,35 @@ def test_legacy_retention_pills_gone(client):
 
 
 def test_profile_retention_value_ignores_legacy_non_positive():
-    from app.web import _profile_retention_value
+    from app.backups import get_profile_retention_value as _profile_retention_value
     update_profile(DEFAULT_PROFILE_ID, retention_days=0)
     assert _profile_retention_value(DEFAULT_PROFILE_ID) is None
     update_profile(DEFAULT_PROFILE_ID, retention_days=-5)
     assert _profile_retention_value(DEFAULT_PROFILE_ID) is None
     update_profile(DEFAULT_PROFILE_ID, retention_days=7)
     assert _profile_retention_value(DEFAULT_PROFILE_ID) == 7
+
+
+@pytest.mark.parametrize("raw", ["\uff15", "9" * 50, "1.5", " 0 "])
+def test_retention_rejects_edge_inputs(client, raw):
+    response = client.post("/automation/retention", data={"retention_days": raw})
+    assert response.status_code == 400
+    assert RETENTION_INPUT_ERROR in response.text
+    assert get_profile(DEFAULT_PROFILE_ID).retention_days is None
+
+
+def test_retention_non_default_placeholder(client, second_profile):
+    from tests.conftest import use_profile
+
+    use_profile(client, second_profile.id)
+    text = client.get("/automation").text
+    assert "Default: keep forever" in text
+    assert "BACKUP_RETENTION_DAYS" not in text
+
+
+def test_retention_value_equal_to_env(client, monkeypatch):
+    monkeypatch.setattr(backups, "BACKUP_RETENTION_DAYS_RAW", "30")
+    assert client.post("/automation/retention", data={"retention_days": "30"}).status_code == 200
+    assert get_profile(DEFAULT_PROFILE_ID).retention_days == 30
+    assert get_backup_retention_status(DEFAULT_PROFILE_ID)["source"] == "profile"
+    assert "set on this profile" in client.get("/automation").text

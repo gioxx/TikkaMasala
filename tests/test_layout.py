@@ -146,3 +146,67 @@ def test_sign_out_never_shrinks(client):
     assert re.search(r"\.topnav-identity a \{[^}]*flex: none", css)
     strong = re.search(r"\.topnav-identity strong \{([^}]*)\}", css).group(1)
     assert "text-overflow: ellipsis" in strong and "overflow: hidden" in strong
+
+
+def _media_block(css: str, query: str) -> str:
+    """The body of the first ``@media {query}`` block, up to its matching closing brace."""
+    start = css.index("{", css.index(f"@media {query}")) + 1
+    depth = 1
+    for index in range(start, len(css)):
+        if css[index] == "{":
+            depth += 1
+        elif css[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return css[start:index]
+    raise AssertionError(f"unclosed @media {query}")
+
+
+def test_signed_in_label_visually_hidden_not_display_none():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    block = _media_block(css, "(min-width: 961px) and (max-width: 1200px)")
+    rule = re.search(r"\.topnav-identity-label \{([^}]*)\}", block).group(1)
+    assert "clip" in rule
+    assert "display: none" not in rule
+
+
+def test_switcher_wraps_below_bar_on_narrow_screens():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    block = _media_block(css, "(max-width: 960px)")
+    rule = re.search(r"\.profile-switcher \{([^}]*)\}", block).group(1)
+    assert "flex: 1 1 100%" in rule
+
+
+def _top_level_rule(css: str, selector: str) -> str:
+    """The body of the first rule for ``selector`` outside any @media block."""
+    depth = 0
+    index = 0
+    while index < len(css):
+        if depth == 0 and css.startswith(selector + " {", index) and (index == 0 or css[index - 1] == "\n"):
+            start = index + len(selector) + 2
+            return css[start:css.index("}", start)]
+        if css[index] == "{":
+            depth += 1
+        elif css[index] == "}":
+            depth -= 1
+        index += 1
+    raise AssertionError(f"no top-level rule for {selector}")
+
+
+def test_switcher_select_keeps_readable_min_width():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    rule = _top_level_rule(css, ".profile-switcher select")
+    match = re.search(r"min-width:\s*([\d.]+)rem", rule)
+    assert match and float(match.group(1)) >= 6
+
+
+def test_version_tag_never_hidden_without_switcher():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    for selector, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+        if "display: none" in body and ".topbar-brand sub" in selector:
+            assert ".has-profile-switcher" in selector, selector
+    # Nor is the bar tightened for single-profile installs.
+    block = _media_block(css, "(min-width: 961px) and (max-width: 1200px)")
+    for selector, _body in re.findall(r"([^{}]+)\{([^{}]*)\}", block):
+        if ".topbar-inner" in selector or ".topnav-link" in selector:
+            assert ".has-profile-switcher" in selector, selector

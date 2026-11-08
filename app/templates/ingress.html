@@ -24,6 +24,10 @@
             <span>Hostnames</span>
           </h2>
           <p class="hint">Every public hostname of every tunnel and the origin it points to.</p>
+          {% set several_profiles = profile_switcher(request).visible %}
+          {% if has_account and (several_profiles or other_account_backups > 0) %}
+          <p class="hint">{% if several_profiles %}Hostnames of the {{ profile_name }} profile's account.{% endif %}{% if other_account_backups > 0 %} Backups of other accounts are in <a href="/backups?scope=other">Backups &rarr; Other accounts</a>.{% endif %}</p>
+          {% endif %}
         </div>
 
         <div class="ingress-toolbar top-gap">

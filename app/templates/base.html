@@ -31,13 +31,16 @@
 <path d="M12 7v5l2 2"/><path d="M17 22l5 -3l-5 -3z"/><path d="M13.017 20.943a9 9 0 1 1 7.831 -7.292"/>
 {%- elif name == "settings" -%}
 <path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z"/><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/>
+{%- elif name == "cloud" -%}
+<path d="M6.657 18c-2.572 0 -4.657 -2.007 -4.657 -4.483c0 -2.475 2.085 -4.482 4.657 -4.482c.393 -1.762 1.794 -3.2 3.675 -3.773c1.88 -.572 3.956 -.193 5.444 1c1.488 1.19 2.162 3.007 1.77 4.769h.99c1.913 0 3.464 1.56 3.464 3.486c0 1.927 -1.551 3.487 -3.465 3.487h-11.878"/>
 {%- elif name == "menu-2" -%}
 <path d="M4 6l16 0"/><path d="M4 12l16 0"/><path d="M4 18l16 0"/>
 {%- endif -%}
 </svg>
 {%- endmacro %}
     {% set identity = access_identity(request) %}
-    <header class="topbar" data-topbar>
+    {% set switcher = none if hide_sections else profile_switcher(request) %}
+    <header class="topbar{% if switcher and switcher.visible %} has-profile-switcher{% endif %}" data-topbar>
       <div class="topbar-inner">
         <a class="topbar-brand" href="/">
           <img src="/static/favicon.ico" alt="" width="20" height="20">
@@ -53,6 +56,21 @@
           <a class="topnav-link" data-nav="{{ section.key }}" href="{{ section.href }}"{% if section.key == active_section %} aria-current="page"{% endif %}>{{ nav_icon(section.icon) }}<span>{{ section.label }}</span></a>
           {% endfor %}
         </nav>
+        {% if switcher.visible %}
+        <form class="profile-switcher" data-profile-switcher method="post" action="/profiles/active">
+          {%- set ns = namespace(next="/") %}
+          {%- if request.method == "GET" %}{% set ns.next = request.url.path %}
+          {%- else %}{% for section in nav_sections() %}{% if section.key == active_section %}{% set ns.next = section.href %}{% endif %}{% endfor %}{% endif %}
+          <input type="hidden" name="next" value="{{ ns.next }}">
+          <label for="profile-switcher-select">{{ nav_icon("cloud") }}<span class="sr-only">Profile</span></label>
+          <select id="profile-switcher-select" name="profile_id">
+            {%- for option_id, option_name in switcher.options %}
+            <option value="{{ option_id }}"{% if option_id == switcher.active_id %} selected{% endif %}>{{ option_name }}</option>
+            {%- endfor %}
+          </select>
+          <button type="submit" class="secondary-button profile-switcher-submit">Switch</button>
+        </form>
+        {% endif %}
         {% endif %}
         {% if identity %}
         <div class="topnav-identity"><span class="topnav-identity-label">Signed in as</span> <strong title="{{ identity.label }}">{{ identity.label }}</strong> <a href="{{ access_logout_path }}">Sign out</a></div>
