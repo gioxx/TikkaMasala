@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -243,3 +244,18 @@ def test_server_token_reads_env_only_in_demo_mode(monkeypatch):
     monkeypatch.setattr(credentials, "DEFAULT_API_TOKEN", "env-tok")
     assert get_server_api_token(DEFAULT_PROFILE_ID) == "env-tok"
     assert get_server_api_token_source(DEFAULT_PROFILE_ID) == "environment"
+
+
+def test_plaintext_row_with_unwritable_key_path(tmp_path, monkeypatch):
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("chmod does not restrict root")
+    directory = tmp_path / "ro"
+    directory.mkdir()
+    directory.chmod(0o555)
+    monkeypatch.setattr(encryption, "ENCRYPTION_KEY_FILE", directory / "encryption.key")
+    try:
+        update_profile(DEFAULT_PROFILE_ID, api_token="plain-ro")
+        assert get_server_api_token(DEFAULT_PROFILE_ID) == "plain-ro"
+        assert get_profile(DEFAULT_PROFILE_ID).api_token == "plain-ro"
+    finally:
+        directory.chmod(0o755)

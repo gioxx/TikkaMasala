@@ -53,13 +53,20 @@ def _read_key_file(path: Path) -> bytes:
 def _create_key_file(path: Path) -> bytes:
     """Create the key file exclusively (0600); if another writer won the race, read theirs."""
     key = Fernet.generate_key()
-    path.parent.mkdir(parents=True, exist_ok=True)
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError:
         return _read_key_file(path)
-    with os.fdopen(fd, "wb") as handle:
-        handle.write(key)
+    except OSError as exc:
+        raise EncryptionKeyError(f"The encryption key file {path} cannot be created: {exc.strerror}.") from exc
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(key)
+    except OSError as exc:
+        # Do not leave an empty or partial key file behind: it would be "invalid" forever.
+        path.unlink(missing_ok=True)
+        raise EncryptionKeyError(f"The encryption key file {path} cannot be created: {exc.strerror}.") from exc
     logger.info("Generated a new encryption key at %s.", path)
     return key
 

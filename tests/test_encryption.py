@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import pytest
@@ -110,3 +111,24 @@ def test_read_secret_decrypts(key_file):
 def test_read_secret_plaintext_passthrough(key_file):
     assert read_secret("plain") == "plain"
     assert not key_file.exists()
+
+
+@pytest.fixture
+def readonly_key_dir(tmp_path: Path, monkeypatch):
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("chmod does not restrict root")
+    directory = tmp_path / "ro"
+    directory.mkdir()
+    directory.chmod(0o555)
+    monkeypatch.setattr(encryption, "TOKEN_ENCRYPTION_KEY", "")
+    monkeypatch.setattr(encryption, "ENCRYPTION_KEY_FILE", directory / "encryption.key")
+    yield directory
+    directory.chmod(0o755)
+
+
+def test_unwritable_key_path_raises_key_error(readonly_key_dir):
+    with pytest.raises(EncryptionKeyError, match="cannot be created") as excinfo:
+        encrypt_secret("abc")
+    assert str(readonly_key_dir / "encryption.key") in str(excinfo.value)
+    assert read_secret("enc:something") is None
+    assert not (readonly_key_dir / "encryption.key").exists()
