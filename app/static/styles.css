@@ -666,6 +666,24 @@ details.forget-credentials > summary { color: var(--danger-text); }
   min-width: 0;
 }
 .archive-filters select { max-width: 22rem; }
+.backup-new-form { max-width: 40rem; }
+.backup-new-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.75rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9375rem;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.backup-new-form select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--input-focus-ring);
+  outline: none;
+}
 .archive-notes {
   display: inline-block;
   max-width: 16rem;
@@ -1561,6 +1579,12 @@ a.tile:hover {
 }
 .tunnels-panel-head h2 { margin: 0; }
 .tunnels-panel-head form { margin: 0; }
+.tunnels-panel-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
 .tunnels-panel-head button { padding: 0.6rem 1.05rem; }
 .tunnel-table-wrap { overflow-x: auto; }
 .tunnel-table td { vertical-align: middle; }

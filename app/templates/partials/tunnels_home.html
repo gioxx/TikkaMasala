@@ -28,9 +28,12 @@
           <div class="tunnels-panel-head">
             <h2 class="heading-with-icon">{{ tile_icon("tunnels") }}<span>Tunnels</span></h2>
             {% if not home.credentials_message and not demo_mode %}
-            <form hx-post="/tunnels/backup-all" hx-target="#tunnels-home" hx-swap="outerHTML" hx-disabled-elt="find button" method="post" action="/tunnels/backup-all">
-              <button type="submit" class="primary">Back up all now</button>
-            </form>
+            <div class="tunnels-panel-actions">
+              <a class="secondary-link-button" href="/backups/new">Back up with a note</a>
+              <form hx-post="/tunnels/backup-all" hx-target="#tunnels-home" hx-swap="outerHTML" hx-disabled-elt="find button" method="post" action="/tunnels/backup-all">
+                <button type="submit" class="primary">Back up all now</button>
+              </form>
+            </div>
             {% endif %}
           </div>
 

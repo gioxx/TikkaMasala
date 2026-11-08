@@ -218,18 +218,62 @@ def test_row_backup_without_credentials(client, fake_list, fake_create, events):
     assert events == []
 
 
-def test_row_backup_demo_downloads_file(client, monkeypatch, make_backup, fake_list, fake_create, events):
-    from app.backups import get_backup
+def _backup_state(data_dir) -> tuple[int, int]:
+    from contextlib import closing
+
+    from app.db import db
+
+    with closing(db()) as conn:
+        rows = int(conn.execute("SELECT COUNT(*) FROM backups").fetchone()[0])
+    files = sum(1 for item in (data_dir / "backups").iterdir() if item.is_file())
+    return rows, files
+
+
+def test_row_backup_demo_downloads_without_saving(client, monkeypatch, data_dir, fake_list, fake_create, events):
+    from app.backups import Snapshot
 
     _demo(monkeypatch)
     fake_list(_listing(T1))
-    backup = get_backup(make_backup(T1, "Home", account_id=GOOD))
-    create = fake_create(result=backup)
+    create = fake_create()
+    snapshot_calls: list[tuple] = []
+
+    async def _take(account_id, tunnel_id, api_token, notes=None):
+        snapshot_calls.append((account_id, tunnel_id, api_token, notes))
+        return Snapshot(
+            payload={"tunnel_id": T1, "account_id": account_id, "notes": ""},
+            created_at="2026-11-08T00:00:00+00:00",
+            tunnel_name="Home",
+            route_count=1,
+            filename="x.json",
+        )
+
+    monkeypatch.setattr(tunnels, "take_snapshot", _take)
+    before = _backup_state(data_dir)
     response = client.post(f"/tunnels/{T1}/backup")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/json")
+    assert 'attachment; filename="x.json"' in response.headers["content-disposition"]
     assert response.json()["tunnel_id"] == T1
-    assert create.calls == [(GOOD, T1, "env-token-0000-abcd", None)]
+    assert snapshot_calls == [(GOOD, T1, "env-token-0000-abcd", None)]
+    assert create.calls == []
+    assert events == []
+    assert _backup_state(data_dir) == before
+
+
+def test_row_backup_demo_failure_renders_inline(client, monkeypatch, fake_list, fake_create, events):
+    _demo(monkeypatch)
+    fake_list(_listing(T1))
+    create = fake_create()
+
+    async def _take(*args, **kwargs):
+        raise HTTPException(status_code=502, detail="Cloudflare said no")
+
+    monkeypatch.setattr(tunnels, "take_snapshot", _take)
+    response = client.post(f"/tunnels/{T1}/backup")
+    assert response.status_code == 200
+    assert "Cloudflare said no" in _row(response.text, T1)
+    assert create.calls == []
+    assert events == []
 
 
 # --- back up all ------------------------------------------------------------

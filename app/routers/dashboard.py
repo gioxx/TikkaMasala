@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+import json
 
-from app.config import BACKUP_DIR, DEMO_MODE
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
+
+from app.config import DEMO_MODE
 from app.credentials import require_api_credentials
 from app.profiles import current_profile_id
 from app.tunnels import (
@@ -15,6 +17,7 @@ from app.tunnels import (
     backup_saved_feedback,
     build_tunnels_home,
     is_valid_tunnel_id,
+    snapshot_for_download,
 )
 from app.web import render_tunnels_page
 
@@ -62,10 +65,19 @@ async def backup_tunnel_action(request: Request, tunnel_id: str) -> Response:
         creds = require_api_credentials(current_profile_id(request))
     except HTTPException as exc:
         return await _render_home(request, notice=("error", str(exc.detail)))
+    if DEMO_MODE:
+        # Demo: hand the snapshot over as a download; nothing is written and nothing is notified.
+        try:
+            snapshot = await snapshot_for_download(creds, tunnel_id)
+        except HTTPException as exc:
+            return await _render_home(request, feedback={tunnel_id: RowFeedback(ok=False, message=str(exc.detail))})
+        return Response(
+            json.dumps(snapshot.payload, indent=2, ensure_ascii=False),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{snapshot.filename}"'},
+        )
     try:
         backup = await back_up_tunnel(creds, tunnel_id)
     except HTTPException as exc:
         return await _render_home(request, feedback={tunnel_id: RowFeedback(ok=False, message=str(exc.detail))})
-    if DEMO_MODE:
-        return FileResponse(path=BACKUP_DIR / backup.filename, filename=backup.filename, media_type="application/json")
     return await _render_home(request, feedback={tunnel_id: backup_saved_feedback(backup)})

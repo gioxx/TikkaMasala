@@ -20,7 +20,13 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 
-from app.backups import count_backups_for_account, create_backup, get_backup_retention_status
+from app.backups import (
+    Snapshot,
+    count_backups_for_account,
+    create_backup,
+    get_backup_retention_status,
+    take_snapshot,
+)
 from app.cloudflare import list_tunnels
 from app.config import DEMO_MODE
 from app.credentials import (
@@ -307,8 +313,14 @@ async def build_tunnels_home(profile_id: int, *, fresh: bool = False) -> Tunnels
 # --- Manual backups from the Tunnels home ----------------------------------
 
 
-async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str) -> BackupRecord:
-    """Back up one tunnel now and queue the matching manual backup notification.
+def _unexpected_error(exc: Exception) -> str:
+    # Network errors, non-JSON answers, file write errors: report the type only, never the text
+    # (it could quote a request).
+    return f"Unexpected error ({type(exc).__name__})."
+
+
+async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str, notes: str | None = None) -> BackupRecord:
+    """Back up one tunnel now (with an optional note) and queue the matching manual backup notification.
 
     On failure queues ``manual_backup_failed`` and raises an ``HTTPException``: the original one, or a
     502 with a generic message for any other exception.
@@ -325,16 +337,14 @@ async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str) -> BackupRecord:
         )
 
     try:
-        backup = await create_backup(account_id, tunnel_id, creds.api_token, None)
+        backup = await create_backup(account_id, tunnel_id, creds.api_token, notes)
     except HTTPException as exc:
         logger.warning("Manual backup failed (tunnel_id=%s): %s", tunnel_id, exc.detail)
         queue_failed(str(exc.detail))
         raise
     except Exception as exc:
-        # Network errors, non-JSON answers, file write errors: report the type only, never the text
-        # (it could quote a request), and turn it into the usual failure path.
         logger.exception("Unexpected error during manual backup (account_id=%s, tunnel_id=%s).", account_id, tunnel_id)
-        error = f"Unexpected error ({type(exc).__name__})."
+        error = _unexpected_error(exc)
         queue_failed(error)
         raise HTTPException(status_code=502, detail=error) from exc
     logger.info(
@@ -358,6 +368,23 @@ async def back_up_tunnel(creds: ApiCredentials, tunnel_id: str) -> BackupRecord:
         level="info",
     )
     return backup
+
+
+async def snapshot_for_download(creds: ApiCredentials, tunnel_id: str) -> Snapshot:
+    """Fetch one tunnel's configuration for a download (demo mode): no file, no row, no notification.
+
+    Errors are raised as ``back_up_tunnel`` raises them: the original ``HTTPException``, or a 502 with a
+    generic message for any other exception.
+    """
+    logger.info("Snapshot download requested (account_id=%s, tunnel_id=%s).", creds.account_id, tunnel_id)
+    try:
+        return await take_snapshot(creds.account_id, tunnel_id, creds.api_token)
+    except HTTPException as exc:
+        logger.warning("Snapshot download failed (tunnel_id=%s): %s", tunnel_id, exc.detail)
+        raise
+    except Exception as exc:
+        logger.exception("Unexpected error during snapshot download (account_id=%s, tunnel_id=%s).", creds.account_id, tunnel_id)
+        raise HTTPException(status_code=502, detail=_unexpected_error(exc)) from exc
 
 
 def backup_saved_feedback(backup: BackupRecord) -> RowFeedback:

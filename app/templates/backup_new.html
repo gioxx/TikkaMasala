@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% set active_section = "backups" %}
+
+{% block title %}Back up with a note - Tikka Masala{% endblock %}
+{% block main_class %}container{% endblock %}
+
+{% block content %}
+      <section class="card" id="backup-new">
+        <div class="section-heading section-header-row">
+          <div>
+            <h1 class="heading-with-icon">
+              <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v3h-18z" />
+                <path d="M4 10v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-8" />
+                <path d="M10 12l4 0" />
+              </svg>
+              <span>Back up with a note</span>
+            </h1>
+            <p class="hint">Save a tunnel's configuration now, with a note that explains why. Notes cannot be changed afterwards.</p>
+          </div>
+          <div class="archive-header-actions">
+            <a class="secondary-link-button" href="/backups">All backups</a>
+          </div>
+        </div>
+
+        {% if error %}
+        <p class="notice error top-gap" role="alert">{{ error }}</p>
+        {% endif %}
+
+        {% if credentials_missing %}
+        <p class="notice top-gap">Account ID and API token are not configured. Add them in <a href="/settings">Settings</a>.</p>
+        {% elif list_error %}
+        <p class="notice error top-gap">Could not load tunnels from Cloudflare: {{ list_error }}</p>
+        {% elif not tunnels %}
+        <p class="hint top-gap">No tunnels in this account yet.</p>
+        {% else %}
+        <form method="post" action="/backups/new" class="stack top-gap backup-new-form">
+          <label>
+            <span>Tunnel</span>
+            <select name="tunnel_id" required>
+              {% for tunnel in tunnels %}
+              <option value="{{ tunnel.id }}"{% if selected_tunnel and tunnel.id|lower == selected_tunnel %} selected{% endif %}>{{ tunnel.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            <span>Note</span>
+            <textarea name="notes" rows="4" maxlength="{{ notes_max_length }}" aria-describedby="backup-note-hint">{{ form_notes }}</textarea>
+          </label>
+          <p class="hint" id="backup-note-hint">Optional. Up to {{ notes_max_length }} characters. Saved inside the backup file.</p>
+          <div class="actions">
+            <button type="submit" class="primary">Back up now</button>
+          </div>
+        </form>
+        {% endif %}
+      </section>
+{% endblock %}

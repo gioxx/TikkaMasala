@@ -6,6 +6,7 @@ import json
 import logging
 import uuid
 from contextlib import closing
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -70,13 +71,37 @@ def get_last_backup_time_for_tunnel(tunnel_id: str) -> datetime | None:
     return None
 
 
-async def create_backup(
-    account_id: str,
-    tunnel_id: str,
-    api_token: str,
-    notes: str | None = None,
-    origin: str = "manual",
-) -> BackupRecord:
+NOTES_MAX_LENGTH = 500
+
+
+def clean_notes(raw: str | None) -> str | None:
+    """A backup note as stored: stripped, with ``\n`` line ends; ``None`` when empty.
+
+    Raises ``ValueError`` with a user-facing message when longer than ``NOTES_MAX_LENGTH``.
+    """
+    if raw is None:
+        return None
+    notes = raw.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not notes:
+        return None
+    if len(notes) > NOTES_MAX_LENGTH:
+        raise ValueError(f"Notes can be at most {NOTES_MAX_LENGTH} characters.")
+    return notes
+
+
+@dataclass(frozen=True)
+class Snapshot:
+    """A tunnel's configuration fetched from Cloudflare, ready to save or download; nothing written yet."""
+
+    payload: dict[str, Any]
+    created_at: str
+    tunnel_name: str
+    route_count: int
+    filename: str
+
+
+async def take_snapshot(account_id: str, tunnel_id: str, api_token: str, notes: str | None = None) -> Snapshot:
+    """Fetch one tunnel and its configuration and build the backup payload; writes nothing."""
     tunnel_data, config_data = await fetch_tunnel_configuration(account_id, tunnel_id, api_token)
     tunnel = tunnel_data.get("result", {})
     config = config_data.get("result", {})
@@ -84,7 +109,6 @@ async def create_backup(
     created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     tunnel_name = tunnel.get("name") or "Unknown tunnel"
     ingress = config.get("config", {}).get("ingress", [])
-    route_count = len(ingress)
     filename = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}_{uuid.uuid4().hex[:12]}.json"
 
     payload = {
@@ -95,8 +119,23 @@ async def create_backup(
         "configuration": config,
         "notes": notes or "",
     }
+    return Snapshot(
+        payload=payload,
+        created_at=created_at,
+        tunnel_name=tunnel_name,
+        route_count=len(ingress),
+        filename=filename,
+    )
 
-    file_path = BACKUP_DIR / filename
+
+def save_snapshot(snapshot: Snapshot, origin: str = "manual") -> BackupRecord:
+    """Write the snapshot's JSON file and its database row, then apply retention."""
+    payload = snapshot.payload
+    account_id = payload["account_id"]
+    tunnel_id = payload["tunnel_id"]
+    stored_notes = payload.get("notes") or ""
+
+    file_path = BACKUP_DIR / snapshot.filename
     with file_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, ensure_ascii=False)
 
@@ -106,24 +145,45 @@ async def create_backup(
             INSERT INTO backups (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes or "", origin),
+            (
+                snapshot.created_at,
+                account_id,
+                tunnel_id,
+                snapshot.tunnel_name,
+                snapshot.route_count,
+                snapshot.filename,
+                stored_notes,
+                origin,
+            ),
         )
         conn.commit()
         backup_id = cursor.lastrowid
 
-    purge_expired_backups(datetime.fromisoformat(created_at))
+    purge_expired_backups(datetime.fromisoformat(snapshot.created_at))
 
     return BackupRecord(
         id=backup_id,
-        created_at=created_at,
+        created_at=snapshot.created_at,
         account_id=account_id,
         tunnel_id=tunnel_id,
-        tunnel_name=tunnel_name,
-        route_count=route_count,
-        filename=filename,
-        notes=notes,
+        tunnel_name=snapshot.tunnel_name,
+        route_count=snapshot.route_count,
+        filename=snapshot.filename,
+        notes=stored_notes or None,
         origin=origin,
     )
+
+
+async def create_backup(
+    account_id: str,
+    tunnel_id: str,
+    api_token: str,
+    notes: str | None = None,
+    origin: str = "manual",
+) -> BackupRecord:
+    """Fetch a tunnel's configuration and save it as a backup (``take_snapshot`` + ``save_snapshot``)."""
+    snapshot = await take_snapshot(account_id, tunnel_id, api_token, notes)
+    return save_snapshot(snapshot, origin)
 
 
 def _purge_group(

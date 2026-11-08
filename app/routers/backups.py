@@ -7,13 +7,15 @@ import logging
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
-from app.backups import get_backup, load_backup_json, record_restore
+from app.backups import NOTES_MAX_LENGTH, clean_notes, get_backup, load_backup_json, record_restore
 from app.cloudflare import cloudflare_put, fetch_tunnel_configuration
 from app.config import BACKUP_DIR, DEMO_MODE
-from app.credentials import resolve_restore_target
+from app.credentials import get_api_credentials, resolve_restore_target
 from app.ingress import config_settings_delta, diff_ingress, extract_ingress
 from app.notifications import queue_notification, render_notification_message
-from app.web import render_backup_page, render_backups_page
+from app.profiles import current_profile_id
+from app.tunnels import back_up_tunnel, fetch_tunnel_list, is_valid_tunnel_id
+from app.web import render_backup_page, render_backups_page, templates
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,91 @@ async def backups_page(request: Request) -> HTMLResponse:
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
     return render_backups_page(request)
+
+
+async def _render_new_backup_page(
+    request: Request,
+    *,
+    selected_tunnel: str | None = None,
+    form_notes: str = "",
+    error: str | None = None,
+    status_code: int = 200,
+) -> HTMLResponse:
+    """The "Back up with a note" form: a picker over the cached tunnel list and an optional note."""
+    creds = get_api_credentials(current_profile_id(request))
+    tunnels: list[dict[str, str]] = []
+    list_error: str | None = None
+    if creds is not None:
+        try:
+            raw_list = await fetch_tunnel_list(creds)
+        except HTTPException as exc:
+            list_error = str(exc.detail)
+        except Exception:
+            logger.exception("Unexpected error while listing tunnels (account_id=%s).", creds.account_id)
+            list_error = "Unexpected error while listing tunnels."
+        else:
+            tunnels = sorted(
+                (
+                    {"id": str(tunnel["id"]), "name": str(tunnel.get("name") or "Unknown tunnel")}
+                    for tunnel in raw_list
+                    if isinstance(tunnel, dict) and tunnel.get("id")
+                ),
+                key=lambda tunnel: (tunnel["name"].casefold(), tunnel["id"]),
+            )
+    return templates.TemplateResponse(
+        request,
+        "backup_new.html",
+        {
+            "credentials_missing": creds is None,
+            "list_error": list_error,
+            "tunnels": tunnels,
+            "selected_tunnel": (selected_tunnel or "").strip().lower() or None,
+            "form_notes": form_notes,
+            "notes_max_length": NOTES_MAX_LENGTH,
+            "error": error,
+            "demo_mode": DEMO_MODE,
+        },
+        status_code=status_code,
+    )
+
+
+@router.get("/backups/new", response_class=HTMLResponse)
+async def new_backup_page(request: Request, tunnel: str | None = None) -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/", status_code=303)
+    return await _render_new_backup_page(request, selected_tunnel=tunnel)
+
+
+@router.post("/backups/new", response_class=HTMLResponse)
+async def new_backup_action(
+    request: Request,
+    tunnel_id: str = Form(""),
+    notes: str = Form(""),
+) -> HTMLResponse:
+    if DEMO_MODE:
+        return RedirectResponse(url="/", status_code=303)
+    tunnel_id = tunnel_id.strip()
+
+    async def fail(message: str | None, status_code: int) -> HTMLResponse:
+        return await _render_new_backup_page(
+            request, selected_tunnel=tunnel_id, form_notes=notes, error=message, status_code=status_code
+        )
+
+    if not is_valid_tunnel_id(tunnel_id):
+        return await fail("Unknown tunnel ID.", 400)
+    try:
+        cleaned_notes = clean_notes(notes)
+    except ValueError as exc:
+        return await fail(str(exc), 400)
+    creds = get_api_credentials(current_profile_id(request))
+    if creds is None:
+        # The page shows the credentials notice in place of the form.
+        return await fail(None, 400)
+    try:
+        backup = await back_up_tunnel(creds, tunnel_id.lower(), cleaned_notes)
+    except HTTPException as exc:
+        return await fail(f"Backup failed: {exc.detail}", 502)
+    return RedirectResponse(url=f"/backup/{backup.id}?created=1", status_code=303)
 
 
 @router.get("/backup/{backup_id}", response_class=HTMLResponse)
