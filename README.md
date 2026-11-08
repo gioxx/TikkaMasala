@@ -1,6 +1,6 @@
 # Tikka Masala
 
-Tikka Masala is a small FastAPI web app for backing up and restoring Cloudflare Tunnel configurations. It gives you a simple UI to verify a token, list available tunnels, save JSON snapshots locally, and restore a saved configuration later.
+Tikka Masala is a small FastAPI web app for backing up and restoring Cloudflare Tunnel configurations. It gives you a simple UI to list available tunnels, save JSON snapshots locally, and restore a saved configuration later.
 
 Website: <https://tikkamasala.gioxx.org>
 
@@ -21,7 +21,7 @@ Website: <https://tikkamasala.gioxx.org>
 - [Run with Docker Compose](#run-with-docker-compose)
 - [Run with Docker Only](#run-with-docker-only)
 - [Run Without Docker](#run-without-docker)
-- [How Prefill and Persistence Work](#how-prefill-and-persistence-work)
+- [First Run and Credentials](#first-run-and-credentials)
 - [Storage Layout](#storage-layout)
 - [What Gets Backed Up](#what-gets-backed-up)
 - [Restore Behavior](#restore-behavior)
@@ -36,7 +36,7 @@ Website: <https://tikkamasala.gioxx.org>
 
 ## Features
 
-- Verify a Cloudflare API token before using it
+- Enter your Account ID and API token once on a first-run setup screen; they are checked against Cloudflare before they are saved
 - Load the tunnels visible to a Cloudflare account
 - Open each tunnel's page in the Cloudflare dashboard (Networking → Tunnels) straight from the tunnel list
 - Quick-access links to Cloudflare Access Controls (Applications and Policies) from the tunnels section
@@ -48,8 +48,7 @@ Website: <https://tikkamasala.gioxx.org>
 - See every public hostname of every tunnel and the origin it points to on one **Hostnames** page (`/ingress`): read from the latest snapshot of each tunnel, or live from the Cloudflare API, with filtering and warnings for host-local origins and hostnames served by more than one tunnel
 - Keep local metadata in SQLite
 - Track restore history per backup
-- Prefill `Account ID` and `API token` from environment, browser, or database
-- Clear saved authentication data without deleting backups
+- Manage the saved credentials on a **Settings** page (token masked, replace, forget) without deleting backups
 - Switch between system, dark, and light theme
 - Schedule automatic backups for all tunnels or a selected subset of tunnels in the account
 - Set per-tunnel backup frequency (every run, once per week, once per month)
@@ -76,9 +75,9 @@ You can configure the app through environment variables, whether you use Docker 
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `CLOUDFLARE_ACCOUNT_ID` | No | Prefills the Cloudflare account ID in the UI. |
-| `CLOUDFLARE_API_TOKEN` | No | Prefills the API token in the UI. |
-| `TOKEN_ENCRYPTION_KEY` | Recommended | Fernet key used to encrypt the API token before saving it in SQLite. |
+| `CLOUDFLARE_ACCOUNT_ID` | No | Account ID of the Default profile. With both this and `CLOUDFLARE_API_TOKEN` set, the first-run setup is skipped and Settings shows them read-only. |
+| `CLOUDFLARE_API_TOKEN` | No | API token of the Default profile. See `CLOUDFLARE_ACCOUNT_ID`. |
+| `TOKEN_ENCRYPTION_KEY` | No | Fernet key used to encrypt the saved API token. If unset, the app generates one as `DATA_DIR/encryption.key` (mode `0600`). Set it only if you want to manage the key yourself, or keep an existing one. |
 | `CF_ACCESS_TEAM_DOMAIN` | No | Cloudflare Zero Trust team domain, e.g. `yourteam.cloudflareaccess.com` (or just `yourteam`). Set together with `CF_ACCESS_AUD` to require a valid Cloudflare Access login on every request. See [Cloudflare Access](#cloudflare-access). |
 | `CF_ACCESS_AUD` | No | Application Audience (AUD) tag of the Access application that protects Tikka Masala. Set together with `CF_ACCESS_TEAM_DOMAIN`. |
 | `AUTO_BACKUP_TIMEZONE` | No | Force automatic backups to use a specific IANA timezone such as `Europe/Rome`. |
@@ -100,7 +99,7 @@ Start from [`.env.sample`](.env.sample):
 cp .env.sample .env
 ```
 
-Generate a Fernet key for `TOKEN_ENCRYPTION_KEY` with:
+`TOKEN_ENCRYPTION_KEY` is optional. If you prefer to manage the key yourself, generate a Fernet key with:
 
 ```bash
 python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
@@ -125,7 +124,7 @@ Example `.env` for Compose:
 ```env
 CLOUDFLARE_ACCOUNT_ID=your-32-char-account-id
 CLOUDFLARE_API_TOKEN=your-cloudflare-api-token
-TOKEN_ENCRYPTION_KEY=your-generated-fernet-key
+# TOKEN_ENCRYPTION_KEY=your-generated-fernet-key   # optional
 AUTO_BACKUP_TIMEZONE=Europe/Rome
 BACKUP_RETENTION_DAYS=90
 NOTIFICATION_WEBHOOK_URL=
@@ -162,44 +161,37 @@ set +a
 uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
-## How Prefill and Persistence Work
+## First Run and Credentials
 
-The UI can prefill authentication fields from three sources:
+If `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` are both set in the environment, there is nothing to configure: setup is skipped and the app uses them.
 
-1. Environment variables
-2. Saved values in the local database
-3. Browser cookie for the API token
+Otherwise the first page you open is a **setup screen** (`/setup`). Enter your Account ID and an API token; the app checks them against Cloudflare (token verification and a tunnel listing) and saves them only if the check passes. The token is stored encrypted in `app.db` and is never shown again in clear.
 
-Effective priority:
+After setup, credentials are managed on the **Settings** page (`/settings`):
 
-- `Account ID`: database, then environment
-- `API token`: browser cookie, then database, then environment
+- the Account ID is shown in clear, the token as "configured, ending in XXXX"
+- **Replace credentials** validates the new values before saving them
+- **Forget saved credentials** removes the saved Account ID and token from the database; backups are kept. Values from the environment stay in place
+- Settings also shows the Cloudflare Access status, the app version, and where the encryption key comes from
 
-Automatic backups use only server-side credentials:
+Precedence is per field: the saved database value first, then the environment. If a value comes from the environment, Settings shows it read-only with a **Save a different value** option, which stores your value in the database and takes precedence from then on.
 
-- `Account ID`: database or environment
-- `API token`: encrypted database value or environment
+Every page, the scheduler and restore use these saved server-side credentials; no credentials live in the browser. Restoring a backup uses the credentials of the profile that owns the backup's account.
 
-Browser cookies are never used by the scheduler.
+Upgrading from a version that kept the token in a browser cookie: the first request that still carries the cookie saves the token into the database (when none is saved yet) and then deletes the cookie. Nothing needs to be re-entered.
 
-After a successful token verification or API action:
-
-- the `Account ID` is saved in `./data/app.db`
-- the `API token` is stored in a browser cookie
-- the `API token` is also saved in `./data/app.db` only if `TOKEN_ENCRYPTION_KEY` is configured
-
-Important:
-
-- `Clear saved auth data` removes only the saved `Account ID` and API token from the database and clears the browser cookie
-- if `CLOUDFLARE_ACCOUNT_ID` or `CLOUDFLARE_API_TOKEN` are still present in the environment, the UI will continue to show those values as prefilled
+If the saved token cannot be decrypted (for example `encryption.key` was removed), the app sends you back to the setup screen, which explains it; saving a new token replaces the unreadable one.
 
 ## Storage Layout
 
 Everything is stored under `DATA_DIR`, which defaults to `/data` in the container and typically maps to `./data` on the host.
 
-- `app.db`: SQLite database for backup metadata, restore history, and saved auth settings
+- `app.db`: SQLite database for backup metadata, restore history, and saved credentials (the token is encrypted)
+- `encryption.key`: Fernet key generated on first use when `TOKEN_ENCRYPTION_KEY` is not set (mode `0600`). Keep it: without it the saved token cannot be read
 - `backups/*.json`: exported tunnel configuration snapshots
 - `app.db.pre-v1.bak`: copy of the database taken before the profiles migration (see [Upgrading](#upgrading))
+
+Trade-off: with the generated key, a copy of `DATA_DIR` contains both the encrypted token and the key that decrypts it. If you back up or share that directory, set `TOKEN_ENCRYPTION_KEY` in the environment instead, so the key lives elsewhere.
 
 ## What Gets Backed Up
 
@@ -263,8 +255,7 @@ This lets you, for example, run the scheduler daily but back up low-priority tun
 
 Important notes:
 
-- automatic backups require server-side credentials available from the database or environment
-- browser-only token prefill is not enough for scheduled jobs
+- automatic backups use the saved credentials (database, then environment)
 - each run creates normal backups, so automatic and manual backups share the same archive
 - if `BACKUP_RETENTION_DAYS` is set, old backup files and related database records are deleted automatically after new backups are created
 - retention cleanup removes both the JSON snapshot and its related restore history
@@ -368,7 +359,8 @@ Set `DEMO=true` when you want to exercise the UI without persisting auth data or
 
 In demo mode:
 
-- authentication data is not stored in SQLite or the browser cookie
+- credentials come only from the environment: there is no setup screen, Settings is read-only, and without environment credentials the app shows "No credentials in demo mode"
+- nothing is written to SQLite and no encryption key file is created
 - automatic backups are disabled
 - notifications are disabled
 - the backup archive is disabled
@@ -410,20 +402,27 @@ To roll back:
 3. Restore `app.db.pre-v1.bak` as `app.db` in `DATA_DIR`.
 4. Start the exact image tag you ran before (check `docker-compose.yml` or `docker image ls`). If you ran `:latest`, pin the last release before profiles; check the release notes or tags.
 
+Credentials and the encryption key:
+
+- a token still held in the old browser cookie is migrated into the database once, then the cookie is deleted
+- if `TOKEN_ENCRYPTION_KEY` is unset, a key is generated as `DATA_DIR/encryption.key` the first time one is needed; an existing `TOKEN_ENCRYPTION_KEY` keeps working unchanged
+- before downgrading to an older version, set `TOKEN_ENCRYPTION_KEY` to the content of `encryption.key`; otherwise the older version cannot read the saved token
+
 Running a previous image on the migrated database without restoring `app.db.pre-v1.bak` is not supported: the older version finds no saved credentials or schedule, so the automatic schedule silently stops (values from environment variables still work). Restoring the file is required to downgrade.
 
 ## Security Notes
 
-- The API token is never persisted in plaintext in the database by current versions of the app.
-- If `TOKEN_ENCRYPTION_KEY` is missing, the token is not written to SQLite.
-- The API token can still be temporarily reused through the browser cookie or environment prefill.
+- The API token is never persisted in plaintext in the database and is never shown in the UI after it is saved; the browser never holds it.
+- The encryption key comes from `TOKEN_ENCRYPTION_KEY` or, if unset, from `DATA_DIR/encryption.key` (mode `0600`, never overwritten). A copy of `DATA_DIR` holds both the database and that key.
+- Credentials are validated against Cloudflare before they are saved, and the Account ID must be 32 hex characters.
+- Cross-site POSTs to Settings are rejected.
 - When `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are set, every request except `/healthz` must carry a valid Cloudflare Access token. See [Cloudflare Access](#cloudflare-access).
-- Older plaintext tokens already present in the database are upgraded to encrypted form the first time they are read successfully with a valid `TOKEN_ENCRYPTION_KEY`.
+- Older plaintext tokens already present in the database are upgraded to encrypted form the first time they are read successfully.
 
 ## Project Notes
 
 - Application entrypoint (app wiring, routers, lifecycle): [`app/main.py`](app/main.py)
-- Domain modules: [`config.py`](app/config.py) (environment), [`db.py`](app/db.py) (SQLite schema and settings), [`credentials.py`](app/credentials.py) (Account ID / token handling), [`cloudflare.py`](app/cloudflare.py) (API client), [`backups.py`](app/backups.py) (snapshots and retention), [`scheduler.py`](app/scheduler.py) (automatic backups), [`notifications.py`](app/notifications.py) (webhook / Telegram), [`ingress.py`](app/ingress.py) (ingress parsing and diff), [`web.py`](app/web.py) (templates and page renderers)
+- Domain modules: [`config.py`](app/config.py) (environment), [`db.py`](app/db.py) (SQLite schema and settings), [`credentials.py`](app/credentials.py) (Account ID / token handling), [`encryption.py`](app/encryption.py) (key and secret encryption), [`setup.py`](app/setup.py) (first-run setup), [`cloudflare.py`](app/cloudflare.py) (API client), [`backups.py`](app/backups.py) (snapshots and retention), [`scheduler.py`](app/scheduler.py) (automatic backups), [`notifications.py`](app/notifications.py) (webhook / Telegram), [`ingress.py`](app/ingress.py) (ingress parsing and diff), [`web.py`](app/web.py) (templates and page renderers)
 - HTTP routes: [`app/routers/`](app/routers)
 - Hostnames overview: [`app/ingress_overview.py`](app/ingress_overview.py); live refresh uses [htmx](https://htmx.org) 2.0.4, vendored in [`app/static/vendor/`](app/static/vendor) (0BSD license)
 - Templates extend [`app/templates/base.html`](app/templates/base.html) (head, hero, footer); shared page behaviour lives in [`app/static/app.js`](app/static/app.js)
