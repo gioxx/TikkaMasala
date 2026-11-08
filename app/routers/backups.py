@@ -10,16 +10,9 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from app.backups import get_backup, load_backup_json, record_restore
 from app.cloudflare import cloudflare_put, fetch_tunnel_configuration
 from app.config import BACKUP_DIR, DEMO_MODE
-from app.credentials import (
-    remember_account_id,
-    remember_api_token,
-    resolve_account_id,
-    resolve_api_token,
-    set_api_token_cookie,
-)
+from app.credentials import find_profile_for_account, get_api_credentials
 from app.ingress import config_settings_delta, diff_ingress, extract_ingress
 from app.notifications import queue_notification, render_notification_message
-from app.profiles import current_profile_id
 from app.web import render_backup_page
 
 logger = logging.getLogger(__name__)
@@ -50,17 +43,25 @@ async def download_backup(backup_id: int) -> FileResponse | RedirectResponse:
 async def restore_backup(
     request: Request,
     backup_id: int,
-    account_id: str = Form(default=""),
     tunnel_id: str = Form(...),
-    api_token: str = Form(default=""),
-    mode: str = Form(default="apply"),
+    mode: str = Form("apply"),
 ) -> HTMLResponse:
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
-    profile_id = current_profile_id(request)
+    backup = get_backup(backup_id)
+    account_id = backup.account_id
+    profile_id = find_profile_for_account(account_id)
+    credentials = get_api_credentials(profile_id) if profile_id is not None else None
+    if credentials is None:
+        return render_backup_page(
+            request,
+            backup_id,
+            error=f"No profile has credentials for account {account_id}. Add them in Settings to restore this backup.",
+            form_tunnel_id=tunnel_id.strip() or None,
+        )
+    account_id = credentials.account_id
+    api_token = credentials.api_token
     try:
-        account_id = resolve_account_id(profile_id, account_id)
-        api_token = resolve_api_token(request, profile_id, api_token)
         logger.info(
             "Restore %s requested (backup_id=%s, account_id=%s, tunnel_id=%s).",
             "preview" if mode == "preview" else "apply",
@@ -79,23 +80,15 @@ async def restore_backup(
             live_config_body = live_result.get("config") if isinstance(live_result, dict) else {}
             diff = diff_ingress(extract_ingress(live_result), extract_ingress(payload))
             settings_delta = config_settings_delta(live_config_body, config_body)
-            remember_account_id(profile_id, account_id)
-            remember_api_token(profile_id, api_token)
-            response = render_backup_page(
+            return render_backup_page(
                 request,
                 backup_id,
                 message="Preview only — nothing was applied.",
                 ingress_diff=diff,
                 settings_delta=settings_delta,
-                form_account_id=account_id,
                 form_tunnel_id=tunnel_id,
-                form_api_token=api_token,
             )
-            set_api_token_cookie(response, api_token)
-            return response
         await cloudflare_put(account_id, f"cfd_tunnel/{tunnel_id}/configurations", api_token, {"config": config_body})
-        remember_account_id(profile_id, account_id)
-        remember_api_token(profile_id, api_token)
         record_restore(backup_id, account_id, tunnel_id)
         logger.info("Restore completed successfully (backup_id=%s, account_id=%s, tunnel_id=%s).", backup_id, account_id, tunnel_id)
         _rs_details = {
@@ -109,16 +102,12 @@ async def restore_backup(
             _rs_details,
             level="info",
         )
-        response = render_backup_page(
+        return render_backup_page(
             request,
             backup_id,
             message="Backup restored successfully.",
-            form_account_id=account_id,
             form_tunnel_id=tunnel_id,
-            form_api_token=api_token,
         )
-        set_api_token_cookie(response, api_token)
-        return response
     except HTTPException as exc:
         if mode == "preview":
             logger.warning("Restore preview failed (backup_id=%s): %s", backup_id, exc.detail)
@@ -126,14 +115,12 @@ async def restore_backup(
                 request,
                 backup_id,
                 error=exc.detail,
-                form_account_id=account_id.strip() or None,
                 form_tunnel_id=tunnel_id.strip() or None,
-                form_api_token=api_token.strip() or None,
             )
         logger.warning("Restore failed (backup_id=%s): %s", backup_id, exc.detail)
         _rf_details = {
             "backup_id": backup_id,
-            "account_id": account_id.strip() or None,
+            "account_id": account_id,
             "tunnel_id": tunnel_id.strip() or None,
             "error": str(exc.detail),
         }
@@ -147,7 +134,5 @@ async def restore_backup(
             request,
             backup_id,
             error=exc.detail,
-            form_account_id=account_id.strip() or None,
             form_tunnel_id=tunnel_id.strip() or None,
-            form_api_token=api_token.strip() or None,
         )

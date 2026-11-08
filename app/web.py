@@ -27,9 +27,15 @@ from app.config import (
     SCHEDULED_RUNS_PAGE_SIZE,
     SCHEDULED_RUNS_PAGE_SIZE_OPTIONS,
 )
-from app.credentials import build_prefill_status, get_saved_account_id, get_saved_api_token
+from app.credentials import (
+    build_prefill_status,
+    find_profile_for_account,
+    get_api_credentials,
+    get_saved_account_id,
+    get_saved_api_token,
+)
 from app.ingress import IngressDiff, extract_ingress, fragile_rules, origin_request_delta
-from app.profiles import current_profile_id
+from app.profiles import current_profile_id, get_profile
 from app.scheduler import (
     build_auto_backup_status,
     get_scheduled_runs_page,
@@ -126,15 +132,16 @@ def render_backup_page(
     error: str | None = None,
     ingress_diff: IngressDiff | None = None,
     settings_delta: list[tuple[str, Any, Any]] | None = None,
-    form_account_id: str | None = None,
     form_tunnel_id: str | None = None,
-    form_api_token: str | None = None,
 ) -> HTMLResponse:
     backup = get_backup(backup_id)
     content = load_backup_json(backup_id)
     restores = get_restore_history(backup_id)
     ingress_rules = extract_ingress(content)
-    profile_id = current_profile_id(request)
+    restore_profile_id = find_profile_for_account(backup.account_id)
+    restore_profile_name = None
+    if restore_profile_id is not None and get_api_credentials(restore_profile_id) is not None:
+        restore_profile_name = get_profile(restore_profile_id).name
     return templates.TemplateResponse(
         request,
         "backup.html",
@@ -148,11 +155,9 @@ def render_backup_page(
             "settings_delta": settings_delta,
             "message": message,
             "error": error,
-            "prefill_account_id": get_saved_account_id(profile_id),
-            "prefill_api_token": get_saved_api_token(request, profile_id),
-            "form_account_id": form_account_id,
+            "restore_profile_name": restore_profile_name,
+            "restore_account_id": backup.account_id,
             "form_tunnel_id": form_tunnel_id,
-            "form_api_token": form_api_token,
             "demo_mode": DEMO_MODE,
         },
     )
