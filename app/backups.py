@@ -204,6 +204,13 @@ def get_backups() -> list[BackupRecord]:
     return [BackupRecord(**dict(row)) for row in rows]
 
 
+def count_backups_for_account(account_id: str) -> int:
+    """Number of saved backups of one Cloudflare account (Account ID compared case-insensitively)."""
+    with closing(db()) as conn:
+        row = conn.execute("SELECT COUNT(*) FROM backups WHERE lower(account_id) = lower(?)", (account_id,)).fetchone()
+    return int(row[0])
+
+
 def get_backups_page(page: int, page_size: int = BACKUPS_PAGE_SIZE) -> tuple[list[BackupRecord], dict[str, int | bool]]:
     page = max(page, 1)
     page_size = page_size if page_size in BACKUPS_PAGE_SIZE_OPTIONS else BACKUPS_PAGE_SIZE

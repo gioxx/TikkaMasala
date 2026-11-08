@@ -143,9 +143,13 @@ def build_overview(
     return IngressOverview(source=source, rows=rows, tunnels=tunnels, generated_at=generated_at)
 
 
-def snapshot_overview() -> IngressOverview:
+def snapshot_overview(account_id: str | None = None) -> IngressOverview:
+    """Latest snapshot of every tunnel; with ``account_id``, only that account's (case-insensitive)."""
+    wanted = account_id.lower() if account_id is not None else None
     entries: list[tuple[TunnelSource, list[IngressRule]]] = []
     for backup in get_latest_backups_per_tunnel():
+        if wanted is not None and (backup.account_id or "").lower() != wanted:
+            continue
         tunnel = TunnelSource(
             tunnel_id=backup.tunnel_id,
             tunnel_name=backup.tunnel_name or "Unknown tunnel",
