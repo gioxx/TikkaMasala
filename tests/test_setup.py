@@ -268,3 +268,26 @@ def test_setup_rejects_cross_site_post(client, fake_check):
     assert response.status_code == 403
     assert fake_check.calls == []
     assert get_profile(DEFAULT_PROFILE_ID).api_token is None
+
+
+def test_cookie_with_env_token_equal_not_saved(client, monkeypatch):
+    """Env-only installs set the cookie to the env token: copying it would pin it in the DB forever."""
+    monkeypatch.setattr(credentials, "DEFAULT_ACCOUNT_ID", GOOD)
+    monkeypatch.setattr(credentials, "DEFAULT_API_TOKEN", "env-tok-123456")
+    client.cookies.set("cf_api_token", "env-tok-123456")
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 200
+    assert get_profile(DEFAULT_PROFILE_ID).api_token is None
+    assert credentials.get_server_api_token_source(DEFAULT_PROFILE_ID) == "environment"
+    _assert_cookie_deleted(response)
+
+
+def test_cookie_with_env_token_different_not_saved(client, monkeypatch):
+    monkeypatch.setattr(credentials, "DEFAULT_ACCOUNT_ID", GOOD)
+    monkeypatch.setattr(credentials, "DEFAULT_API_TOKEN", "env-tok-123456")
+    client.cookies.set("cf_api_token", "cookie-tok-123456")
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 200
+    assert get_profile(DEFAULT_PROFILE_ID).api_token is None
+    assert credentials.get_server_api_token_source(DEFAULT_PROFILE_ID) == "environment"
+    _assert_cookie_deleted(response)

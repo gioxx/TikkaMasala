@@ -39,10 +39,14 @@ def setup_required() -> bool:
 def migrate_cookie_token(token: str) -> bool:
     """Save the legacy cookie token on the Default profile if it has no readable token.
 
+    Skipped when ``CLOUDFLARE_API_TOKEN`` is set: the old app copied that token into the
+    cookie, so saving it would pin it in the database and hide later env changes.
     Returns whether the token was saved. Never logs the token.
     """
     token = (token or "").strip()
     if DEMO_MODE or not token:
+        return False
+    if credentials._env_api_token(DEFAULT_PROFILE_ID):
         return False
     if credentials._read_stored_api_token(DEFAULT_PROFILE_ID):
         return False
