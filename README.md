@@ -178,7 +178,7 @@ Precedence is per field: the saved database value first, then the environment. I
 
 Every page, the scheduler and restore use these saved server-side credentials; no credentials live in the browser. Restoring a backup uses the credentials of the profile that owns the backup's account.
 
-Upgrading from a version that kept the token in a browser cookie: the first request that still carries the cookie saves the token into the database (when none is saved yet) and then deletes the cookie. Nothing needs to be re-entered.
+Upgrading from a version that kept the token in a browser cookie: the first request that still carries the cookie saves the token into the database (when none is saved yet) and then deletes the cookie. Nothing needs to be re-entered. When `CLOUDFLARE_API_TOKEN` is set, the cookie is only deleted: the environment token keeps being used.
 
 If the saved token cannot be decrypted (for example `encryption.key` was removed), the app sends you back to the setup screen, which explains it; saving a new token replaces the unreadable one.
 
@@ -404,7 +404,7 @@ To roll back:
 
 Credentials and the encryption key:
 
-- a token still held in the old browser cookie is migrated into the database once, then the cookie is deleted
+- a token still held in the old browser cookie is migrated into the database once, then the cookie is deleted (with `CLOUDFLARE_API_TOKEN` set, nothing is migrated and the cookie is just deleted)
 - if `TOKEN_ENCRYPTION_KEY` is unset, a key is generated as `DATA_DIR/encryption.key` the first time one is needed; an existing `TOKEN_ENCRYPTION_KEY` keeps working unchanged
 - before downgrading to an older version, set `TOKEN_ENCRYPTION_KEY` to the content of `encryption.key`; otherwise the older version cannot read the saved token
 
@@ -415,7 +415,7 @@ Running a previous image on the migrated database without restoring `app.db.pre-
 - The API token is never persisted in plaintext in the database and is never shown in the UI after it is saved; the browser never holds it.
 - The encryption key comes from `TOKEN_ENCRYPTION_KEY` or, if unset, from `DATA_DIR/encryption.key` (mode `0600`, never overwritten). A copy of `DATA_DIR` holds both the database and that key.
 - Credentials are validated against Cloudflare before they are saved, and the Account ID must be 32 hex characters.
-- Cross-site POSTs to Settings are rejected.
+- Requests that change data (any method other than GET, HEAD or OPTIONS) are rejected when the browser marks them as cross-site.
 - When `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are set, every request except `/healthz` must carry a valid Cloudflare Access token. See [Cloudflare Access](#cloudflare-access).
 - Older plaintext tokens already present in the database are upgraded to encrypted form the first time they are read successfully.
 
