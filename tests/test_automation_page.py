@@ -176,7 +176,7 @@ def test_env_destinations_hide_secrets(client, monkeypatch):
     monkeypatch.setattr(notifications, "TELEGRAM_BOT_TOKEN", "123:bot-secret")
     monkeypatch.setattr(notifications, "TELEGRAM_CHAT_ID", "-100987654321")
     text = client.get("/automation").text
-    assert "hooks.example.com" in text
+    assert '<span class="destination-hint">hooks.example.com</span>' in text
     assert "chat ending in 4321" in text
     assert "secret-path-abc" not in text
     assert "bot-secret" not in text
@@ -273,6 +273,6 @@ def test_env_destinations_hide_userinfo_and_query(client, monkeypatch):
         notifications, "NOTIFICATION_WEBHOOK_URL", "https://user:pw@hooks.example.com/T0/secret-path-abc?token=q"
     )
     text = client.get("/automation").text
-    assert "hooks.example.com" in text
+    assert '<span class="destination-hint">hooks.example.com</span>' in text
     for secret in ("user:pw", "pw@", "secret-path-abc", "token=q"):
         assert secret not in text

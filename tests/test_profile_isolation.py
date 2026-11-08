@@ -86,14 +86,16 @@ def test_ingress_snapshot_follows_active_profile(client, configured_default, sec
         "t-client", "Site", account_id=CLIENT, ingress=[{"hostname": "client.example.com", "service": "http://10.0.0.2"}]
     )
     default_page = client.get("/ingress").text
-    assert "home.example.com" in default_page and "client.example.com" not in default_page
+    assert 'class="wrap-anywhere">home.example.com</a>' in default_page
+    assert "client.example.com" not in default_page
     assert "Hostnames of the Default profile&#39;s account." in default_page or (
         "Hostnames of the Default profile's account." in default_page
     )
 
     use_profile(client, second_profile.id)
     client_page = client.get("/ingress").text
-    assert "client.example.com" in client_page and "home.example.com" not in client_page
+    assert 'class="wrap-anywhere">client.example.com</a>' in client_page
+    assert "home.example.com" not in client_page
     assert "Hostnames of the Client profile" in client_page
 
 
