@@ -141,7 +141,8 @@ _BIDI_CONTROLS = frozenset("\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u20
 
 
 def _is_control_character(ch: str) -> bool:
-    return unicodedata.category(ch) in {"Cc", "Zl", "Zp"} or ch in _BIDI_CONTROLS
+    # Cf covers zero-width and bidi formatting characters (U+200B, U+FEFF, U+202E, ...).
+    return unicodedata.category(ch) in {"Cc", "Cf", "Zl", "Zp"} or ch in _BIDI_CONTROLS
 
 
 def normalize_profile_name(raw: str, *, exclude_id: int | None = None) -> str:

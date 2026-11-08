@@ -106,8 +106,15 @@ def remove_profile(profile_id: int, *, delete_backups: bool, expected_backup_cou
             raise
         conn.commit()
 
-    forget_profile_runtime(profile_id)
-    configure_all_auto_backup_jobs()
-    remove_backup_files(filenames)
+    # The rows are gone for good: nothing after the commit may raise to the caller.
+    try:
+        remove_backup_files(filenames)
+    except Exception:
+        logger.exception("Failed to remove the backup files of removed profile %s.", profile_id)
+    try:
+        forget_profile_runtime(profile_id)
+        configure_all_auto_backup_jobs()
+    except Exception:
+        logger.exception("Scheduler cleanup failed after removing profile %s.", profile_id)
     logger.info("Profile %s removed (backups deleted: %s).", profile_id, len(filenames))
     return len(filenames)

@@ -376,3 +376,87 @@ def test_delete_backups_for_account_case_insensitive(make_backup, data_dir):
     assert _count(data_dir, "SELECT COUNT(*) FROM backups WHERE id IN (?, ?)", first, second) == 0
     assert not (data_dir / "backups" / filename).exists()
     assert get_backup(kept).id == kept
+
+
+@pytest.mark.parametrize("raw", ["a​b", "﻿Name", "a­b"])
+def test_normalize_profile_name_rejects_format_characters(raw):
+    with pytest.raises(ValueError, match="control characters"):
+        normalize_profile_name(raw)
+
+
+def test_remove_backup_files_skips_paths_outside_backup_dir(data_dir, caplog):
+    from app.backups import remove_backup_files
+
+    outside = data_dir / "outside-victim.json"
+    outside.write_text("{}", encoding="utf-8")
+    inside = data_dir / "backups" / "inside-victim.json"
+    inside.write_text("{}", encoding="utf-8")
+    try:
+        caplog.set_level("WARNING")
+        remove_backup_files(["../outside-victim.json", "inside-victim.json", "bad\x00name.json"])
+        assert outside.exists()
+        assert not inside.exists()
+        assert "outside the backup directory" in caplog.text
+    finally:
+        outside.unlink(missing_ok=True)
+        inside.unlink(missing_ok=True)
+
+
+def test_remove_profile_with_traversal_filename_row(second_profile, data_dir):
+    outside = data_dir / "outside-row.json"
+    outside.write_text("{}", encoding="utf-8")
+    with closing(sqlite3.connect(data_dir / "app.db")) as conn:
+        conn.execute(
+            "INSERT INTO backups (created_at, account_id, tunnel_id, tunnel_name, route_count, filename, notes, origin)"
+            " VALUES ('2026-01-01T00:00:00+00:00', ?, ?, 'Home', 1, '../outside-row.json', '', 'manual')",
+            (CLIENT, T1),
+        )
+        conn.commit()
+    try:
+        assert remove_profile(second_profile.id, delete_backups=True, expected_backup_count=1) == 1
+        assert outside.exists()
+    finally:
+        outside.unlink(missing_ok=True)
+
+
+def test_remove_survives_scheduler_cleanup_failure(second_profile, make_backup, data_dir, monkeypatch, caplog):
+    import app.profile_admin
+
+    backup_id = make_backup(T1, account_id=CLIENT)
+    filename = get_backup(backup_id).filename
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("scheduler down")
+
+    monkeypatch.setattr(app.profile_admin, "forget_profile_runtime", boom)
+    monkeypatch.setattr(app.profile_admin, "configure_all_auto_backup_jobs", boom)
+    caplog.set_level("ERROR")
+
+    assert remove_profile(second_profile.id, delete_backups=True, expected_backup_count=1) == 1
+
+    assert not profile_exists(second_profile.id)
+    assert not (data_dir / "backups" / filename).exists()
+    assert "scheduler" in caplog.text.lower()
+
+
+def test_remove_rolls_back_when_profile_delete_fails(second_profile, make_backup, data_dir, monkeypatch):
+    import app.profile_admin
+
+    first = make_backup(T1, account_id=CLIENT)
+    second = make_backup(T2, account_id=CLIENT)
+    filenames = [get_backup(bid).filename for bid in (first, second)]
+
+    def failing_delete(conn, profile_id):
+        # Backup rows are already deleted inside the open transaction at this point.
+        assert conn.execute("SELECT COUNT(*) FROM backups WHERE id IN (?, ?)", (first, second)).fetchone()[0] == 0
+        raise RuntimeError("disk on fire")
+
+    monkeypatch.setattr(app.profile_admin, "delete_profile_rows_in", failing_delete)
+
+    with pytest.raises(RuntimeError, match="disk on fire"):
+        remove_profile(second_profile.id, delete_backups=True, expected_backup_count=2)
+
+    assert profile_exists(second_profile.id)
+    assert get_backup(first).id == first and get_backup(second).id == second
+    for filename in filenames:
+        assert (data_dir / "backups" / filename).exists()

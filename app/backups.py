@@ -315,13 +315,20 @@ def delete_backup_rows_for_account_in(conn, account_id: str) -> list[str]:
 
 
 def remove_backup_files(filenames: list[str]) -> None:
-    """Unlink backup JSON files; a missing file is fine, any other error is logged and skipped."""
+    """Unlink backup JSON files; a missing file is fine, any other error is logged and skipped.
+
+    A name that resolves outside the backup directory (``../x``) is never touched.
+    """
+    backup_root = BACKUP_DIR.resolve()
     for filename in filenames:
-        file_path = BACKUP_DIR / filename
         try:
+            file_path = (BACKUP_DIR / filename).resolve()
+            if not file_path.is_relative_to(backup_root) or file_path == backup_root:
+                logger.warning("Skipping backup file outside the backup directory: %r", filename)
+                continue
             file_path.unlink(missing_ok=True)
-        except OSError:
-            logger.exception("Failed to remove backup file: %s", file_path)
+        except (OSError, ValueError):
+            logger.exception("Failed to remove backup file: %r", filename)
 
 
 def delete_backups_for_account(account_id: str) -> int:
