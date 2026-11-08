@@ -216,7 +216,7 @@ A profile is one Cloudflare account: an Account ID and an API token, plus its ow
 Manage profiles under **Settings → Profiles**:
 
 - **Add** a profile with a name and the Account ID and token of another account. The credentials are checked against Cloudflare before the profile is created. Names must be unique, and an Account ID that another profile already uses is refused
-- **Rename** a profile at any time
+- **Rename** a profile at any time. A name is up to 40 characters, unique ignoring case, without control or invisible characters, and **Other accounts** is reserved
 - **Remove** a profile (Default cannot be removed). Its saved credentials, schedule, notification destinations and automatic backup run history are removed with it. Its backups are **kept** unless you tick **Also delete its backups** and confirm the count shown; kept backups move to **Other accounts** in the archive and fall under the retention for other accounts, so they can be purged the next time a backup is saved. The removal page names that retention before you confirm. A profile cannot be removed while one of its backup runs is going
 
 Everything else follows the active profile: Tunnels, Hostnames, Backups (**This profile**), Automation and the notification destinations.
@@ -318,9 +318,7 @@ Tikka Masala can send server-side notifications through:
 
 You can use either channel on its own or enable both at the same time.
 
-Notification destinations belong to a profile. Add, edit, enable, disable and delete them on the **Automation** page of that profile (a webhook URL, or a Telegram bot token and chat ID, and the events to send). URLs and bot tokens are stored encrypted and never shown again, only masked. A new destination sends the default event set unless you choose others: `auto_backup_success`, `auto_backup_partial`, `auto_backup_failed`, `restore_failed` and `retention_cleanup`. An event is delivered only to the destinations of the profile it belongs to. Destinations set through environment variables belong to the Default profile only and are read-only.
-
-Each profile has its own destinations. On **Automation → Notification destinations**, use **Add webhook** or **Add Telegram**, pick the events, and save: the webhook URL or bot token is stored encrypted and never shown again (leave the field empty when editing to keep it). Each destination can be disabled, edited, deleted and tested on its own. A destination only receives the events of its profile.
+Notification destinations belong to a profile. On **Automation → Notification destinations** of that profile, use **Add webhook** or **Add Telegram** (a webhook URL, or a Telegram bot token and chat ID, and the events to send). URLs and bot tokens are stored encrypted and never shown again, only masked (leave the field empty when editing to keep it). Each destination can be disabled, edited, deleted and tested on its own. A new destination sends the default event set unless you choose others: `auto_backup_success`, `auto_backup_partial`, `auto_backup_failed`, `restore_failed` and `retention_cleanup`. An event is delivered only to the destinations of the profile it belongs to. Destinations set through environment variables belong to the Default profile only and are read-only.
 
 Destinations can also come from the environment. They belong to the Default profile only. Set:
 

@@ -58,7 +58,10 @@
         </nav>
         {% if switcher.visible %}
         <form class="profile-switcher" data-profile-switcher method="post" action="/profiles/active">
-          <input type="hidden" name="next" value="{{ request.url.path }}">
+          {%- set ns = namespace(next="/") %}
+          {%- if request.method == "GET" %}{% set ns.next = request.url.path %}
+          {%- else %}{% for section in nav_sections() %}{% if section.key == active_section %}{% set ns.next = section.href %}{% endif %}{% endfor %}{% endif %}
+          <input type="hidden" name="next" value="{{ ns.next }}">
           <label for="profile-switcher-select">{{ nav_icon("cloud") }}<span class="sr-only">Profile</span></label>
           <select id="profile-switcher-select" name="profile_id">
             {%- for option_id, option_name in switcher.options %}

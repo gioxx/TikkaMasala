@@ -315,7 +315,7 @@ def test_ingress_hint_links_other_accounts(client, configured_default, make_back
     make_backup("t-old", "Old", account_id="acc-other")
     page = client.get("/ingress").text
     assert 'href="/backups?scope=other"' in page
-    assert "profile's account." in page or "profile&#39;s account." in page
+    assert "Hostnames of the" not in page
 
 
 def test_ingress_no_hint_without_account(client, make_backup):
@@ -323,3 +323,12 @@ def test_ingress_no_hint_without_account(client, make_backup):
     page = client.get("/ingress").text
     assert "Hostnames of the" not in page
     assert 'href="/backups?scope=other"' not in page
+
+
+def test_ingress_profile_hint_only_with_several_profiles(client, configured_default, make_backup):
+    make_backup(account_id=configured_default.account_id, tunnel_id="hint-1", tunnel_name="Hint")
+    assert "s account." not in client.get("/ingress").text
+
+
+def test_ingress_profile_hint_with_second_profile(client, configured_default, second_profile):
+    assert "Hostnames of the Default profile's account." in client.get("/ingress").text

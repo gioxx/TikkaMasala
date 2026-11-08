@@ -357,3 +357,9 @@ def test_remove_cross_site_rejected(client, second_profile):
     )
     assert response.status_code == 403
     assert profile_exists(second_profile.id)
+
+
+def test_profile_controls_name_the_profile_for_screen_readers(client, second_profile):
+    text = client.get("/settings").text
+    assert '<summary>Rename<span class="sr-only"> Client</span></summary>' in text
+    assert 'Remove profile…<span class="sr-only"> Client</span></a>' in text

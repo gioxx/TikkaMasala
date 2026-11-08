@@ -269,7 +269,7 @@ def purge_expired_backups(reference_time: datetime | None = None) -> int:
 
     with closing(db()) as conn:
         for profile in list_profiles():
-            account_id = get_saved_account_id(profile.id)
+            account_id = (get_saved_account_id(profile.id) or "").lower()
             # No account: owns nothing. Shared account: the first profile in id order owns it.
             if not account_id or account_id in claimed:
                 continue
@@ -278,14 +278,14 @@ def purge_expired_backups(reference_time: datetime | None = None) -> int:
             if retention_days is None:
                 continue
             deleted_total += _purge_group(
-                conn, retention_days, reference_time, "account_id = ?", (account_id,), profile_id=profile.id
+                conn, retention_days, reference_time, "lower(account_id) = ?", (account_id,), profile_id=profile.id
             )
 
         # Backups of accounts that match no profile follow the environment rule.
         retention_days = get_backup_retention_days(None)
         if retention_days is not None:
             placeholders = ",".join("?" for _ in claimed)
-            where = f"account_id NOT IN ({placeholders})" if claimed else "1 = 1"
+            where = f"lower(account_id) NOT IN ({placeholders})" if claimed else "1 = 1"
             deleted_total += _purge_group(
                 conn, retention_days, reference_time, where, tuple(claimed), profile_id=None
             )

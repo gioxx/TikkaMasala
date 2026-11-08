@@ -139,3 +139,14 @@ def test_non_positive_stored_value_is_not_set(make_backup, data_dir, profiles_en
     old = make_backup(created_at=_ago(40), account_id="acc-1")
     assert purge_expired_backups(NOW) == 1
     assert not _exists(data_dir, old)
+
+
+def test_purge_matches_account_ids_case_insensitively(make_backup, data_dir, profiles_env):
+    update_profile(DEFAULT_PROFILE_ID, retention_days=100)
+    profiles_env("ACC-B", retention_days=1)
+    mixed = make_backup(created_at=_ago(2), account_id="acc-b")
+    default_backup = make_backup(created_at=_ago(2), account_id="ACC-1")
+    assert purge_expired_backups(NOW) == 1
+    assert not _exists(data_dir, mixed)
+    # Still claimed by the Default profile, not swept up by the environment rule (30 days).
+    assert _exists(data_dir, default_backup)

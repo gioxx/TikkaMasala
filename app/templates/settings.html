@@ -75,7 +75,7 @@
 
           {% if not demo_mode %}
           <details class="rename-profile top-gap"{% if rename_error %} open{% endif %}>
-            <summary>Rename</summary>
+            <summary>Rename<span class="sr-only"> {{ profile.name }}</span></summary>
             <form method="post" action="/settings/profiles/{{ pid }}/name" class="stack top-gap">
               <label>
                 <span>Profile name</span>
@@ -114,7 +114,7 @@
           {% endif %}
           {% if pid != default_profile_id %}
           <div class="actions top-gap">
-            <a class="secondary-link-button" href="/settings/profiles/{{ pid }}/remove">Remove profile…</a>
+            <a class="secondary-link-button" href="/settings/profiles/{{ pid }}/remove">Remove profile…<span class="sr-only"> {{ profile.name }}</span></a>
           </div>
           {% endif %}
           {% endif %}

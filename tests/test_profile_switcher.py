@@ -101,3 +101,32 @@ def test_topbar_flags_switcher_only_when_shown(client, second_profile):
 
 def test_topbar_plain_with_one_profile(client):
     assert '<header class="topbar" data-topbar>' in client.get("/").text
+
+
+def _switch_next(text: str) -> str:
+    import re
+
+    return re.search(r'name="next" value="([^"]*)"', text).group(1)
+
+
+@pytest.mark.parametrize("path,data,section_root", [
+    ("/automation/schedule", {"cron_expression": "0 4 * * *"}, "/automation"),
+    ("/automation/retention", {"retention_days": "30"}, "/automation"),
+    ("/automation/notifications/test", {}, "/automation"),
+    ("/automation/run", {}, "/automation"),
+])
+def test_switcher_after_post_page_uses_section_root(client, second_profile, monkeypatch, path, data, section_root):
+    import app.routers.automation as automation
+
+    async def fake_run(profile_id, trigger="scheduled"):
+        return {"status": "success", "tunnel_count": 0, "backup_count": 0, "error_count": 0}
+
+    monkeypatch.setattr(automation, "run_auto_backup_job", fake_run)
+    response = client.post(path, data=data)
+    assert "data-profile-switcher" in response.text, path
+    next_path = _switch_next(response.text)
+    assert next_path == section_root
+    switched = client.post(
+        "/profiles/active", data={"profile_id": str(DEFAULT_PROFILE_ID), "next": next_path}, follow_redirects=True
+    )
+    assert switched.status_code == 200
