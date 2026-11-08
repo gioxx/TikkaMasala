@@ -401,7 +401,7 @@ On the first start after upgrading to a version with profiles, the app migrates 
 
 Before migrating a database that already has data, the app copies it to `app.db.pre-v1.bak` in `DATA_DIR` (readable only by its owner). A database written by a newer version makes the app refuse to start.
 
-The `.bak` is written only once, on the first upgrade, and only if the database already had data (fresh installs have none). Keep it until you are satisfied with the new version.
+The `.bak` is written only if the database already had data (fresh installs have none), and only while the migration has not completed yet. A failed migration leaves the database untouched, so the next attempt replaces the `.bak` with a fresh copy that includes anything written in between. Once the migration succeeds, the file is never written again. Keep it until you are satisfied with the new version.
 
 To roll back:
 
