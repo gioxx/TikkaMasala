@@ -20,13 +20,15 @@ from app.config import (
     BACKUPS_PAGE_SIZE_OPTIONS,
     DB_PATH,
 )
+from app.credentials import get_saved_account_id
 from app.db import BackupRecord, RestoreRecord, db
 from app.notifications import queue_notification, render_notification_message
+from app.profiles import DEFAULT_PROFILE_ID, get_profile, list_profiles
 
 logger = logging.getLogger(__name__)
 
 
-def get_backup_retention_days() -> int | None:
+def _env_retention_days() -> int | None:
     if not BACKUP_RETENTION_DAYS_RAW:
         return None
     try:
@@ -38,6 +40,22 @@ def get_backup_retention_days() -> int | None:
         logger.warning("Ignoring BACKUP_RETENTION_DAYS because it must be greater than zero: %s", BACKUP_RETENTION_DAYS_RAW)
         return None
     return days
+
+
+def get_backup_retention_days(profile_id: int | None) -> int | None:
+    """Profile value if set; else the environment value for Default (or no profile); else keep forever."""
+    if profile_id is not None:
+        try:
+            stored = get_profile(profile_id).retention_days
+        except LookupError:
+            stored = None
+        if stored is not None and stored > 0:
+            return stored
+        if stored is not None:
+            logger.warning("Ignoring retention_days=%s for profile %s because it must be greater than zero.", stored, profile_id)
+    if profile_id is None or profile_id == DEFAULT_PROFILE_ID:
+        return _env_retention_days()
+    return None
 
 
 def get_last_backup_time_for_tunnel(tunnel_id: str) -> datetime | None:
@@ -110,48 +128,33 @@ async def create_backup(
     )
 
 
-def purge_expired_backups(reference_time: datetime | None = None) -> int:
-    retention_days = get_backup_retention_days()
-    if retention_days is None:
-        return 0
+def _purge_group(
+    conn,
+    retention_days: int,
+    reference_time: datetime,
+    where: str,
+    params: tuple,
+) -> int:
+    cutoff_iso = (reference_time - timedelta(days=retention_days)).replace(microsecond=0).isoformat()
+    rows = conn.execute(
+        f"SELECT id, filename FROM backups WHERE created_at < ? AND {where} ORDER BY id ASC",
+        (cutoff_iso, *params),
+    ).fetchall()
 
-    cutoff_time = (reference_time or datetime.now(timezone.utc)) - timedelta(days=retention_days)
-    cutoff_iso = cutoff_time.replace(microsecond=0).isoformat()
+    for row in rows:
+        backup_id = int(row["id"])
+        file_path = BACKUP_DIR / str(row["filename"])
+        try:
+            file_path.unlink(missing_ok=True)
+        except OSError:
+            logger.exception("Failed to remove expired backup file: %s", file_path)
+        conn.execute("DELETE FROM restores WHERE backup_id = ?", (backup_id,))
+        conn.execute("DELETE FROM backups WHERE id = ?", (backup_id,))
+    conn.commit()
 
-    with closing(db()) as conn:
-        rows = conn.execute(
-            """
-            SELECT id, filename
-            FROM backups
-            WHERE created_at < ?
-            ORDER BY id ASC
-            """,
-            (cutoff_iso,),
-        ).fetchall()
-
-        deleted_count = 0
-        for row in rows:
-            backup_id = int(row["id"])
-            filename = str(row["filename"])
-            file_path = BACKUP_DIR / filename
-
-            try:
-                file_path.unlink(missing_ok=True)
-            except OSError:
-                logger.exception("Failed to remove expired backup file: %s", file_path)
-
-            conn.execute("DELETE FROM restores WHERE backup_id = ?", (backup_id,))
-            conn.execute("DELETE FROM backups WHERE id = ?", (backup_id,))
-            deleted_count += 1
-
-        conn.commit()
-
+    deleted_count = len(rows)
     if deleted_count:
-        logger.info(
-            "Deleted %s expired backup(s) older than %s day(s) due to BACKUP_RETENTION_DAYS.",
-            deleted_count,
-            retention_days,
-        )
+        logger.info("Deleted %s expired backup(s) older than %s day(s) due to the retention policy.", deleted_count, retention_days)
         _rc_details = {
             "deleted_count": deleted_count,
             "retention_days": retention_days,
@@ -163,8 +166,34 @@ def purge_expired_backups(reference_time: datetime | None = None) -> int:
             _rc_details,
             level="info",
         )
-
     return deleted_count
+
+
+def purge_expired_backups(reference_time: datetime | None = None) -> int:
+    reference_time = reference_time or datetime.now(timezone.utc)
+    deleted_total = 0
+    claimed: list[str] = []
+
+    with closing(db()) as conn:
+        for profile in list_profiles():
+            account_id = get_saved_account_id(profile.id)
+            # No account: owns nothing. Shared account: the first profile in id order owns it.
+            if not account_id or account_id in claimed:
+                continue
+            claimed.append(account_id)
+            retention_days = get_backup_retention_days(profile.id)
+            if retention_days is None:
+                continue
+            deleted_total += _purge_group(conn, retention_days, reference_time, "account_id = ?", (account_id,))
+
+        # Backups of accounts that match no profile follow the environment rule.
+        retention_days = get_backup_retention_days(None)
+        if retention_days is not None:
+            placeholders = ",".join("?" for _ in claimed)
+            where = f"account_id NOT IN ({placeholders})" if claimed else "1 = 1"
+            deleted_total += _purge_group(conn, retention_days, reference_time, where, tuple(claimed))
+
+    return deleted_total
 
 
 def get_backups() -> list[BackupRecord]:
@@ -251,14 +280,14 @@ def get_database_stats() -> dict[str, Any]:
     }
 
 
-def get_backup_retention_status() -> dict[str, Any]:
-    retention_days = get_backup_retention_days()
+def get_backup_retention_status(profile_id: int | None) -> dict[str, Any]:
+    retention_days = get_backup_retention_days(profile_id)
     if retention_days is None:
         return {
             "enabled": False,
             "days": None,
             "summary": "Full archive retention is active. Backups are kept until you remove them manually.",
-            "detail": "BACKUP_RETENTION_DAYS is not currently set, so Tikka Masala will not delete old backups automatically.",
+            "detail": "No retention period is set for this profile, so Tikka Masala will not delete its old backups automatically.",
         }
 
     return {

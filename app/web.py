@@ -108,7 +108,7 @@ def render_index_page(
             "backup_pagination": backup_pagination,
             "backup_page_size_options": sorted(BACKUPS_PAGE_SIZE_OPTIONS),
             "database_stats": get_database_stats(),
-            "backup_retention": get_backup_retention_status(),
+            "backup_retention": get_backup_retention_status(profile_id),
             "tunnels": tunnels,
             "prefill_status": prefill_status or build_prefill_status(request, profile_id),
             "prefill_account_id": prefill_account_id if prefill_account_id is not None else get_saved_account_id(profile_id),
