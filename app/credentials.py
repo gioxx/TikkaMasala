@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from app import cloudflare
+from app.cloudflare import CredentialsInvalid
 from app.config import (
     API_TOKEN_COOKIE_MAX_AGE,
     API_TOKEN_COOKIE_NAME,
@@ -16,8 +19,9 @@ from app.config import (
     DEMO_MODE,
     ENCRYPTED_VALUE_PREFIX,
 )
-from app.encryption import encrypt_secret, read_secret
-from app.profiles import DEFAULT_PROFILE_ID, get_profile, update_profile
+from app.db import ProfileRecord
+from app.encryption import EncryptionKeyError, encrypt_secret, read_secret
+from app.profiles import DEFAULT_PROFILE_ID, get_profile, list_profiles, update_profile
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +146,143 @@ def remember_api_token(profile_id: int, api_token: str) -> None:
 
 def clear_saved_credentials(profile_id: int) -> None:
     """Forget the Account ID and API token saved on the profile (environment values stay)."""
+    if DEMO_MODE:
+        return
     update_profile(profile_id, account_id=None, api_token=None)
+
+
+@dataclass(frozen=True)
+class ApiCredentials:
+    account_id: str
+    api_token: str
+
+
+def get_api_credentials(profile_id: int) -> ApiCredentials | None:
+    """The effective credentials of a profile (demo: environment only), or ``None`` if incomplete."""
+    account_id = get_saved_account_id(profile_id)
+    api_token = get_server_api_token(profile_id)
+    if not account_id or not api_token:
+        return None
+    return ApiCredentials(account_id=account_id, api_token=api_token)
+
+
+def mask_secret(value: str) -> str:
+    """Describe a secret without revealing it: the last four characters only for long values."""
+    if not value:
+        return ""
+    if len(value) >= 12:
+        return f"configured, ending in {value[-4:]}"
+    return "configured"
+
+
+@dataclass(frozen=True)
+class CredentialField:
+    value: str  # the Account ID in clear, or the masked token
+    source: str | None
+    env_value_present: bool
+
+
+@dataclass(frozen=True)
+class ProfileCredentialsView:
+    profile_id: int
+    name: str
+    account_id: CredentialField
+    api_token: CredentialField
+    saved_token_unreadable: bool
+    has_saved_values: bool
+
+
+def describe_profile_credentials(profile_id: int) -> ProfileCredentialsView:
+    """What Settings shows for a profile. Never carries the token in clear."""
+    profile = get_profile(profile_id)
+    stored_account = (profile.account_id or "").strip()
+    stored_token = (profile.api_token or "").strip()
+    saved_token_unreadable = (
+        not DEMO_MODE and bool(stored_token) and not (read_secret(stored_token) or "").strip()
+    )
+    return ProfileCredentialsView(
+        profile_id=profile.id,
+        name=profile.name,
+        account_id=CredentialField(
+            value=get_saved_account_id(profile_id),
+            source=get_account_id_source(profile_id),
+            env_value_present=bool(_env_account_id(profile_id)),
+        ),
+        api_token=CredentialField(
+            value=mask_secret(get_server_api_token(profile_id)),
+            source=get_server_api_token_source(profile_id),
+            env_value_present=bool(_env_api_token(profile_id)),
+        ),
+        saved_token_unreadable=saved_token_unreadable,
+        has_saved_values=not DEMO_MODE and bool(stored_account or stored_token),
+    )
+
+
+def _effective_account_id_of(profile: ProfileRecord) -> str:
+    """Same precedence as ``get_saved_account_id``, from an already loaded row."""
+    if DEMO_MODE:
+        return _env_account_id(profile.id)
+    return (profile.account_id or "").strip() or _env_account_id(profile.id)
+
+
+def find_profile_for_account(account_id: str) -> int | None:
+    """The lowest-id profile whose effective Account ID matches (case-insensitive), if any."""
+    target = account_id.strip().casefold()
+    if not target:
+        return None
+    for profile in list_profiles():
+        if _effective_account_id_of(profile).casefold() == target:
+            return profile.id
+    return None
+
+
+async def save_profile_credentials(
+    profile_id: int, *, account_id: str | None, api_token: str | None
+) -> bool:
+    """Validate and save a profile's credentials. Empty input keeps the current value.
+
+    A value equal to the current effective one is not written (an unchanged
+    environment value stays environment-sourced). The resulting pair is checked
+    for completeness, duplicate Account IDs and against Cloudflare before any
+    write. Returns whether anything was written; raises ``CredentialsInvalid``.
+    """
+    account_in = (account_id or "").strip()
+    token_in = (api_token or "").strip()
+    if DEMO_MODE:
+        raise CredentialsInvalid("Credentials cannot be changed in demo mode.")
+
+    current_account = get_saved_account_id(profile_id)
+    current_token = get_server_api_token(profile_id)
+    new_account = account_in if account_in and account_in != current_account else None
+    new_token = token_in if token_in and token_in != current_token else None
+    if new_account is None and new_token is None:
+        return False
+
+    resulting_account = new_account or current_account
+    resulting_token = new_token or current_token
+    if not resulting_account or not resulting_token:
+        raise CredentialsInvalid("Both an Account ID and an API token are required.")
+
+    target = resulting_account.casefold()
+    for other in list_profiles():
+        if other.id != profile_id and _effective_account_id_of(other).casefold() == target:
+            raise CredentialsInvalid(
+                f"Account ID {resulting_account} is already used by profile '{other.name}'."
+            )
+
+    await cloudflare.check_credentials(resulting_account, resulting_token)
+
+    fields: dict[str, str] = {}
+    if new_account is not None:
+        fields["account_id"] = new_account
+    if new_token is not None:
+        try:
+            fields["api_token"] = encrypt_secret(new_token)
+        except EncryptionKeyError as exc:
+            raise CredentialsInvalid(f"The API token cannot be saved: {exc}") from exc
+    update_profile(profile_id, **fields)
+    logger.info("Credentials of profile %s saved (account_id=%s).", profile_id, resulting_account)
+    return True
 
 
 def set_api_token_cookie(response: HTMLResponse | RedirectResponse, api_token: str) -> None:

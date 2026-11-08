@@ -95,3 +95,16 @@ def make_backup(data_dir: Path):
             conn.execute("DELETE FROM restores WHERE backup_id = ?", (backup_id,))
             conn.execute("DELETE FROM backups WHERE id = ?", (backup_id,))
         conn.commit()
+
+
+@pytest.fixture
+def configured_default():
+    """Save working credentials on the Default profile; clear them afterwards."""
+    from app.credentials import ApiCredentials, remember_api_token
+    from app.profiles import DEFAULT_PROFILE_ID, update_profile
+
+    creds = ApiCredentials(account_id="0123456789abcdef0123456789abcdef", api_token="test-token-0000-wxyz")
+    update_profile(DEFAULT_PROFILE_ID, account_id=creds.account_id)
+    remember_api_token(DEFAULT_PROFILE_ID, creds.api_token)
+    yield creds
+    update_profile(DEFAULT_PROFILE_ID, account_id=None, api_token=None)
