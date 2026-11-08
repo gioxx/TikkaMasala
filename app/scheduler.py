@@ -432,6 +432,12 @@ def configure_auto_backup_job(profile_id: int) -> None:
         misfire_grace_time=300,
         max_instances=1,
     )
+    logger.info(
+        "Automatic backup scheduled for profile %s (cron=%s, timezone=%s).",
+        profile_id,
+        cron_expression,
+        get_auto_backup_timezone_name(),
+    )
 
 
 def configure_all_auto_backup_jobs() -> None:
@@ -468,7 +474,10 @@ async def run_auto_backup_job(profile_id: int, trigger: str = "schedule") -> dic
         account_id = get_saved_account_id(profile_id)
         api_token = get_server_api_token(profile_id)
         if not account_id or not api_token:
-            logger.warning("Automatic backup run skipped because server-side credentials are missing.")
+            logger.warning(
+                "Automatic backup run of profile %s skipped because server-side credentials are missing.",
+                profile_id,
+            )
             details = json.dumps(
                 {"message": "Missing server-side account ID or API token for automatic backups."},
                 ensure_ascii=False,

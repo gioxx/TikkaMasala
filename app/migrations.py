@@ -8,11 +8,14 @@ next start simply retries.
 
 from __future__ import annotations
 
+import logging
 import os
 import sqlite3
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 LATEST_SCHEMA_VERSION = 1
 
@@ -203,7 +206,9 @@ def apply_migrations(conn: sqlite3.Connection, db_path: Path | None = None) -> i
         return current
 
     if current == 0 and db_path is not None and _has_data(conn):
-        _write_backup(conn, Path(f"{db_path}.pre-v1.bak"))
+        backup_path = Path(f"{db_path}.pre-v1.bak")
+        _write_backup(conn, backup_path)
+        logger.info("Saved a copy of the database before migrating: %s.", backup_path)
 
     previous_isolation = conn.isolation_level
     conn.isolation_level = None  # explicit transaction control below
@@ -212,6 +217,7 @@ def apply_migrations(conn: sqlite3.Connection, db_path: Path | None = None) -> i
         try:
             # Re-read under the write lock: another process may have migrated meanwhile.
             current = _user_version(conn)
+            logger.info("Migrating database schema from version %s to %s.", current, LATEST_SCHEMA_VERSION)
             for version in range(current + 1, LATEST_SCHEMA_VERSION + 1):
                 MIGRATIONS[version - 1](conn)
                 conn.execute(f"PRAGMA user_version = {version}")
@@ -221,4 +227,5 @@ def apply_migrations(conn: sqlite3.Connection, db_path: Path | None = None) -> i
             raise
     finally:
         conn.isolation_level = previous_isolation
+    logger.info("Database schema migrated to version %s.", LATEST_SCHEMA_VERSION)
     return _user_version(conn)

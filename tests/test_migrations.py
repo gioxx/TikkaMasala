@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import stat
 from contextlib import closing
@@ -212,6 +213,18 @@ def test_second_run_is_noop(tmp_path):
     assert migrate(path) == 1
     assert len(query(path, "SELECT id FROM profiles")) == 1
     assert user_version(path) == 1
+
+
+def test_migration_is_logged_once(tmp_path, caplog):
+    path = legacy_db(tmp_path, settings={"account_id": "acc-1"}, runs=1)
+    with caplog.at_level(logging.INFO, logger="app.migrations"):
+        migrate(path)
+    assert "Database schema migrated to version 1." in caplog.text
+    assert "Saved a copy of the database before migrating" in caplog.text
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="app.migrations"):
+        migrate(path)
+    assert "migrated to version" not in caplog.text
 
 
 def test_failed_migration_rolls_back(tmp_path, monkeypatch):

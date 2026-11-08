@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -91,6 +92,13 @@ def test_job_ids_are_per_profile(recorder):
     job_ids = {job.id for job in auto_backup_scheduler.get_jobs()}
     assert "auto-backup-profile-1" in job_ids
     assert f"auto-backup-profile-{client_id}" in job_ids
+
+
+def test_scheduled_job_is_logged_with_profile(recorder, caplog):
+    update_profile(DEFAULT_PROFILE_ID, auto_backup_enabled=True, auto_backup_cron="0 3 * * *")
+    with caplog.at_level(logging.INFO, logger="app.scheduler"):
+        configure_all_auto_backup_jobs()
+    assert "Automatic backup scheduled for profile 1 (cron=0 3 * * *, timezone=" in caplog.text
 
 
 def test_bad_cron_in_one_profile_does_not_block_other(recorder):
