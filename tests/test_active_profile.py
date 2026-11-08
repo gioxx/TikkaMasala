@@ -121,6 +121,10 @@ def test_switch_unknown_profile_404(client, profile_id):
         ("https://evil.example/", "/"),
         ("", "/"),
         ("/ingress?source=live", "/ingress"),
+        ("/automation/run", "/automation"),
+        ("/backups/", "/backups"),
+        ("/healthz", "/"),
+        ("/unknown/page", "/"),
     ],
 )
 def test_switch_destination_rules(next_url, expected):

@@ -250,19 +250,37 @@ def set_active_profile_cookie(response: Response, profile_id: int) -> None:
     )
 
 
-# First path segment -> where a switch lands. Pages tied to one profile's records go to their section root.
-_SWITCH_SECTION_ROOTS = {
-    "backup": "/backups",
-    "setup": "/",
+# Pages a switch may land on as they are: profile-agnostic GET pages. Every redirect target comes
+# from these constant tables, never from the submitted text.
+_SWITCH_LANDING_PAGES = {
+    page: page
+    for page in (
+        "/",
+        "/automation",
+        "/automation/destinations/new",
+        "/automation/runs",
+        "/automation/tunnels",
+        "/backups",
+        "/backups/new",
+        "/ingress",
+        "/settings",
+        "/settings/notifications",
+    )
 }
-_SWITCH_SUBSECTION_ROOTS = {
-    ("automation", "destinations"): "/automation",
-    ("settings", "profiles"): "/settings",
+# First path segment -> where a switch lands. Pages tied to one profile's records go to their section root;
+# any other page in a section lands on that section's root.
+_SWITCH_SECTION_ROOTS = {
+    "automation": "/automation",
+    "backup": "/backups",
+    "backups": "/backups",
+    "ingress": "/ingress",
+    "settings": "/settings",
+    "setup": "/",
 }
 
 
 def switch_destination(next_url: str) -> str:
-    """The local path to land on after switching profile from ``next_url``. Path only, never a query."""
+    """The local page to land on after switching profile from ``next_url``. Path only, never a query."""
     path = next_url.split("#", 1)[0].split("?", 1)[0]
     if (
         not path.startswith("/")
@@ -274,11 +292,10 @@ def switch_destination(next_url: str) -> str:
     segments = [segment for segment in path.split("/") if segment]
     if not segments:
         return "/"
-    if segments[0] in _SWITCH_SECTION_ROOTS:
-        return _SWITCH_SECTION_ROOTS[segments[0]]
-    if len(segments) >= 2 and (segments[0], segments[1]) in _SWITCH_SUBSECTION_ROOTS:
-        return _SWITCH_SUBSECTION_ROOTS[(segments[0], segments[1])]
-    return path
+    normalized = "/" + "/".join(segments)
+    if normalized in _SWITCH_LANDING_PAGES:
+        return _SWITCH_LANDING_PAGES[normalized]
+    return _SWITCH_SECTION_ROOTS.get(segments[0], "/")
 
 
 def _sets_active_profile_cookie(response: Response) -> bool:

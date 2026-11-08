@@ -206,7 +206,7 @@ async def rename_profile_submit(request: Request, profile_id: int, name: str = F
         return RedirectResponse(SETTINGS_PATH, status_code=303)
     _ensure_profile(profile_id)
     try:
-        rename_profile(profile_id, name)
+        renamed = rename_profile(profile_id, name)
     except LookupError:
         raise HTTPException(status_code=404, detail="Profile not found.") from None
     except ValueError as exc:
@@ -217,7 +217,7 @@ async def rename_profile_submit(request: Request, profile_id: int, name: str = F
             rename_value=name.strip(),
             status_code=400,
         )
-    return RedirectResponse(f"{SETTINGS_PATH}?renamed=1#profile-{profile_id}", status_code=303)
+    return RedirectResponse(f"{SETTINGS_PATH}?renamed=1#profile-{renamed.id}", status_code=303)
 
 
 def _render_remove_page(

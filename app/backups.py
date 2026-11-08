@@ -102,7 +102,7 @@ def get_last_backup_time_for_tunnel(tunnel_id: str) -> datetime | None:
 
 NOTES_MAX_LENGTH = 500
 # C0 controls except \n and \t, DEL, and the bidi controls U+202A-U+202E and U+2066-U+2069.
-_UNSAFE_NOTE_CHARS = re.compile("[\x00-\x08\x0b-\x1f\x7f\u202a-\u202e\u2066-\u2069]")
+_UNSAFE_NOTE_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f\u202a-\u202e\u2066-\u2069]")
 
 
 def clean_notes(raw: str | None) -> str | None:
