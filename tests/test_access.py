@@ -140,7 +140,16 @@ def test_verify_rejects(verifier, make_token, other_private_key, case, reason):
 
 def test_verify_fails_closed_when_keys_unavailable(settings, make_token):
     def broken(_token):
-        raise jwt.PyJWKClientError("fetch failed")
+        raise jwt.PyJWKClientConnectionError("fetch failed")
+
+    with pytest.raises(AccessDenied) as exc:
+        AccessVerifier(settings, key_resolver=broken).verify(make_token())
+    assert exc.value.reason == "signing key unavailable"
+
+
+def test_verify_fails_closed_on_unexpected_resolver_error(settings, make_token):
+    def broken(_token):
+        raise OSError("disk on fire")
 
     with pytest.raises(AccessDenied) as exc:
         AccessVerifier(settings, key_resolver=broken).verify(make_token())
@@ -220,3 +229,123 @@ def test_token_never_logged(client, access_on, make_token, caplog):
 
 def test_no_identity_markup_when_access_off(client):
     assert "/cdn-cgi/access/logout" not in client.get("/").text
+
+
+# --- final review fixes ------------------------------------------------------
+
+
+def _jwks_for(private_key, kid="k1"):
+    jwk = jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key(), as_dict=True)
+    jwk.update({"kid": kid, "alg": "RS256", "use": "sig"})
+    return {"keys": [jwk]}
+
+
+def test_real_resolver_accepts_token_from_jwks(settings, private_key, make_token, monkeypatch):
+    monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", lambda self: _jwks_for(private_key))
+    assert AccessVerifier(settings).verify(make_token()).email == "user@example.org"
+
+
+def test_real_resolver_unknown_kid_is_not_reported_as_outage(settings, private_key, make_token, monkeypatch, caplog):
+    monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", lambda self: _jwks_for(private_key, kid="other"))
+    caplog.set_level("WARNING", logger="app.access")
+    with pytest.raises(AccessDenied) as exc:
+        AccessVerifier(settings).verify(make_token())
+    assert exc.value.reason == "unknown signing key"
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]
+
+
+def test_real_resolver_malformed_kid_is_invalid_token(settings, private_key, monkeypatch):
+    monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", lambda self: _jwks_for(private_key))
+    import base64
+    import json
+
+    valid = jwt.encode({"aud": AUDIENCE, "iss": ISSUER, "exp": int(time.time()) + 60}, private_key, algorithm="RS256", headers={"kid": "k1"})
+    bad_header = base64.urlsafe_b64encode(json.dumps({"alg": "RS256", "typ": "JWT", "kid": ["k1"]}).encode()).rstrip(b"=").decode()
+    token = ".".join([bad_header, *valid.split(".")[1:]])
+    with pytest.raises(AccessDenied) as exc:
+        AccessVerifier(settings).verify(token)
+    assert exc.value.reason == "invalid token"
+
+
+def test_real_resolver_garbage_token_is_invalid_token(settings, private_key, monkeypatch):
+    monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", lambda self: _jwks_for(private_key))
+    with pytest.raises(AccessDenied) as exc:
+        AccessVerifier(settings).verify("not-a-jwt")
+    assert exc.value.reason == "invalid token"
+
+
+def test_real_resolver_connection_error_fails_closed(settings, make_token, monkeypatch):
+    def unreachable(self):
+        raise jwt.PyJWKClientConnectionError("connection refused")
+
+    monkeypatch.setattr(jwt.PyJWKClient, "fetch_data", unreachable)
+    with pytest.raises(AccessDenied) as exc:
+        AccessVerifier(settings).verify(make_token())
+    assert exc.value.reason == "signing key unavailable"
+
+
+def test_jwks_client_uses_short_timeout(settings):
+    assert AccessVerifier(settings)._jwks_client.timeout <= 5
+
+
+def test_slow_key_fetch_does_not_block_other_requests(client, settings, private_key, make_token):
+    import asyncio
+
+    import httpx
+
+    public_key = private_key.public_key()
+
+    def slow_resolver(_token):
+        time.sleep(0.6)
+        return public_key
+
+    async def scenario():
+        transport = httpx.ASGITransport(app=client.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+            finished = {}
+
+            async def timed(name, coro):
+                response = await coro
+                finished[name] = time.perf_counter()
+                return response
+
+            start = time.perf_counter()
+            slow, health = await asyncio.gather(
+                timed("slow", http.get("/healthz-probe-protected", headers={ACCESS_HEADER: make_token()})),
+                timed("health", http.get("/healthz")),
+            )
+            return slow, health, finished["health"] - start, finished["slow"] - start
+
+    client.app.state.access_verifier = AccessVerifier(settings, key_resolver=slow_resolver)
+    try:
+        _slow, health, health_elapsed, slow_elapsed = asyncio.run(scenario())
+    finally:
+        client.app.state.access_verifier = None
+    assert health.status_code == 200
+    assert health_elapsed < 0.3 < slow_elapsed
+
+
+def test_rejection_log_escapes_newlines_in_path(client, verifier, caplog):
+    import asyncio
+
+    from starlette.requests import Request
+
+    from app.access import access_guard
+
+    client.app.state.access_verifier = verifier
+    scope = {
+        "type": "http", "method": "GET", "path": "/\nFAKE LINE", "raw_path": b"/%0AFAKE%20LINE",
+        "query_string": b"", "headers": [], "client": ("10.0.0.9", 1234), "server": ("test", 80),
+        "scheme": "http", "app": client.app,
+    }
+
+    async def never_called(_request):
+        raise AssertionError("request must be rejected")
+
+    caplog.set_level("WARNING", logger="app.access")
+    try:
+        response = asyncio.run(access_guard(Request(scope), never_called))
+    finally:
+        client.app.state.access_verifier = None
+    assert response.status_code == 403
+    assert "\nFAKE LINE" not in caplog.text

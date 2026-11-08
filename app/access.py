@@ -16,12 +16,15 @@ from typing import Any
 import jwt
 from fastapi import Request
 from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 
 logger = logging.getLogger(__name__)
 
 ACCESS_DOMAIN_SUFFIX = ".cloudflareaccess.com"
 # Small tolerance for clock drift between Cloudflare and the container.
 CLOCK_SKEW_LEEWAY_SECONDS = 30
+# Keep a slow or unreachable certs endpoint from holding requests for long.
+JWKS_FETCH_TIMEOUT_SECONDS = 5
 
 
 class AccessConfigError(RuntimeError):
@@ -86,8 +89,10 @@ def load_access_settings(team_domain: str, audience: str) -> AccessSettings | No
 class AccessVerifier:
     def __init__(self, settings: AccessSettings, key_resolver: Callable[[str], Any] | None = None) -> None:
         self.settings = settings
+        self._jwks_client: jwt.PyJWKClient | None = None
         if key_resolver is None:
-            jwks_client = jwt.PyJWKClient(settings.certs_url, cache_keys=True)
+            jwks_client = jwt.PyJWKClient(settings.certs_url, cache_keys=True, timeout=JWKS_FETCH_TIMEOUT_SECONDS)
+            self._jwks_client = jwks_client
 
             def key_resolver(token: str) -> Any:
                 return jwks_client.get_signing_key_from_jwt(token).key
@@ -100,11 +105,17 @@ class AccessVerifier:
             raise AccessDenied("missing token")
         try:
             key = self._key_resolver(token)
-        except jwt.DecodeError:
-            # The resolver reads the header to find the key id: not a JWT at all.
+        except jwt.PyJWKClientConnectionError as exc:
+            logger.error("Unable to download Cloudflare Access signing keys from %s: %s", self.settings.certs_url, exc)
+            raise AccessDenied("signing key unavailable") from None
+        except jwt.PyJWKClientError:
+            # Keys downloaded fine, but none matches the token's key id: forged or stale token.
+            raise AccessDenied("unknown signing key") from None
+        except jwt.InvalidTokenError:
+            # The resolver reads the header to find the key id: malformed header or not a JWT at all.
             raise AccessDenied("invalid token") from None
         except Exception:
-            logger.exception("Unable to load Cloudflare Access signing keys from %s.", self.settings.certs_url)
+            logger.exception("Unexpected error loading Cloudflare Access signing keys from %s.", self.settings.certs_url)
             raise AccessDenied("signing key unavailable") from None
         try:
             claims = jwt.decode(
@@ -156,7 +167,8 @@ async def access_guard(request: Request, call_next: Callable[[Request], Awaitabl
     if verifier is None or request.url.path in ACCESS_EXEMPT_PATHS:
         return await call_next(request)
     try:
-        request.state.access_identity = verifier.verify(request.headers.get(ACCESS_JWT_HEADER))
+        # verify() may download signing keys with blocking I/O: keep it off the event loop.
+        request.state.access_identity = await run_in_threadpool(verifier.verify, request.headers.get(ACCESS_JWT_HEADER))
     except AccessDenied as exc:
         client_host = request.client.host if request.client else "unknown"
         logger.warning("Cloudflare Access rejected %s %s from %s: %s.", request.method, request.url.path, client_host, exc.reason)
