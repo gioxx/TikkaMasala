@@ -158,9 +158,10 @@ def render_backups_page(request: Request) -> HTMLResponse:
 
 def _profile_retention_value(profile_id: int) -> int | None:
     try:
-        return get_profile(profile_id).retention_days
+        value = get_profile(profile_id).retention_days
     except LookupError:
         return None
+    return value if value is not None and value > 0 else None
 
 
 def render_automation_page(

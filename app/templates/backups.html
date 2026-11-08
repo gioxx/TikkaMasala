@@ -21,7 +21,7 @@
               </svg>
               <span>Backups</span>
             </h2>
-            <p class="hint">Saved snapshots of this profile's tunnels. Backups of accounts no profile uses stay readable under Other accounts.</p>
+            <p class="hint">Saved snapshots of the tunnels of the selected scope. Backups of accounts no profile uses stay readable under Other accounts.</p>
           </div>
           <div class="archive-header-actions">
             <a class="secondary-link-button" href="/backups/new">Back up with a note</a>
@@ -204,12 +204,13 @@
             <div class="panel-heading-inline">
               <h3>Archive retention</h3>
               {% if backup_retention.enabled %}
-              <span class="status-pill status-alt status-pill-compact">{{ backup_retention.days }} day(s)</span>
+              <span class="status-pill status-alt status-pill-compact">{{ profile_name }}: {{ backup_retention.days }} day(s)</span>
               {% else %}
-              <span class="status-pill status-match status-pill-compact">Keep all backups</span>
+              <span class="status-pill status-match status-pill-compact">{{ profile_name }}: keep all</span>
               {% endif %}
             </div>
-            <p class="hint">{{ profile_name }}: {{ backup_retention.summary }}</p>
+            <p class="hint">{{ profile_name }}: {{ backup_retention.label }}</p>
+            <p class="hint">{{ backup_retention.summary }}</p>
             <p class="hint">Other accounts: {{ other_retention.summary }}</p>
             <p class="hint">{{ backup_retention.detail }}</p>
             <p class="top-gap"><a href="/automation#retention-section">Change retention in Automation</a></p>

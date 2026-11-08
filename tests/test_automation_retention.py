@@ -96,3 +96,13 @@ def test_retention_demo_redirects(client, monkeypatch):
 
 def test_legacy_retention_pills_gone(client):
     assert 'href="/backups#backup-retention-status"' not in client.get("/automation").text
+
+
+def test_profile_retention_value_ignores_legacy_non_positive():
+    from app.web import _profile_retention_value
+    update_profile(DEFAULT_PROFILE_ID, retention_days=0)
+    assert _profile_retention_value(DEFAULT_PROFILE_ID) is None
+    update_profile(DEFAULT_PROFILE_ID, retention_days=-5)
+    assert _profile_retention_value(DEFAULT_PROFILE_ID) is None
+    update_profile(DEFAULT_PROFILE_ID, retention_days=7)
+    assert _profile_retention_value(DEFAULT_PROFILE_ID) == 7

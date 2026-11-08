@@ -284,11 +284,11 @@ Important notes:
 - old backup files and related database records are deleted automatically after new backups are created, according to the retention rule (see below)
 - retention cleanup removes both the JSON snapshot and its related restore history
 - a manual **Back up all now** or **Run now** that is still going after about 25 seconds keeps running on the server and the page says so; reload later to see fresh last-backup times. A restart of the app drops such a run. Only one run per profile happens at a time: a second one is refused (or, for the scheduler, recorded as skipped) while another runs
+- container logs include both Uvicorn access logs and application logs for startup, backup creation, restore, scheduler activity, cleanup, and most UI-triggered operations
 
 ### Retention
 
 Each profile has its own retention on the **Automation** page: a whole number of days from 1 to 36500, or empty. Empty means the `BACKUP_RETENTION_DAYS` value for the Default profile and keep forever for any other profile. Saving does not delete anything at once: cleanup runs the next time a backup is saved. The Backups page shows the effective rule and where it comes from.
-- container logs include both Uvicorn access logs and application logs for startup, backup creation, restore, scheduler activity, cleanup, and most UI-triggered operations
 
 ## Notifications
 

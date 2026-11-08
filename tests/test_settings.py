@@ -145,6 +145,7 @@ def test_settings_demo_read_only(client, configured_default, monkeypatch, fake_c
     assert "read-only" in text
     assert 'action="/settings/profiles/1/credentials"' not in text
     assert 'action="/settings/profiles/1/clear-credentials"' not in text
+    assert 'href="/settings/notifications"' not in text
 
     response = client.post(
         "/settings/profiles/1/credentials",

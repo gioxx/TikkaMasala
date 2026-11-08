@@ -105,9 +105,11 @@
           </h2>
         </div>
         <p>The text of webhook and Telegram notifications can be customised for each event.</p>
+        {% if not demo_mode %}
         <div class="actions">
           <a class="secondary-link-button" href="/settings/notifications">Edit notification messages</a>
         </div>
+        {% endif %}
       </section>
 
       <section class="card" id="access-section">

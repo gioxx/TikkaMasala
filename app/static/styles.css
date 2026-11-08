@@ -694,7 +694,9 @@ details.forget-credentials > summary { color: var(--danger-text); }
 }
 .archive-filters select { max-width: 22rem; }
 .backup-new-form { max-width: 40rem; }
-.backup-new-form select {
+.backup-new-form select,
+.archive-filters select,
+.compact-select {
   width: 100%;
   min-width: 0;
   padding: 0.75rem 0.95rem;
@@ -706,7 +708,9 @@ details.forget-credentials > summary { color: var(--danger-text); }
   font-size: 0.9375rem;
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
-.backup-new-form select:focus {
+.backup-new-form select:focus,
+.archive-filters select:focus,
+.compact-select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--input-focus-ring);
   outline: none;

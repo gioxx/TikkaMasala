@@ -122,6 +122,14 @@ def test_backups_retention_panel(client, configured_default, make_backup):
     assert 'id="backup-retention-status"' in text
     assert "Other accounts:" in text
     assert 'href="/automation#retention-section"' in text
+    assert "Default: Kept until deleted (no retention set)" in text
+
+
+def test_backups_retention_panel_shows_source(client, configured_default, make_backup):
+    from app.profiles import DEFAULT_PROFILE_ID, update_profile
+    update_profile(DEFAULT_PROFILE_ID, retention_days=30)
+    text = client.get("/backups").text
+    assert "Default: Kept for 30 days (set on this profile)" in text
 
 
 def test_backups_links(client, configured_default):
