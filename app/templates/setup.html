@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Tikka Masala · Setup{% endblock %}
+
+{% block nav_links %}{% endblock %}
+
+{% block content %}
+      <section class="card" id="setup-section">
+        <div class="section-heading">
+          <h2 class="heading-with-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="icon icon-tabler icons-tabler-outline icon-tabler-plug-connected" aria-hidden="true">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5z" />
+              <path d="M17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5z" />
+              <path d="M3 21l2.5 -2.5" />
+              <path d="M18.5 5.5l2.5 -2.5" />
+              <path d="M10 11l-2 2" />
+              <path d="M13 14l-2 2" />
+            </svg>
+            <span>Connect your Cloudflare account</span>
+          </h2>
+          <p class="hint">Tikka Masala needs your Cloudflare Account ID and an API token. They are checked against Cloudflare before they are saved, and you can change them later in Settings.</p>
+        </div>
+
+        {% if saved_token_unreadable %}
+        <section class="notice warn top-gap">The saved API token cannot be decrypted with the current encryption key. Enter it again.</section>
+        {% endif %}
+        {% if error %}
+        <section class="notice error top-gap">{{ error }}</section>
+        {% endif %}
+
+        <section class="guide-copy">
+          <p>
+            Create a custom API token in the <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer">Cloudflare dashboard</a> with:
+          </p>
+          <ul>
+            <li><strong>Account</strong>: Cloudflare Tunnel - Edit</li>
+            <li><strong>Zone</strong>: DNS - Edit</li>
+          </ul>
+          <p class="hint">
+            The Account ID is on the <strong>Account home</strong> page of the dashboard (<strong>Copy account ID</strong> in the account menu).
+            More details in the <a href="https://github.com/gioxx/TikkaMasala#readme" target="_blank" rel="noopener noreferrer">README</a>.
+          </p>
+        </section>
+
+        <form method="post" action="/setup" class="stack">
+          <label>
+            <span>Account ID</span>
+            <input type="text" name="account_id" value="{{ account_id or '' }}" placeholder="32-character Account ID" autocomplete="off" required>
+            {% if account_id_in_env %}<span class="hint">Found in CLOUDFLARE_ACCOUNT_ID</span>{% endif %}
+          </label>
+          <label>
+            <span>API token</span>
+            <input type="password" name="api_token" value="" placeholder="Paste the Cloudflare API token" autocomplete="off" required>
+            {% if api_token_in_env %}<span class="hint">Found in CLOUDFLARE_API_TOKEN</span>{% endif %}
+          </label>
+          <div class="actions">
+            <button type="submit">Verify and save</button>
+          </div>
+        </form>
+      </section>
+{% endblock %}

@@ -33,6 +33,16 @@ for _name in (
     os.environ.pop(_name, None)
 
 
+@pytest.fixture(autouse=True)
+def _setup_gate(request, monkeypatch):
+    """Keep the first-run setup redirect off unless the test is marked ``setup_gate``."""
+    if request.node.get_closest_marker("setup_gate"):
+        return
+    import app.setup
+
+    monkeypatch.setattr(app.setup, "setup_required", lambda: False)
+
+
 @pytest.fixture(scope="session")
 def data_dir() -> Path:
     return _DATA_DIR

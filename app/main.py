@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app import setup
 from app.access import AccessVerifier, access_guard, load_access_settings
 from app.backups import get_backup_retention_days
 from app.config import (
@@ -89,8 +90,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Tikka Masala", lifespan=lifespan)
 app.state.access_verifier = AccessVerifier(ACCESS_SETTINGS) if ACCESS_SETTINGS else None
+# Last registered runs first: Access stays outermost, the setup gate runs inside it.
+app.middleware("http")(setup.credentials_guard)
 app.middleware("http")(access_guard)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+app.include_router(setup.router)
 app.include_router(dashboard.router)
 app.include_router(auto_backup.router)
 app.include_router(notifications.router)
