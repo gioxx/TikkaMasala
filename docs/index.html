@@ -577,7 +577,7 @@
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></div>
         <h3>Restore anywhere</h3>
-        <p>Push a snapshot back to its original tunnel, another tunnel or another account, with a restore history that records where each backup went.</p>
+        <p>Push a snapshot back to its original tunnel or another tunnel in the same account, with a restore history that records where each backup went.</p>
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -835,8 +835,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
         <div class="callout">A rule whose <code>service</code> targets <code>localhost</code> or a loopback address (<code>127.0.0.0/8</code>, <code>::1</code>) is flagged as <strong>host-local</strong>. That address is resolved relative to wherever <code>cloudflared</code> runs: when it runs in a container, <code>localhost</code> is the container, not the Docker host, so the route can return <code>502</code> after a restore even though it worked where the backup was taken. Use <code>host.docker.internal</code>, the bridge gateway IP, or a service/container name instead.</div>
 
         <h3 id="doc-restore">Restore</h3>
-        <p>Restoring a backup replaces the current remote configuration of the selected tunnel with the configuration stored in the snapshot. The target can be the original tunnel, a different tunnel, or a tunnel in another account.</p>
-        <p>The backup detail page keeps a restore history: when a backup was restored, which account and tunnel it was restored to, and whether the restore targeted the original tunnel, a different tunnel, or a different account.</p>
+        <p>Restoring a backup replaces the current remote configuration of the selected tunnel with the configuration stored in the snapshot. The target is the original tunnel or another tunnel in the same account, and the restore uses the credentials saved for that account's profile (restoring needs a profile for that account).</p>
+        <p>The backup detail page keeps a restore history: when a backup was restored, which account and tunnel it was restored to, and whether the restore targeted the original tunnel or a different tunnel. Entries written by older versions, which allowed restoring to another account, may still show a different account.</p>
         <h4>Preview changes before restoring</h4>
         <p>The restore form has a <strong>Preview changes</strong> button next to <strong>Restore backup</strong>. It fetches the target tunnel's current live configuration and compares it against the snapshot without applying anything, then shows:</p>
         <ul>

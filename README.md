@@ -43,7 +43,7 @@ Website: <https://tikkamasala.gioxx.org>
 - Create JSON backups of a tunnel configuration
 - Download saved snapshots
 - See every ingress rule of a snapshot (hostname, path, origin `service`, `originRequest` settings), with host-local origins such as `localhost` flagged
-- Restore a snapshot to the original tunnel or to another tunnel
+- Restore a snapshot to the original tunnel or to another tunnel in the same account
 - Preview a restore as an ingress diff against the tunnel's live configuration before applying it
 - See every public hostname of every tunnel and the origin it points to on one **Hostnames** page (`/ingress`): read from the latest snapshot of each tunnel, or live from the Cloudflare API, with filtering and warnings for host-local origins and hostnames served by more than one tunnel
 - Keep local metadata in SQLite
@@ -209,12 +209,16 @@ It does not back up arbitrary account-wide Cloudflare settings.
 
 Restoring a backup replaces the current remote configuration of the selected tunnel with the configuration stored in the snapshot.
 
+A backup is restored within its own Cloudflare account: the target is the original tunnel or another tunnel in the same account, and the restore uses the credentials saved for that account's profile. Restoring needs a profile for that account.
+
 The backup detail page keeps a restore history so you can see:
 
 - when a backup was restored
 - which account it was restored to
 - which tunnel it was restored to
-- whether the restore targeted the original tunnel, a different tunnel, or a different account
+- whether the restore targeted the original tunnel or a different tunnel
+
+Restore history entries written by older versions, which allowed restoring to another account, may still show a different account.
 
 ### Origin addresses and containers
 
