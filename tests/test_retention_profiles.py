@@ -115,6 +115,14 @@ def test_status_for_profile_without_retention(profiles_env):
     assert get_backup_retention_status(DEFAULT_PROFILE_ID)["days"] == 30
 
 
+def test_default_status_names_the_env_variable(profiles_env, monkeypatch):
+    monkeypatch.setattr("app.backups._env_retention_days", lambda: None)
+    for pid in (DEFAULT_PROFILE_ID, None):
+        assert "BACKUP_RETENTION_DAYS" in get_backup_retention_status(pid)["detail"]
+    other = profiles_env("acc-B")
+    assert "BACKUP_RETENTION_DAYS" not in get_backup_retention_status(other)["detail"]
+
+
 @pytest.mark.parametrize("bad", [0, -5])
 def test_non_positive_stored_value_is_not_set(make_backup, data_dir, profiles_env, bad):
     other = profiles_env("acc-B", retention_days=bad)

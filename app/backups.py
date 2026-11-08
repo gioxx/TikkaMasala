@@ -283,11 +283,15 @@ def get_database_stats() -> dict[str, Any]:
 def get_backup_retention_status(profile_id: int | None) -> dict[str, Any]:
     retention_days = get_backup_retention_days(profile_id)
     if retention_days is None:
+        if profile_id is None or profile_id == DEFAULT_PROFILE_ID:
+            detail = "BACKUP_RETENTION_DAYS is not currently set, so Tikka Masala will not delete old backups automatically."
+        else:
+            detail = "No retention period is set for this profile, so Tikka Masala will not delete its old backups automatically."
         return {
             "enabled": False,
             "days": None,
             "summary": "Full archive retention is active. Backups are kept until you remove them manually.",
-            "detail": "No retention period is set for this profile, so Tikka Masala will not delete its old backups automatically.",
+            "detail": detail,
         }
 
     return {
