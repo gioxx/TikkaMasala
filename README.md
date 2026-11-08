@@ -401,13 +401,16 @@ On the first start after upgrading to a version with profiles, the app migrates 
 
 Before migrating a database that already has data, the app copies it to `app.db.pre-v1.bak` in `DATA_DIR` (readable only by its owner). A database written by a newer version makes the app refuse to start.
 
+The `.bak` is written only once, on the first upgrade, and only if the database already had data (fresh installs have none). Keep it until you are satisfied with the new version.
+
 To roll back:
 
 1. Stop the container.
-2. Restore `app.db.pre-v1.bak` as `app.db` in `DATA_DIR`.
-3. Start the previous image tag.
+2. Optionally copy `backups/` aside: restoring loses the database rows for backups, restores and automatic backup runs created after the upgrade. Their JSON files stay in `backups/` but are no longer listed.
+3. Restore `app.db.pre-v1.bak` as `app.db` in `DATA_DIR`.
+4. Start the exact image tag you ran before (check `docker-compose.yml` or `docker image ls`). If you ran `:latest`, pin the last release before profiles; check the release notes or tags.
 
-Changes made after the upgrade are lost when you restore the file.
+Running a previous image on the migrated database without restoring `app.db.pre-v1.bak` is not supported: the older version finds no saved credentials or schedule, so the automatic schedule silently stops (values from environment variables still work). Restoring the file is required to downgrade.
 
 ## Security Notes
 
