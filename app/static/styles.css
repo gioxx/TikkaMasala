@@ -510,6 +510,14 @@ details[open] > summary::before { transform: rotate(45deg); }
   border-top: 1px solid var(--border);
 }
 .profile-block h3 { margin: 0; }
+/* Add profile sits under the last profile block, separated the same way */
+#add-profile {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+/* Remove profile: the Account ID wraps instead of widening the page on phones */
+#profile-remove code { overflow-wrap: anywhere; }
 details > summary:hover { color: var(--accent); }
 details.forget-credentials > summary { color: var(--danger-text); }
 .origin-delta {

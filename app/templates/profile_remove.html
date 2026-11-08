@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% set active_section = "settings" %}
+
+{% block title %}Remove profile - Tikka Masala{% endblock %}
+
+{% block content %}
+      <section class="card" id="profile-remove">
+        <div class="section-heading">
+          <h1 class="heading-with-icon">
+            <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <path d="M4 7l16 0" />
+              <path d="M10 11l0 6" />
+              <path d="M14 11l0 6" />
+              <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" />
+              <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" />
+            </svg>
+            <span>Remove profile {{ preview.name }}</span>
+          </h1>
+        </div>
+
+        {% if error %}
+        <p class="notice error top-gap" role="alert">{{ error }}</p>
+        {% endif %}
+
+        <p class="top-gap">The profile, its schedule, its run history and its notification destinations are removed. This cannot be undone.</p>
+
+        <form method="post" action="/settings/profiles/{{ preview.profile_id }}/remove" class="stack top-gap">
+          {% if preview.backup_count > 0 %}
+          {% if preview.backups_shared %}
+          <p class="hint">{{ shared_backups_message }}</p>
+          {% else %}
+          <label class="checkbox-row">
+            <input type="checkbox" name="delete_backups" value="{{ preview.backup_count }}"> Also delete its {{ preview.backup_count }} backup(s) of account <code>{{ preview.account_id }}</code>
+          </label>
+          <p class="hint">If you keep them, they move to Backups → Other accounts and follow its retention: {{ other_retention.summary }}</p>
+          {% endif %}
+          {% endif %}
+          <div class="actions">
+            <button type="submit" class="danger">Remove profile</button>
+            <a href="/settings">Cancel</a>
+          </div>
+        </form>
+      </section>
+{% endblock %}
