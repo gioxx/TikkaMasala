@@ -341,7 +341,7 @@ When notifications are configured:
 
 ### Customizing notification messages
 
-Each event has a built-in default message. You can override it from the **Customize notification messages** page (`/notifications/messages`).
+Each event has a built-in default message. You can override it from the **Customize notification messages** page (`/settings/notifications`).
 
 Messages support `{placeholder}` tokens that are replaced at runtime with event-specific values. Two tokens are always available regardless of the event:
 

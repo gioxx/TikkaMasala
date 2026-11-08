@@ -43,7 +43,7 @@ def test_scheduled_runs_page(client):
 
 
 def test_notification_messages_page(client):
-    response = client.get("/notifications/messages")
+    response = client.get("/settings/notifications")
     assert response.status_code == 200
     assert "Notification Messages" in response.text
     assert "manual_backup_success" in response.text
@@ -51,16 +51,16 @@ def test_notification_messages_page(client):
 
 def test_notification_messages_save_and_reset(client):
     response = client.post(
-        "/notifications/messages",
+        "/settings/notifications",
         data={"msg_restore_success": "Custom restore {backup_id}"},
         follow_redirects=False,
     )
     assert response.status_code == 303
-    assert "Custom restore {backup_id}" in client.get("/notifications/messages").text
+    assert "Custom restore {backup_id}" in client.get("/settings/notifications").text
 
-    response = client.post("/notifications/messages/reset", follow_redirects=False)
+    response = client.post("/settings/notifications/reset", follow_redirects=False)
     assert response.status_code == 303
-    assert "Custom restore {backup_id}" not in client.get("/notifications/messages").text
+    assert "Custom restore {backup_id}" not in client.get("/settings/notifications").text
 
 
 def test_tunnel_filters_page_without_credentials(client):

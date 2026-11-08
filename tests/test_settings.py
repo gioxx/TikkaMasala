@@ -214,7 +214,7 @@ def test_settings_links_and_version(client):
     from app.config import APP_VERSION
 
     text = client.get("/settings").text
-    assert 'href="/notifications/messages"' in text
+    assert 'href="/settings/notifications"' in text
     assert APP_VERSION in text
 
 
@@ -226,7 +226,7 @@ def test_settings_key_source(client, monkeypatch):
 
 
 def test_every_page_links_settings(client):
-    for path in ("/", "/ingress", "/automation/runs", "/notifications/messages", "/automation/tunnels"):
+    for path in ("/", "/ingress", "/automation/runs", "/settings/notifications", "/automation/tunnels"):
         response = client.get(path)
         assert response.status_code == 200, path
         assert 'href="/settings"' in response.text, path

@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/notifications/messages", response_class=HTMLResponse)
+@router.get("/settings/notifications", response_class=HTMLResponse)
 async def notification_messages_page(request: Request) -> HTMLResponse:
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
@@ -44,7 +44,7 @@ async def notification_messages_page(request: Request) -> HTMLResponse:
     )
 
 
-@router.post("/notifications/messages", response_class=HTMLResponse)
+@router.post("/settings/notifications", response_class=HTMLResponse)
 async def notification_messages_action(request: Request) -> HTMLResponse:
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
@@ -63,16 +63,16 @@ async def notification_messages_action(request: Request) -> HTMLResponse:
             len(new_templates),
             compact_flag,
         )
-        return RedirectResponse(url="/notifications/messages?saved=1", status_code=303)
+        return RedirectResponse(url="/settings/notifications?saved=1", status_code=303)
     except Exception:
         logger.exception("Unexpected error saving notification message templates.")
-        return RedirectResponse(url="/notifications/messages?error=1", status_code=303)
+        return RedirectResponse(url="/settings/notifications?error=1", status_code=303)
 
 
-@router.post("/notifications/messages/reset", response_class=HTMLResponse)
+@router.post("/settings/notifications/reset", response_class=HTMLResponse)
 async def notification_messages_reset_action() -> HTMLResponse:
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
     set_notification_message_templates({})
     logger.info("Notification message templates reset to defaults.")
-    return RedirectResponse(url="/notifications/messages?reset=1", status_code=303)
+    return RedirectResponse(url="/settings/notifications?reset=1", status_code=303)
