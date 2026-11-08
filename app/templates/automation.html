@@ -78,7 +78,7 @@
                 <button type="button" class="secondary-button preset-button" data-cron-preset="0 */12 * * *">Every 12 hours</button>
                 <button type="button" class="secondary-button preset-button" data-cron-preset="0 */6 * * *">Every 6 hours</button>
               </div>
-              <button type="submit" class="primary">Save schedule</button>
+              <button type="submit" class="auto-backup-primary auto-backup-footer-button">Save schedule</button>
             </form>
           </section>
 
@@ -160,7 +160,7 @@
               placeholder="{% if backup_retention.default_days %}Default: {{ backup_retention.default_days }} days{% else %}Default: keep forever{% endif %}">
           </label>
           <p class="hint">Leave empty to use the default. Cleanup runs when the next backup is saved.</p>
-          <button type="submit" class="auto-backup-primary auto-backup-footer-button">Save retention</button>
+          <button type="submit" class="primary">Save retention</button>
         </form>
       </section>
 
