@@ -271,7 +271,7 @@
             <tbody>
               {% for restore in restores %}
               <tr>
-                <td data-label="ID">#{{ restore.id }}</td>
+                <td data-label="ID" class="mono">#{{ restore.id }}</td>
                 <td data-label="Restored">{{ restore.restored_at }}</td>
                 <td data-label="Target">
                   {% if restore.account_id == backup.account_id and restore.tunnel_id == backup.tunnel_id %}

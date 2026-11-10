@@ -44,9 +44,9 @@
                 <th>Finished</th>
                 <th>Status</th>
                 <th>Account ID</th>
-                <th>Tunnels</th>
-                <th>Backups</th>
-                <th>Errors</th>
+                <th class="num">Tunnels</th>
+                <th class="num">Backups</th>
+                <th class="num">Errors</th>
                 <th>Details</th>
               </tr>
             </thead>
@@ -54,7 +54,7 @@
               {% for item in runs %}
               {% set run = item.record %}
               <tr>
-                <td data-label="ID">#{{ run.id }}</td>
+                <td data-label="ID" class="mono">#{{ run.id }}</td>
                 <td data-label="Started">{{ run.started_at }}</td>
                 <td data-label="Finished">{{ run.finished_at or 'Running' }}</td>
                 <td data-label="Status">
@@ -71,9 +71,9 @@
                   {% endif %}
                 </td>
                 <td data-label="Account ID"><code>{{ run.account_id }}</code></td>
-                <td data-label="Tunnels">{{ run.tunnel_count }}</td>
-                <td data-label="Backups">{{ run.backup_count }}</td>
-                <td data-label="Errors">{{ run.error_count }}</td>
+                <td data-label="Tunnels" class="num">{{ run.tunnel_count }}</td>
+                <td data-label="Backups" class="num">{{ run.backup_count }}</td>
+                <td data-label="Errors" class="num">{{ run.error_count }}</td>
                 <td data-label="Details" class="wrap-anywhere">{{ item.details_summary or '—' }}</td>
               </tr>
               {% endfor %}
