@@ -67,7 +67,7 @@
               <label>
                 <span>Cron expression</span>
                 <small class="hint cron-timezone-note" id="cron-timezone-note">Automatic backups currently use UTC.</small>
-                <input type="text" name="cron_expression" value="{{ auto_backup.cron }}" placeholder="0 3 * * *" required>
+                <input type="text" class="mono" name="cron_expression" value="{{ auto_backup.cron }}" placeholder="0 3 * * *" required>
               </label>
               <input type="hidden" name="browser_timezone" id="browser-timezone-input" value="">
               <p class="hint cron-explanation" id="cron-explanation"></p>
@@ -250,7 +250,7 @@
           <li class="destination-row" id="destination-env-{{ destination.kind }}">
             <div class="destination-head">
               <strong>{{ destination.label }}</strong>
-              <span class="status-pill status-alt status-pill-compact">From environment</span>
+              <span class="status-pill status-pill-tag status-alt status-pill-compact">From environment</span>
               {% if destination.target_hint %}<span class="destination-hint">{{ destination.target_hint }}</span>{% endif %}
             </div>
             {% if destination.events %}

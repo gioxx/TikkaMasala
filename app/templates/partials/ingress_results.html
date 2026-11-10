@@ -91,9 +91,9 @@
                   {% elif row.rule.hostname %}
                   <span class="wrap-anywhere">{{ row.rule.hostname }}</span>
                   {% elif row.rule.is_catch_all %}
-                  <span class="status-pill status-muted status-pill-compact">catch-all</span>
+                  <span class="status-pill status-pill-tag status-muted status-pill-compact">catch-all</span>
                   {% else %}
-                  <span class="status-pill status-muted status-pill-compact" title="Rule without hostname: matches its path on every hostname routed to this tunnel">any hostname</span>
+                  <span class="status-pill status-pill-tag status-muted status-pill-compact" title="Rule without hostname: matches its path on every hostname routed to this tunnel">any hostname</span>
                   {% endif %}
                   {% if row.shared_with %}
                   <span class="status-pill status-warn status-pill-compact" title="Also in: {{ row.shared_with | join(', ') }}">also in {{ row.shared_with | join(', ') }}</span>
@@ -106,7 +106,7 @@
                   <span class="status-pill status-warn status-pill-compact">host-local</span>
                   {% endif %}
                   {% if row.rule.origin_request %}
-                  <span class="status-pill status-info status-pill-compact" title="{% for key, value in row.rule.origin_request | dictsort %}{{ key }}={{ value | tojson | forceescape }}{% if not loop.last %}, {% endif %}{% endfor %}">{{ row.rule.origin_request | length }} origin setting{{ 's' if row.rule.origin_request | length != 1 }}</span>
+                  <span class="status-pill status-pill-tag status-info status-pill-compact" title="{% for key, value in row.rule.origin_request | dictsort %}{{ key }}={{ value | tojson | forceescape }}{% if not loop.last %}, {% endif %}{% endfor %}">{{ row.rule.origin_request | length }} origin setting{{ 's' if row.rule.origin_request | length != 1 }}</span>
                   {% endif %}
                 </td>
                 <td data-label="Tunnel">

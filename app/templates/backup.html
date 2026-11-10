@@ -51,9 +51,9 @@
             <dt>Origin</dt>
             <dd class="meta-value">
               {% if backup.origin == "automatic" %}
-              <span class="status-pill status-pill-compact status-alt">Automatic</span>
+              <span class="status-pill status-pill-tag status-pill-compact status-alt">Automatic</span>
               {% else %}
-              <span class="status-pill status-pill-compact status-muted">Manual</span>
+              <span class="status-pill status-pill-tag status-pill-compact status-muted">Manual</span>
               {% endif %}
             </dd>
           </div>
@@ -155,8 +155,8 @@
               <tr>
                 <td data-label="Pos / change">
                   <span class="diff-pos">#{{ row.position }}</span>
-                  {% if row.status == 'add' %}<span class="status-pill status-alt">add</span>
-                  {% elif row.status == 'change' %}<span class="status-pill status-warn">change</span>{% endif %}
+                  {% if row.status == 'add' %}<span class="status-pill status-pill-tag status-alt">add</span>
+                  {% elif row.status == 'change' %}<span class="status-pill status-pill-tag status-warn">change</span>{% endif %}
                 </td>
                 <td data-label="Hostname / setting">{{ row.incoming.hostname or 'catch-all' }}{% if row.incoming.path %} <code>{{ row.incoming.path }}</code>{% endif %}</td>
                 <td data-label="Service (origin) / value">
@@ -186,7 +186,7 @@
               {% endfor %}
               {% for position, rule in ingress_diff.removed_positions %}
               <tr>
-                <td data-label="Pos / change"><span class="diff-pos">#{{ position }}</span> <span class="status-pill status-warn">remove</span></td>
+                <td data-label="Pos / change"><span class="diff-pos">#{{ position }}</span> <span class="status-pill status-pill-tag status-warn">remove</span></td>
                 <td data-label="Hostname / setting">{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td>
                 <td data-label="Service (origin) / value">
                   <code>{{ rule.service }}</code>
@@ -201,11 +201,11 @@
               </tr>
               {% endfor %}
               {% if ingress_diff.reordered %}
-              <tr><td data-label="Pos / change"><span class="status-pill status-warn">reorder</span></td><td colspan="2">Rule order differs between the snapshot and the live configuration. Cloudflare matches rules top to bottom, so applying this snapshot can change which origin serves a request.</td></tr>
+              <tr><td data-label="Pos / change"><span class="status-pill status-pill-tag status-warn">reorder</span></td><td colspan="2">Rule order differs between the snapshot and the live configuration. Cloudflare matches rules top to bottom, so applying this snapshot can change which origin serves a request.</td></tr>
               {% endif %}
               {% for key, old, new in settings_delta or [] %}
               <tr>
-                <td data-label="Pos / change"><span class="status-pill status-warn">config</span></td>
+                <td data-label="Pos / change"><span class="status-pill status-pill-tag status-warn">config</span></td>
                 <td data-label="Hostname / setting"><code>{{ key }}</code></td>
                 <td data-label="Service (origin) / value"><code>{{ old | tojson if old is not none else '—' }}</code> &rarr; <code>{{ new | tojson if new is not none else '—' }}</code></td>
               </tr>
@@ -275,11 +275,11 @@
                 <td data-label="Restored">{{ restore.restored_at }}</td>
                 <td data-label="Target">
                   {% if restore.account_id == backup.account_id and restore.tunnel_id == backup.tunnel_id %}
-                  <span class="status-pill status-match">Original tunnel</span>
+                  <span class="status-pill status-pill-tag status-match">Original tunnel</span>
                   {% elif restore.account_id == backup.account_id %}
-                  <span class="status-pill status-alt">Different tunnel</span>
+                  <span class="status-pill status-pill-tag status-alt">Different tunnel</span>
                   {% else %}
-                  <span class="status-pill status-warn">Different account</span>
+                  <span class="status-pill status-pill-tag status-warn">Different account</span>
                   {% endif %}
                 </td>
                 <td data-label="Account ID"><code>{{ restore.account_id }}</code></td>

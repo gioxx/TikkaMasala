@@ -260,3 +260,57 @@ def test_single_width_rule_in_css():
         if template.name == "base.html":
             continue
         assert "main_class" not in template.read_text(encoding="utf-8"), template.name
+
+
+def test_control_borders_meet_non_text_contrast():
+    """WCAG 1.4.11: control borders (--border-strong) at 3:1 or more, in every theme path."""
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    root = re.search(r"^:root \{([^}]*)\}", css, re.M).group(1)
+    assert "--border-strong: #8f7f6b;" in root
+    system_dark = re.search(r':root:not\(\[data-theme="light"\]\) \{([^}]*)\}', css).group(1)
+    forced_dark = re.search(r':root\[data-theme="dark"\] \{([^}]*)\}', css).group(1)
+    assert "--border-strong: #6e6890;" in system_dark
+    assert "--border-strong: #6e6890;" in forced_dark
+
+
+def _rule(css: str, selector: str) -> str:
+    return re.search(re.escape(selector) + r"\s*\{([^}]*)\}", css).group(1)
+
+
+def test_selected_source_not_told_by_hue_alone():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    body = _rule(css, '.source-switch a[aria-current="page"]')
+    assert "font-weight: 600" in body and "background: var(--status-alt-bg)" in body
+
+
+def test_checkbox_and_radio_focus_ring():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    body = _rule(css, 'input[type="checkbox"]:focus-visible,\ninput[type="radio"]:focus-visible')
+    assert "outline: 2px solid var(--focus)" in body and "box-shadow: none" in body
+
+
+def test_disabled_danger_button_keeps_its_look_on_hover():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    body = _rule(css, "button.danger:disabled:hover")
+    assert "background: var(--danger-bg)" in body
+    assert "var(--accent)" not in body
+
+
+def test_tag_pills_have_no_status_dot(client, configured_default, make_backup):
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    assert re.search(r"\.status-pill-tag::before\s*\{[^}]*display: none", css)
+    assert re.search(r"\.status-pill::before\s*\{[^}]*content: \"\"", css)
+    make_backup(origin="automatic", account_id=configured_default.account_id)
+    make_backup(account_id=configured_default.account_id)
+    text = client.get("/backups").text
+    assert '<span class="status-pill status-pill-tag status-pill-compact status-alt">Automatic</span>' in text
+    assert '<span class="status-pill status-pill-tag status-pill-compact status-muted">Manual</span>' in text
+
+
+def test_cron_input_is_monospace(client):
+    text = client.get("/automation").text
+    assert '<input type="text" class="mono" name="cron_expression"' in text
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    assert re.search(r"input\.mono[^{]*\{[^}]*font-family: var\(--font-mono\)", css) or re.search(
+        r"td\.mono, input\.mono \{[^}]*font-family: var\(--font-mono\)", css
+    )

@@ -25,7 +25,7 @@
   --muted: #6b5d4b;
   --border: #e6ddd0;
   --border-subtle: #efe7db;
-  --border-strong: #d9ccb9;
+  --border-strong: #8f7f6b;
   --accent: #f6821f;
   --accent-hover: #e0710a;
   --accent-contrast: #1a0f05;
@@ -71,7 +71,7 @@
     --muted: #a9a3c6;
     --border: #262236;
     --border-subtle: #221e30;
-    --border-strong: #332e48;
+    --border-strong: #6e6890;
     --accent: #f6821f;
     --accent-hover: #fb923c;
     --accent-contrast: #1a0f05;
@@ -117,7 +117,7 @@
   --muted: #a9a3c6;
   --border: #262236;
   --border-subtle: #221e30;
-  --border-strong: #332e48;
+  --border-strong: #6e6890;
   --accent: #f6821f;
   --accent-hover: #fb923c;
   --accent-contrast: #1a0f05;
@@ -987,6 +987,12 @@ input, textarea {
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 input[type="checkbox"], input[type="radio"] { min-height: 0; accent-color: var(--accent); }
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  box-shadow: none;
+}
 textarea { line-height: 1.5; }
 input:focus, textarea:focus {
   border-color: var(--focus);
@@ -1050,10 +1056,15 @@ button:disabled,
   opacity: 0.5;
   cursor: not-allowed;
 }
-button:disabled:hover,
-.secondary-button:disabled:hover {
+button:disabled:hover {
   background: var(--accent);
   border-color: var(--accent);
+}
+/* A disabled danger button keeps its own look on hover. */
+button.danger:disabled:hover {
+  background: var(--danger-bg);
+  border-color: transparent;
+  color: var(--danger-text);
 }
 .actions { display: flex; gap: 0.75rem; }
 .hint { color: var(--muted); font-size: 0.8125rem; }
@@ -1094,7 +1105,7 @@ th.num, td.num {
   font-variant-numeric: tabular-nums;
 }
 th.num { font-family: inherit; }
-td.mono { font-family: var(--font-mono); }
+td.mono, input.mono { font-family: var(--font-mono); }
 th.col-actions, td.col-actions { text-align: right; }
 .inline-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .inline-actions a {
@@ -1360,6 +1371,8 @@ input:focus-visible, textarea:focus-visible {
   border-radius: 50%;
   background: currentColor;
 }
+/* Tags (origin, catch-all, default, diff kinds…) classify rather than report a status: no dot. */
+.status-pill-tag::before { display: none; }
 .status-pill-compact {
   padding: 0.0625rem 0.5rem;
   font-size: 0.6875rem;
@@ -1546,9 +1559,12 @@ a:hover { color: var(--link-hover); }
   align-items: center;
   gap: 0.5rem;
 }
+/* The selected source is not told by hue alone: bold text and a tinted fill too. */
 .source-switch a[aria-current="page"] {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--status-alt-bg);
+  font-weight: 600;
 }
 .ingress-summary { margin: 0.9rem 0 0; font-weight: 600; }
 .ingress-issues { margin: 0.45rem 0 0; padding-left: 1.2rem; }
