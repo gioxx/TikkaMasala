@@ -186,6 +186,16 @@ def test_request_without_token_rejected(client, access_on, caplog):
     assert "missing token" in caplog.text
 
 
+def test_access_denied_shows_formatted_version_badge(client, access_on, monkeypatch):
+    from app.web import templates
+
+    monkeypatch.setitem(templates.env.globals, "app_version_badge", "dev · 1.3.10+42 · 8cce54d")
+    response = client.get("/")
+    assert response.status_code == 403
+    assert "Tikka Masala dev · 1.3.10+42 · 8cce54d" in response.text
+    assert "1.3.10-42-g8cce54d" not in response.text
+
+
 def test_garbage_token_is_403_not_500(client, access_on):
     assert client.get("/", headers={ACCESS_HEADER: "garbage"}).status_code == 403
 

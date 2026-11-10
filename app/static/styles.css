@@ -357,6 +357,15 @@ h3 { font-size: 0.9375rem; font-weight: 600; }
    the switcher moves to a compact row under the bar, aligned right; the identity keeps the first row. */
 @media (min-width: 961px) and (max-width: 1200px) {
   .topbar.has-profile-switcher .topbar-inner { flex-wrap: wrap; }
+  /* A long build badge (dev · 1.3.10+42 · 8cce54d) never crowds the bar: it is cut with an
+     ellipsis, the full text stays in its title. */
+  .topbar.has-profile-switcher .topbar-brand sub {
+    display: inline-block;
+    max-width: 7.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   /* Keep the first row as tall as the single-row bar (the nav underline sits on its bottom edge). */
   .topbar.has-profile-switcher .topnav { min-height: 3.5rem; }
   .topbar.has-profile-switcher .topnav-identity {
@@ -1772,7 +1781,15 @@ a.tile:hover {
    The one layout breakpoint (also used by page layouts); equals --topnav-collapse. */
 @media (max-width: 960px) {
   .topbar-inner { flex-wrap: wrap; gap: 0 0.75rem; }
-  .topbar-brand { min-height: 3.5rem; }
+  /* Brand and menu button share the first row: a long build badge shrinks with an ellipsis
+     (full text in its title) instead of pushing the button to a row of its own. */
+  .topbar-brand { min-height: 3.5rem; min-width: 0; flex: 1 1 0; }
+  .topbar-brand sub {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .topnav-toggle { display: inline-flex; }
   .topnav {
     display: none;

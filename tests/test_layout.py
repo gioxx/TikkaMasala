@@ -177,6 +177,18 @@ def test_switcher_wraps_below_bar_on_narrow_screens():
     assert "flex: 1 1 100%" in rule
 
 
+def test_long_version_badge_is_capped_next_to_the_switcher(client):
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    blocks = css.split("@media (min-width: 961px) and (max-width: 1200px)")[1:]
+    rule = next(
+        m.group(1) for b in blocks if (m := re.search(r"\.topbar\.has-profile-switcher \.topbar-brand sub \{([^}]*)\}", b))
+    )
+    assert "max-width" in rule and "text-overflow: ellipsis" in rule and "overflow: hidden" in rule
+    assert "display: none" not in rule
+    # The full text stays available.
+    assert '<sub title="' in client.get("/").text
+
+
 def _top_level_rule(css: str, selector: str) -> str:
     """The body of the first rule for ``selector`` outside any @media block."""
     depth = 0

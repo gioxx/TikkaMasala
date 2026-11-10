@@ -16,6 +16,7 @@ import httpx
 
 from app.config import (
     APP_VERSION,
+    APP_VERSION_RAW,
     DEFAULT_NOTIFICATION_EVENTS,
     NOTIFICATION_WEBHOOK_EVENTS_RAW,
     NOTIFICATION_WEBHOOK_URL,
@@ -296,7 +297,9 @@ async def deliver_notification(
 
     payload = {
         "app": "Tikka Masala",
+        # Display form for people, raw build value (tag or git describe) for machines.
         "version": APP_VERSION,
+        "version_raw": APP_VERSION_RAW,
         "event": event,
         "title": humanize_notification_event(event),
         "level": level,

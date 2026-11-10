@@ -238,6 +238,16 @@ def test_payload_has_profile(posted, second_profile):
     assert payload["details"] == {"backup_id": 5}
 
 
+def test_payload_has_display_and_raw_version(posted, monkeypatch):
+    monkeypatch.setattr(notifications, "APP_VERSION", "dev · 1.3.10+42 · 8cce54d")
+    monkeypatch.setattr(notifications, "APP_VERSION_RAW", "1.3.10-42-g8cce54d")
+    create_destination(DEFAULT_PROFILE_ID, _webhook("https://a.example/x"))
+    _deliver(profile_id=DEFAULT_PROFILE_ID)
+    payload = posted[0][1]
+    assert payload["version"] == "dev · 1.3.10+42 · 8cce54d"
+    assert payload["version_raw"] == "1.3.10-42-g8cce54d"
+
+
 def test_failure_logs_no_secret(monkeypatch, caplog):
     async def _boom(url, payload):
         raise httpx.ConnectError(f"boom {HOOK}")
