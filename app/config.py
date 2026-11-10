@@ -6,6 +6,8 @@ import logging
 import os
 from pathlib import Path
 
+from app.version import display_version
+
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
@@ -37,7 +39,10 @@ BACKUPS_PAGE_SIZE = 5
 BACKUPS_PAGE_SIZE_OPTIONS = {5, 10, 25, 50, 75, 100}
 SCHEDULED_RUNS_PAGE_SIZE = 15
 SCHEDULED_RUNS_PAGE_SIZE_OPTIONS = (15, 30, 60, 90)
-APP_VERSION = os.getenv("APP_VERSION", "dev")
+# Raw build value (release tag, `git describe` output on main, or "dev"); APP_VERSION is
+# its display form, used everywhere the version is shown or sent.
+APP_VERSION_RAW = os.getenv("APP_VERSION", "dev")
+APP_VERSION = display_version(APP_VERSION_RAW)
 SUPPORTED_NOTIFICATION_EVENTS = frozenset(
     {
         "notification_test",

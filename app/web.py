@@ -23,6 +23,7 @@ from app.backups import (
 )
 from app.config import (
     APP_VERSION,
+    APP_VERSION_RAW,
     BACKUPS_PAGE_SIZE,
     BACKUPS_PAGE_SIZE_OPTIONS,
     BASE_DIR,
@@ -38,6 +39,7 @@ from app.ingress import IngressDiff, extract_ingress, fragile_rules, origin_requ
 from app.destinations import DESTINATION_EVENTS, list_destinations
 from app.notifications import env_notification_destinations, humanize_notification_event
 from app.profiles import DEFAULT_PROFILE_ID, current_profile_id, get_profile, list_profiles
+from app.version import badge_version
 from app.scheduler import (
     build_auto_backup_status,
     get_scheduled_runs_page,
@@ -102,6 +104,7 @@ def profile_switcher(request: Request) -> ProfileSwitcher:
 
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
+templates.env.globals["app_version_badge"] = badge_version(APP_VERSION_RAW)
 
 
 def _static_version() -> str:

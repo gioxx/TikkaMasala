@@ -177,6 +177,7 @@ After setup, credentials are managed on the **Settings** page (`/settings`):
 - **Replace credentials** validates the new values before saving them
 - **Forget saved credentials** removes the saved Account ID and token from the database; backups are kept. Values from the environment stay in place
 - Settings also shows the Cloudflare Access status, the app version, and where the encryption key comes from
+- Release images show their version (`1.3.11`); `dev` images built from main show the release they are based on, the commits since it and the commit, e.g. `dev · 1.3.10+42 · 8cce54d`; a local run shows `dev`
 
 Precedence is per field: the saved database value first, then the environment. If a value comes from the environment, Settings shows it read-only with a **Save a different value** option, which stores your value in the database and takes precedence from then on.
 
