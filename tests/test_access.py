@@ -192,8 +192,21 @@ def test_access_denied_shows_formatted_version_badge(client, access_on, monkeypa
     monkeypatch.setitem(templates.env.globals, "app_version_badge", "dev · 1.3.10+42 · 8cce54d")
     response = client.get("/")
     assert response.status_code == 403
-    assert "Tikka Masala dev · 1.3.10+42 · 8cce54d" in response.text
+    assert 'Tikka Masala <span class="version">dev · 1.3.10+42 · 8cce54d</span>' in response.text
     assert "1.3.10-42-g8cce54d" not in response.text
+
+
+def test_access_denied_page_uses_console_tokens_inline(client, access_on):
+    text = client.get("/").text
+    # Standalone: no /static assets (they sit behind Access too).
+    assert "/static/" not in text
+    assert "prefers-color-scheme: dark" in text
+    for token in ("#f7f4ef", "#ffffff", "#e6ddd0", "#1d1710", "#6b5d4b"):  # light
+        assert token in text, token
+    for token in ("#0d0b14", "#15121f", "#262236", "#efeafc", "#a9a3c6"):  # dark
+        assert token in text, token
+    assert "border-radius: 8px" in text
+    assert '"JetBrains Mono"' in text and "monospace" in text
 
 
 def test_garbage_token_is_403_not_500(client, access_on):
