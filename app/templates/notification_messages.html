@@ -87,7 +87,7 @@
               class="notification-msg-textarea"
             >{{ current }}</textarea>
             <div class="token-list" aria-label="Available placeholders for {{ event }}">
-              <button type="button" class="token-chip preset-button secondary-button use-default-btn" data-target="msg_{{ event }}" data-default="{{ default_msg }}" style="border-color: var(--accent); color: var(--accent);">↩ Use default</button>
+              <button type="button" class="token-chip preset-button secondary-button use-default-btn" data-target="msg_{{ event }}" data-default="{{ default_msg }}" style="border-color: var(--link); color: var(--link);">↩ Use default</button>
               {% for token in global_placeholders %}
               <button type="button" class="token-chip preset-button secondary-button" data-target="msg_{{ event }}" data-token="{{ '{' + token + '}' }}">{{'{'}}{{ token }}{{'}'}}</button>
               {% endfor %}
