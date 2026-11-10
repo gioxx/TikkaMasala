@@ -371,3 +371,9 @@ def test_setup_without_token_and_none_saved_is_400(client, fake_check):
 def test_setup_page_never_shows_saved_token(client):
     credentials.remember_api_token(DEFAULT_PROFILE_ID, "saved-token-1234-wxyz")
     assert "saved-token-1234-wxyz" not in client.get("/setup").text
+
+
+def test_setup_page_uses_the_shared_width(client):
+    response = client.get("/setup", follow_redirects=False)
+    assert response.status_code == 200
+    assert '<main id="page-top" class="container">' in response.text

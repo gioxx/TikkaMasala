@@ -245,7 +245,6 @@ body {
   width: min(1120px, calc(100% - 2rem));
   margin: 2rem auto 3rem;
 }
-.container.narrow { width: min(980px, calc(100% - 2rem)); }
 
 /* === Top bar and navigation === */
 .topbar {

@@ -222,3 +222,29 @@ def test_static_assets_are_cache_busted_by_content(client):
     page = client.get("/settings").text
     assert f'href="/static/styles.css?v={version}"' in page
     assert f'src="/static/app.js?v={version}"' in page
+
+
+MAIN_CLASS = re.compile(r'<main id="page-top" class="([^"]*)"')
+
+
+@pytest.mark.parametrize("path", [p for p, _ in PAGES])
+def test_every_page_uses_the_same_width(client, path):
+    response = client.get(path)
+    assert response.status_code == 200, path
+    assert MAIN_CLASS.findall(response.text) == ["container"], path
+
+
+def test_backup_detail_uses_the_same_width(client, make_backup):
+    backup_id = make_backup()
+    text = client.get(f"/backup/{backup_id}").text
+    assert MAIN_CLASS.findall(text) == ["container"]
+
+
+def test_single_width_rule_in_css():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    assert ".container.narrow" not in css
+    templates_dir = STATIC_DIR.parent / "templates"
+    for template in templates_dir.glob("*.html"):
+        if template.name == "base.html":
+            continue
+        assert "main_class" not in template.read_text(encoding="utf-8"), template.name

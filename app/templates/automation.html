@@ -8,7 +8,6 @@
 {%- endmacro %}
 
 {% block title %}Automation - Tikka Masala{% endblock %}
-{% block main_class %}container{% endblock %}
 {% block main_attrs %} data-notice-target="{{ notice[0] if notice else '' }}" data-auto-backup-timezone="{{ auto_backup.timezone_name }}" data-auto-backup-timezone-source="{{ auto_backup.timezone_source }}"{% endblock %}
 
 {% block content %}
