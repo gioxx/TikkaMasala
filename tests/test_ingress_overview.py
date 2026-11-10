@@ -332,3 +332,28 @@ def test_ingress_profile_hint_only_with_several_profiles(client, configured_defa
 
 def test_ingress_profile_hint_with_second_profile(client, configured_default, second_profile):
     assert "Hostnames of the Default profile's account." in client.get("/ingress").text
+
+
+def _css_rules() -> list[tuple[str, str]]:
+    import re
+    from pathlib import Path
+
+    css = (Path(__file__).resolve().parent.parent / "app" / "static" / "styles.css").read_text(encoding="utf-8")
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    return [(sel.strip(), body) for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css)]
+
+
+def test_source_row_hint_margin_skips_loading_indicator():
+    # The "Loading…" indicator is a .hint inside .source-switch: the source row's paragraph
+    # margin must not push it below the buttons on its row.
+    for selector, _body in _css_rules():
+        assert selector != ".ingress-source-row .hint", "descendant selector also hits #ingress-loading"
+    assert any(sel == ".ingress-source-row > .hint" for sel, _ in _css_rules())
+
+
+def test_catch_all_checkbox_is_centred_on_the_filter_box():
+    bodies = [body for sel, body in _css_rules() if sel == ".ingress-toolbar .checkbox-row"]
+    assert bodies, "missing .ingress-toolbar .checkbox-row rule"
+    desktop = bodies[0]
+    assert "padding-bottom" not in desktop
+    assert "min-height: calc(" in desktop and "align-content: center" in desktop

@@ -1609,9 +1609,12 @@ html[data-theme="light"] body {
   gap: 0.75rem 1.25rem;
 }
 .ingress-filter { flex: 1 1 260px; }
-.ingress-toolbar .checkbox-row { display: grid; padding-bottom: 0.55rem; }
+/* The toolbar aligns to the bottom edge; the checkbox row is as tall as the filter box
+   (2 x 0.75rem padding + 1.5rem line + 2px border) so it sits on the box's centre line. */
+.ingress-toolbar .checkbox-row { display: grid; min-height: calc(3rem + 2px); align-content: center; }
 .ingress-source-row { margin-top: 1rem; }
-.ingress-source-row .hint { margin: 0.6rem 0 0; }
+.ingress-source-row > .hint { margin: 0.6rem 0 0; }
+.source-switch .htmx-indicator { margin: 0; }
 .source-switch {
   display: flex;
   flex-wrap: wrap;
@@ -1803,6 +1806,8 @@ a.tile:hover {
   .archive-filters select { max-width: none; width: 100%; }
   .archive-header-actions { justify-content: flex-start; }
   .archive-notes { max-width: 100%; white-space: normal; }
+  /* The checkbox wraps below the filter box here: no need to match its height. */
+  .ingress-toolbar .checkbox-row { min-height: 0; }
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
   .tile { padding: 0.85rem 0.9rem 0.95rem; }
   .tile-value { font-size: 1.55rem; }
