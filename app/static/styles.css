@@ -848,6 +848,9 @@ details.forget-credentials > summary { color: var(--danger-text); }
   white-space: nowrap;
   vertical-align: bottom;
 }
+/* Tooltip host for the truncated note: outside .archive-notes, whose overflow would clip it. */
+.archive-notes-tip { display: inline-block; max-width: 100%; border-radius: 4px; }
+.archive-notes-tip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* === Pagination === */
 .pagination-bar {
@@ -1164,6 +1167,65 @@ tbody tr:hover {
   font-size: 0.85rem;
   border-radius: 8px;
 }
+/* Icon-only row actions: the accessible name is aria-label, the visible name a tooltip. */
+.inline-actions.icon-actions { flex-wrap: nowrap; gap: 0.4rem; }
+.inline-actions .icon-action {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.inline-actions .icon-action svg { flex: 0 0 auto; }
+
+/* === Tooltip ===
+   One pattern for any element with data-tooltip: shown on hover and on keyboard focus.
+   Opens above, aligned to the element's end edge (row actions sit in the last column);
+   data-tooltip-align="start" aligns it to the start edge instead. The alt text "" keeps the
+   generated copy out of the accessibility tree: the element's own name is read once. */
+[data-tooltip] { position: relative; }
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  content: attr(data-tooltip) / "";
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 30;
+  width: max-content;
+  max-width: min(20rem, calc(100vw - 5rem));
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg-start);
+  box-shadow: var(--shadow-float);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, visibility 120ms ease;
+}
+[data-tooltip-align="start"]::after { left: 0; right: auto; }
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-tooltip]::after { transition: none; }
+}
+/* .table-wrap scrolls sideways, which also clips anything above or below it: in the first row
+   the tooltip opens downwards, and where the table fits (wide screens) nothing is clipped. */
+.table-wrap tbody tr:first-child [data-tooltip]::after { top: calc(100% + 0.4rem); bottom: auto; }
+@media (min-width: 961px) {
+  .table-wrap:has([data-tooltip]) { overflow: visible; }
+}
+
 /* Long IDs break only when the table would otherwise outgrow its card */
 .table-wrap td code { overflow-wrap: anywhere; }
 
@@ -1806,6 +1868,9 @@ a.tile:hover {
   .archive-filters select { max-width: none; width: 100%; }
   .archive-header-actions { justify-content: flex-start; }
   .archive-notes { max-width: 100%; white-space: normal; }
+  .inline-actions .icon-action { width: 2.75rem; height: 2.75rem; }
+  /* Notes wrap in full here: the tooltip would only repeat them. */
+  .archive-notes-tip::after { display: none; }
   /* The checkbox wraps below the filter box here: no need to match its height. */
   .ingress-toolbar .checkbox-row { min-height: 0; }
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }

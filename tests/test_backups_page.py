@@ -73,7 +73,71 @@ def test_backups_pagination_keeps_filters(client, configured_default, make_backu
 def test_backups_notes_column(client, configured_default, make_backup):
     _seed(make_backup)
     text = client.get("/backups").text
-    assert '<span class="archive-notes" title="before upgrade">before upgrade</span>' in text
+    # Truncated on screen; the full note is a hover / keyboard-focus tooltip. The text itself is
+    # the only copy screen readers get (no title, which would be announced a second time).
+    assert (
+        '<span class="archive-notes-tip" tabindex="0" data-tooltip="before upgrade" data-tooltip-align="start">'
+        '<span class="archive-notes">before upgrade</span></span>'
+    ) in text
+    assert 'title="before upgrade"' not in text
+
+
+def test_backups_notes_tooltip_escapes_the_note(client, configured_default, make_backup):
+    make_backup(T1, account_id=GOOD, notes='say "hi" <b>')
+    text = client.get("/backups").text
+    assert 'data-tooltip="say &#34;hi&#34; &lt;b&gt;"' in text
+
+
+def test_backups_row_actions_are_icon_links_with_tooltips(client, configured_default, make_backup):
+    _home, _renamed, lab, _old = _seed(make_backup)
+    text = client.get("/backups").text
+    view = (
+        f'<a class="icon-action" href="/backup/{lab}" aria-label="View backup #{lab}" data-tooltip="View">'
+    )
+    download = (
+        f'<a class="icon-action" href="/backup/{lab}/download" aria-label="Download backup #{lab}"'
+        ' data-tooltip="Download">'
+    )
+    assert view in text
+    assert download in text
+    row = text.split(f'id="backup-row-{lab}"', 1)[1].split("</tr>", 1)[0]
+    actions = row.split('data-label="Actions"', 1)[1]
+    assert actions.count("<svg") == 2
+    assert actions.count('aria-hidden="true"') == 2
+    assert ">View<" not in actions and ">Download<" not in actions
+
+
+def _css_rules() -> list[tuple[str, str]]:
+    import re
+    from pathlib import Path
+
+    css = (Path(__file__).resolve().parent.parent / "app" / "static" / "styles.css").read_text(encoding="utf-8")
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    return [(sel.strip(), body) for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css)]
+
+
+def test_tooltip_pattern_shows_on_hover_and_keyboard_focus():
+    rules = _css_rules()
+    shown = [sel for sel, body in rules if "visibility: visible" in body and "[data-tooltip]" in sel]
+    assert shown, "no rule reveals [data-tooltip]"
+    assert any(":hover::after" in sel and ":focus-visible::after" in sel for sel in shown)
+    base = next(body for sel, body in rules if sel == "[data-tooltip]::after")
+    assert "content: attr(data-tooltip)" in base
+    # Alt text "" keeps the generated copy out of the accessibility tree (no double reading).
+    assert 'content: attr(data-tooltip) / "";' in base
+    assert "max-width: min(" in base and "100vw" in base
+    assert "var(--" in base
+
+
+def test_icon_actions_meet_target_sizes():
+    import re
+    from pathlib import Path
+
+    css = (Path(__file__).resolve().parent.parent / "app" / "static" / "styles.css").read_text(encoding="utf-8")
+    bodies = [body for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css) if sel.strip().endswith(".icon-action")]
+    assert any("width: 2rem" in b and "height: 2rem" in b for b in bodies)  # 32px
+    phone = css.split("@media (max-width: 640px)", 1)[1]
+    assert re.search(r"\.icon-action\s*\{[^}]*width: 2\.75rem;[^}]*height: 2\.75rem;", phone)  # 44px
 
 
 def test_backups_empty_states(client, configured_default, make_backup):
