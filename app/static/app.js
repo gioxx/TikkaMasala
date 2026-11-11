@@ -326,6 +326,25 @@ window.addEventListener("resize", () => {
 document.addEventListener("htmx:afterSettle", syncLayoutDependentAttributes);
 syncLayoutDependentAttributes();
 
+// htmx swaps replace the control that started them (Back up, Back up all, the data source
+// links): remember its id before the request (hx-disabled-elt drops focus right after) and
+// focus its new copy once the swap settles, so keyboard focus is not lost to <body> (2.4.3).
+let htmxFocusId = "";
+document.addEventListener("htmx:beforeRequest", (event) => {
+  const active = document.activeElement;
+  const submitter = event.detail.requestConfig?.triggeringEvent?.submitter;
+  htmxFocusId = (active && active !== document.body && active.id) || (submitter && submitter.id) || "";
+});
+document.addEventListener("htmx:afterSettle", () => {
+  if (!htmxFocusId) return;
+  const target = document.getElementById(htmxFocusId);
+  htmxFocusId = "";
+  const active = document.activeElement;
+  if (target && (!active || active === document.body || !active.isConnected)) {
+    target.focus({ preventScroll: true });
+  }
+});
+
 // Render [data-utc-datetime] elements in the scheduler timezone. Pages that
 // carry data-auto-backup-timezone follow the same rule as the Automation page
 // (browser timezone unless the server one was set); others fall back to UTC.

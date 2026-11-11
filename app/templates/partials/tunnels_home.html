@@ -24,7 +24,7 @@
             <div class="tunnels-panel-actions">
               <a class="secondary-link-button" href="/backups/new">Back up with a note</a>
               <form hx-post="/tunnels/backup-all" hx-target="#tunnels-home" hx-swap="outerHTML" hx-disabled-elt="find button" method="post" action="/tunnels/backup-all">
-                <button type="submit" class="primary">Back up all now</button>
+                <button type="submit" class="primary" id="backup-all">Back up all now</button>
               </form>
             </div>
             {% endif %}
@@ -82,7 +82,7 @@
                     {% else %}
                     <form hx-post="/tunnels/{{ row.tunnel_id }}/backup" hx-target="#tunnels-home" hx-swap="outerHTML" hx-disabled-elt="find button" method="post" action="/tunnels/{{ row.tunnel_id }}/backup">
                     {% endif %}
-                      <button type="submit" class="secondary-button icon-action" aria-label="Back up {{ row.name }}" data-tooltip="Back up">
+                      <button type="submit" class="secondary-button icon-action" id="backup-{{ row.tunnel_id }}" aria-label="Back up {{ row.name }}" data-tooltip="Back up">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-device-floppy" aria-hidden="true" focusable="false"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2"/><path d="M10 14a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M14 4l0 4l-6 0l0 -4"/></svg>
                       </button>
                     </form>

@@ -1640,7 +1640,7 @@ a:hover { color: var(--link-hover); }
   gap: 0.5rem;
 }
 /* The selected source is not told by hue alone: bold text and a tinted fill too. */
-.source-switch a[aria-current="page"] {
+.source-switch a[aria-current="true"] {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
   background: var(--status-alt-bg);

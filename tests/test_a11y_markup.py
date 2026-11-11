@@ -285,3 +285,32 @@ def test_long_ingress_pills_wrap():
 
     rule = declarations(rule_body(without_at_rules(_css()), ".ingress-table .status-pill"))
     assert rule["white-space"] == "normal" and rule["overflow-wrap"] == "anywhere"
+
+
+# --- htmx focus and live regions (S6, M2, m17) ---
+
+def test_htmx_controls_have_stable_ids_for_refocus(client, populated):
+    text = client.get("/").text
+    assert 'id="backup-all"' in text
+    assert f'id="backup-{T1}"' in text and f'id="backup-{T2}"' in text
+    ingress = client.get("/ingress").text
+    assert 'id="source-snapshot"' in ingress and 'id="source-live"' in ingress
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert 'addEventListener("htmx:beforeRequest"' in js and "htmxFocusId" in js
+    assert "target.focus({ preventScroll: true })" in js
+
+
+def test_htmx_swap_response_keeps_the_ids(client, populated):
+    fragment = client.get("/ingress?source=live", headers={"HX-Request": "true"}).text
+    assert 'id="source-live"' in fragment and 'aria-current="true"' in fragment
+    assert 'aria-current="page"' not in fragment.split('class="source-switch"', 1)[1].split("</div>", 1)[0]
+
+
+def test_ingress_status_region_outside_the_swapped_results(client, populated):
+    text = client.get("/ingress").text
+    status = text.index('<p id="ingress-status" class="sr-only" role="status"></p>')
+    assert status < text.index('<div id="ingress-results"')
+    # The loading indicator is visual only (its live region is #ingress-status).
+    assert '<span id="ingress-loading" class="htmx-indicator hint" aria-hidden="true">' in text
+    assert 'data-hostname-count="' in text and 'data-source="snapshot"' in text
+    assert "of ${rows.length} rule" in text and "Live configuration loaded" in text

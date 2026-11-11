@@ -41,6 +41,8 @@
           </label>
         </div>
 
+        {#- Outside the swapped region: announces filter results and source loads (WCAG 4.1.3). -#}
+        <p id="ingress-status" class="sr-only" role="status"></p>
         {% include "partials/ingress_results.html" %}
       </section>
 {% endblock %}
@@ -50,7 +52,16 @@
       const ingressFilterInput = document.getElementById("ingress-filter");
       const ingressShowCatchAll = document.getElementById("ingress-show-catch-all");
 
-      const applyIngressFilter = () => {
+      const ingressStatus = document.getElementById("ingress-status");
+      let ingressStatusTimer = 0;
+      const announceIngress = (message, delay = 0) => {
+        window.clearTimeout(ingressStatusTimer);
+        ingressStatusTimer = window.setTimeout(() => {
+          if (ingressStatus) ingressStatus.textContent = message;
+        }, delay);
+      };
+
+      const applyIngressFilter = (announce = false) => {
         const results = document.getElementById("ingress-results");
         if (!results) return;
         const query = (ingressFilterInput?.value || "").trim().toLowerCase();
@@ -73,6 +84,10 @@
               : "Only catch-all rules here: tick \u201cShow catch-all rules\u201d to see them.";
           }
         }
+        if (announce) {
+          const emptyText = emptyRow && !emptyRow.hidden ? emptyRow.textContent.trim() : "";
+          announceIngress(emptyText || `${visible} of ${rows.length} rule${rows.length === 1 ? "" : "s"} shown.`, 500);
+        }
       };
 
       const formatIngressDates = () => {
@@ -85,13 +100,24 @@
         });
       };
 
-      ingressFilterInput?.addEventListener("input", applyIngressFilter);
-      ingressShowCatchAll?.addEventListener("change", applyIngressFilter);
+      ingressFilterInput?.addEventListener("input", () => applyIngressFilter(true));
+      ingressShowCatchAll?.addEventListener("change", () => applyIngressFilter(true));
+      document.body.addEventListener("htmx:beforeRequest", (event) => {
+        if (!event.detail.elt.closest || !event.detail.elt.closest("#ingress-results")) return;
+        const live = (event.detail.pathInfo?.requestPath || "").includes("source=live");
+        announceIngress(live ? "Loading the live configuration from Cloudflare\u2026" : "Loading saved snapshots\u2026");
+      });
       // Results are replaced by htmx when switching source: re-apply filter and date formatting.
       // The source switch deliberately does not push URLs: htmx history restores would detach these listeners.
       document.body.addEventListener("htmx:afterSettle", () => {
         applyIngressFilter();
         formatIngressDates();
+        const results = document.getElementById("ingress-results");
+        if (!results) return;
+        const count = Number(results.dataset.hostnameCount || 0);
+        const label = results.dataset.source === "live" ? "Live configuration loaded" : "Saved snapshots loaded";
+        const error = results.querySelector(".notice.error");
+        announceIngress(error ? `${label} with errors: ${error.textContent.trim()}` : `${label}: ${count} hostname${count === 1 ? "" : "s"}.`);
       });
       applyIngressFilter();
       formatIngressDates();

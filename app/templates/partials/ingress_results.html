@@ -1,11 +1,12 @@
 {% import "partials/ui.html" as ui %}
-<div id="ingress-results" class="ingress-results">
+<div id="ingress-results" class="ingress-results" data-source="{{ overview.source }}" data-hostname-count="{{ overview.hostname_count }}">
         <div class="ingress-source-row">
           <div class="source-switch" role="group" aria-label="Data source">
             <a
               href="/ingress"
+              id="source-snapshot"
               class="secondary-link-button secondary-link-button-small"
-              {% if overview.source == "snapshot" %}aria-current="page"{% endif %}
+              {% if overview.source == "snapshot" %}aria-current="true"{% endif %}
               hx-get="/ingress"
               hx-target="#ingress-results"
               hx-swap="outerHTML"
@@ -13,14 +14,15 @@
             >Saved snapshots</a>
             <a
               href="/ingress?source=live"
+              id="source-live"
               class="secondary-link-button secondary-link-button-small"
-              {% if overview.source == "live" %}aria-current="page"{% endif %}
+              {% if overview.source == "live" %}aria-current="true"{% endif %}
               hx-get="/ingress?source=live"
               hx-target="#ingress-results"
               hx-swap="outerHTML"
               hx-indicator="#ingress-loading"
             >{% if overview.source == "live" %}Refresh live{% else %}Live from Cloudflare{% endif %}</a>
-            <span id="ingress-loading" class="htmx-indicator hint" role="status">Loading&hellip;</span>
+            <span id="ingress-loading" class="htmx-indicator hint" aria-hidden="true">Loading&hellip;</span>
           </div>
           <p class="hint">
             {% if overview.source == "live" %}

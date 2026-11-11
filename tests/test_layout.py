@@ -271,7 +271,7 @@ def _rule(css: str, selector: str) -> str:
 
 def test_selected_source_not_told_by_hue_alone():
     css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
-    body = _rule(css, '.source-switch a[aria-current="page"]')
+    body = _rule(css, '.source-switch a[aria-current="true"]')
     assert "font-weight: 600" in body and "background: var(--status-alt-bg)" in body
 
 
