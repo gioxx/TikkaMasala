@@ -198,17 +198,18 @@ def test_home_uses_cache_between_loads(client, configured_default, fake_list):
 def test_css_phone_layout(client):
     css = client.get("/static/styles.css").text
     assert re.search(r"\.tiles\s*\{[^}]*repeat\(4, minmax\(0, 1fr\)\)", css)
-    block = _media_block(css, "(max-width: 640px)")
+    block = _media_block(css, "(max-width: 40em)")
     assert re.search(r"\.tiles\s*\{[^}]*repeat\(2", block)
     assert ".tunnel-table .col-hostnames" in block
-    # Status words and column headers are hidden visually only, never removed (WCAG 1.4.1).
+    # Column headers are hidden visually only, never removed.
     for rule in re.findall(r"([^{}]+)\{([^}]*)\}", block):
         selectors, body = rule
         if ".status-label" in selectors or "thead" in selectors:
             assert "display: none" not in body, selectors
-    assert re.search(r"\.tunnel-table \.status-label\s*\{[^}]*clip: rect\(0 0 0 0\)", block)
+    # The status word stays visible on phones (a dot alone would be colour only).
+    assert ".status-label" not in block
     # The phone layout has its own breakpoint, not the nav collapse.
-    assert ".tunnel-table" not in _media_block(css, "(max-width: 960px)")
+    assert ".tunnel-table" not in _media_block(css, "(max-width: 60em)")
 
 
 def test_partial_region_with_feedback_and_notice(configured_default, seeded, fake_list):

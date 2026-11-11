@@ -1,9 +1,9 @@
-<!doctype html>
+{% import "partials/ui.html" as ui %}<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Tikka Masala{% endblock %}</title>
+    <title>{% if page_error %}Error: {% endif %}{% block title %}{% endblock %} · Tikka Masala</title>
     <link rel="icon" href="/static/favicon.ico" sizes="any">
     <script>
       (() => {
@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="/static/styles.css?v={{ static_version }}">
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
 {%- macro nav_icon(name) -%}
 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-{{ name }}" aria-hidden="true" focusable="false"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
 {%- if name == "network" -%}
@@ -45,10 +46,10 @@
         <a class="topbar-brand" href="/">
           <img src="/static/favicon.ico" alt="" width="20" height="20">
           <span>Tikka Masala</span>
-          <sub>{{ app_version_badge }}</sub>
+          <sub title="{{ app_version_badge }}">{{ app_version_badge }}</sub>
         </a>
         {% if not hide_sections %}
-        <button type="button" class="topnav-toggle" data-topnav-toggle aria-expanded="false" aria-controls="topnav-menu" aria-label="Open menu">
+        <button type="button" class="topnav-toggle" data-topnav-toggle aria-expanded="false" aria-controls="topnav-menu" aria-label="Menu">
           {{ nav_icon("menu-2") }}
         </button>
         <nav id="topnav-menu" class="topnav" aria-label="Sections">
@@ -62,7 +63,7 @@
           {%- if request.method == "GET" %}{% set ns.next = request.url.path %}
           {%- else %}{% for section in nav_sections() %}{% if section.key == active_section %}{% set ns.next = section.href %}{% endif %}{% endfor %}{% endif %}
           <input type="hidden" name="next" value="{{ ns.next }}">
-          <label for="profile-switcher-select">{{ nav_icon("cloud") }}<span class="sr-only">Profile</span></label>
+          <label for="profile-switcher-select">{{ nav_icon("cloud") }}<span class="sr-only profile-switcher-label">Profile</span></label>
           <select id="profile-switcher-select" name="profile_id">
             {%- for option_id, option_name in switcher.options %}
             <option value="{{ option_id }}"{% if option_id == switcher.active_id %} selected{% endif %}>{{ option_name }}</option>
@@ -77,15 +78,17 @@
         {% endif %}
       </div>
     </header>
-    <main id="page-top" class="container"{% block main_attrs %}{% endblock %}>
+    <main id="main" class="container" tabindex="-1"{% block main_attrs %}{% endblock %}>
 {% block content %}{% endblock %}
 
-      <footer class="site-footer footer-panel">
+    </main>
+    <footer class="container site-footer-region">
+      <div class="site-footer footer-panel">
         <div class="footer-grid">
           <div class="footer-text">
             <div class="footer-title">Tikka Masala</div>
             <div class="footer-meta">Cloudflare Tunnel backup and restore utility for local JSON snapshots.</div>
-            <div class="footer-credit">Icons by <a href="https://tabler.io/icons" target="_blank" rel="noopener noreferrer">Tabler Icons</a>.</div>
+            <div class="footer-credit">Icons by <a href="https://tabler.io/icons" target="_blank" rel="noopener noreferrer">Tabler Icons{{ ui.new_tab() }}</a>.</div>
             <div class="footer-legal">All trademarks, logos, images, icons, product names, trade names, corporate names and companies mentioned or shown belong to their respective owners and are used for explanatory and informational purposes only, without any intent to infringe applicable copyright or trademark laws.</div>
           </div>
           <div class="footer-actions">
@@ -100,7 +103,7 @@
               href="https://tikkamasala.gioxx.org"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="Project website"
+              aria-label="Project website (opens in a new tab)"
               title="Project website"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -113,7 +116,7 @@
               href="https://github.com/gioxx/TikkaMasala"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="GitHub repository"
+              aria-label="GitHub repository (opens in a new tab)"
               title="GitHub repository"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -122,8 +125,8 @@
             </a>
           </div>
         </div>
-      </footer>
-    </main>
+      </div>
+    </footer>
     <button type="button" class="back-to-top" id="back-to-top" aria-label="Back to top" title="Back to top">
       ↑
     </button>

@@ -105,7 +105,7 @@ def test_backups_long_tunnel_name_wraps_inside_the_card(client, configured_defau
 
 
 def test_backups_notes_shrink_between_card_layout_and_nav_collapse():
-    block = media_block(load_css(), "(min-width: 721px) and (max-width: 960px)")
+    block = media_block(load_css(), "(min-width: 45.0625em) and (max-width: 60em)")
     assert declarations(rule_body(block, ".archive-notes"))["max-width"] == "9rem"
 
 
@@ -171,9 +171,9 @@ def test_tooltip_fallback_without_script_shows_on_hover_and_focus():
 def test_icon_actions_meet_target_sizes():
     css = load_css()
     flat = without_at_rules(css)
-    base = declarations(rule_body(flat, ".inline-actions .icon-action"))
+    base = declarations(rule_body(flat, ".icon-action, .inline-actions .icon-action"))
     assert base["width"] == "2rem" and base["height"] == "2rem"  # 32px
-    phone = declarations(rule_body(media_block(css, "(max-width: 640px)"), ".inline-actions .icon-action"))
+    phone = declarations(rule_body(media_block(css, "(max-width: 40em)"), ".icon-action, .inline-actions .icon-action"))
     assert phone["width"] == "2.75rem" and phone["height"] == "2.75rem"  # 44px
 
 

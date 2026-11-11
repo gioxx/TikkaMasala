@@ -112,14 +112,19 @@ def test_menu_toggle_markup(client):
 
 def test_css_collapses_nav_on_narrow_screens(client):
     css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
-    collapse = re.search(r"--topnav-collapse:\s*(\d+px);", css).group(1)
-    assert collapse == "960px"
-    start = css.index(f"@media (max-width: {collapse})")
-    end = css.find("\n@media", start + 1)
-    block = css[start:end if end != -1 else len(css)]
+    collapse = re.search(r"--topnav-collapse:\s*([\d.]+em);", css).group(1)
+    assert collapse == "60em"  # 960px at the default text size; em follows text-only zoom
+    block = _media_block(css, f"(max-width: {collapse})")
     assert ".topnav-toggle" in block
     assert ".topbar.is-open .topnav" in block
     assert ".floating-nav" not in css
+
+
+def test_breakpoints_are_in_em():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    for line in css.splitlines():
+        if line.lstrip().startswith("@media"):
+            assert "px)" not in line, line
 
 
 def test_app_js_has_menu_toggle_and_no_floating_nav(client):
@@ -151,7 +156,7 @@ def test_sign_out_never_shrinks(client):
 
 def test_signed_in_label_visually_hidden_not_display_none():
     css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
-    block = _media_block(css, "(min-width: 961px) and (max-width: 1200px)")
+    block = _media_block(css, "(min-width: 60.0625em) and (max-width: 75em)")
     rule = re.search(r"\.topnav-identity-label \{([^}]*)\}", block).group(1)
     assert "clip" in rule
     assert "display: none" not in rule
@@ -159,9 +164,21 @@ def test_signed_in_label_visually_hidden_not_display_none():
 
 def test_switcher_wraps_below_bar_on_narrow_screens():
     css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
-    block = _media_block(css, "(max-width: 960px)")
+    block = _media_block(css, "(max-width: 60em)")
     rule = re.search(r"\.profile-switcher \{([^}]*)\}", block).group(1)
     assert "flex: 1 1 100%" in rule
+
+
+def test_long_version_badge_is_capped_next_to_the_switcher(client):
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    blocks = css.split("@media (min-width: 60.0625em) and (max-width: 75em)")[1:]
+    rule = next(
+        m.group(1) for b in blocks if (m := re.search(r"\.topbar\.has-profile-switcher \.topbar-brand sub \{([^}]*)\}", b))
+    )
+    assert "max-width" in rule and "text-overflow: ellipsis" in rule and "overflow: hidden" in rule
+    assert "display: none" not in rule
+    # The full text stays available.
+    assert '<sub title="' in client.get("/").text
 
 
 def _top_level_rule(css: str, selector: str) -> str:
@@ -193,7 +210,7 @@ def test_version_tag_never_hidden_without_switcher():
         if "display: none" in body and ".topbar-brand sub" in selector:
             assert ".has-profile-switcher" in selector, selector
     # Nor is the bar tightened for single-profile installs.
-    block = _media_block(css, "(min-width: 961px) and (max-width: 1200px)")
+    block = _media_block(css, "(min-width: 60.0625em) and (max-width: 75em)")
     for selector, _body in re.findall(r"([^{}]+)\{([^{}]*)\}", block):
         if ".topbar-inner" in selector or ".topnav-link" in selector:
             assert ".has-profile-switcher" in selector, selector
@@ -211,7 +228,7 @@ def test_static_assets_are_cache_busted_by_content(client):
     assert f'src="/static/app.js?v={version}"' in page
 
 
-MAIN_CLASS = re.compile(r'<main id="page-top" class="([^"]*)"')
+MAIN_CLASS = re.compile(r'<main id="main" class="([^"]*)"')
 
 
 @pytest.mark.parametrize("path", [p for p, _ in PAGES])
@@ -235,3 +252,46 @@ def test_single_width_rule_in_css():
         if template.name == "base.html":
             continue
         assert "main_class" not in template.read_text(encoding="utf-8"), template.name
+
+
+def _rule(css: str, selector: str) -> str:
+    return re.search(re.escape(selector) + r"\s*\{([^}]*)\}", css).group(1)
+
+
+def test_selected_source_not_told_by_hue_alone():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    body = _rule(css, '.source-switch a[aria-current="true"]')
+    assert "font-weight: 600" in body and "background: var(--status-alt-bg)" in body
+
+
+def test_checkbox_and_radio_focus_ring():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    body = _rule(css, 'input[type="checkbox"]:focus-visible,\ninput[type="radio"]:focus-visible')
+    assert "outline: 2px solid var(--focus)" in body and "box-shadow: none" in body
+
+
+def test_disabled_danger_button_keeps_its_look_on_hover():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    body = _rule(css, "button.danger:disabled:hover")
+    assert "background: var(--danger-bg)" in body
+    assert "var(--accent)" not in body
+
+
+def test_tag_pills_have_no_status_dot(client, configured_default, make_backup):
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    assert re.search(r"\.status-pill-tag::before\s*\{[^}]*display: none", css)
+    assert re.search(r"\.status-pill::before\s*\{[^}]*content: \"\"", css)
+    make_backup(origin="automatic", account_id=configured_default.account_id)
+    make_backup(account_id=configured_default.account_id)
+    text = client.get("/backups").text
+    assert '<span class="status-pill status-pill-tag status-pill-compact status-alt">Automatic</span>' in text
+    assert '<span class="status-pill status-pill-tag status-pill-compact status-muted">Manual</span>' in text
+
+
+def test_cron_input_is_monospace(client):
+    text = client.get("/automation").text
+    assert '<input type="text" class="mono" name="cron_expression"' in text
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    assert re.search(r"input\.mono[^{]*\{[^}]*font-family: var\(--font-mono\)", css) or re.search(
+        r"td\.mono, input\.mono \{[^}]*font-family: var\(--font-mono\)", css
+    )

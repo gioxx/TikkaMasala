@@ -133,7 +133,7 @@ def test_ingress_page_snapshot(client, configured_default, make_backup):
     response = client.get("/ingress")
     assert response.status_code == 200
     body = response.text
-    assert "<title>Tikka Masala · Hostnames</title>" in body
+    assert "<title>Hostnames · Tikka Masala</title>" in body
     assert 'href="https://page.example.com"' in body
     assert "http://localhost:8080" in body
     assert "PageTunnel" in body
@@ -243,14 +243,18 @@ def test_list_tunnels_single_page_without_result_info(monkeypatch):
 # --- local review follow-ups -------------------------------------------------
 
 
-def test_origin_settings_tooltip_is_escaped(client, configured_default, make_backup):
+def test_origin_settings_disclosure_is_escaped(client, configured_default, make_backup):
     make_backup(account_id=configured_default.account_id, tunnel_id="esc-1", tunnel_name="Esc", ingress=[
         {"hostname": "esc.example.com", "service": "http://a", "originRequest": {"httpHostHeader": 'x" onmouseover="alert(1)'}},
         {"service": "http_status:404"},
     ])
     body = client.get("/ingress").text
     assert 'onmouseover="alert(1)' not in body
-    assert "httpHostHeader=&#34;x" in body
+    # The values open in place (details/summary), not in a title only mouse users can read.
+    assert '<details class="origin-settings">' in body
+    assert "<summary>1 origin setting</summary>" in body
+    assert '<li><code>httpHostHeader</code>: <code>"x' in body
+    assert 'title="httpHostHeader' not in body
 
 
 def test_history_restore_request_gets_full_page(client):
@@ -306,7 +310,7 @@ def test_ingress_snapshots_follow_active_account(client, configured_default, mak
         {"hostname": "far.example.com", "service": "http://10.0.0.2:80"},
     ])
     body = client.get("/ingress").text
-    assert 'class="wrap-anywhere">home.example.com</a>' in body
+    assert 'class="wrap-anywhere">home.example.com<svg class="new-tab-icon"' in body
     assert "far.example.com" not in body
 
 

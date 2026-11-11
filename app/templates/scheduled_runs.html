@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% set active_section = "automation" %}
 
-{% block title %}Tikka Masala · Automatic Backup Archive{% endblock %}
+{% block title %}Run history{% endblock %}
 
 {% block content %}
       {% set automation_tab = "runs" %}
@@ -16,16 +16,16 @@
       <section class="card" id="runs-archive">
         <div class="section-header-row">
           <div>
-            <h2 class="heading-with-icon">
+            <h1 class="heading-with-icon">
               <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                 <path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v3h-18z" />
                 <path d="M4 10v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-8" />
                 <path d="M10 12l4 0" />
               </svg>
-              <span>Automatic backup archive</span>
-            </h2>
+              <span>Run history</span>
+            </h1>
             <p class="hint">Full execution history for scheduled and manual automatic backup runs.</p>
             <p class="hint">
               Total recorded runs: {{ scheduled_runs_stats.run_count }}.
@@ -35,26 +35,27 @@
         </div>
 
         {% if runs %}
-        <div class="table-wrap">
+        <div class="table-wrap" data-scroll-region="Run history">
           <table>
+            <caption class="sr-only">Run history</caption>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Started</th>
-                <th>Finished</th>
-                <th>Status</th>
-                <th>Account ID</th>
-                <th>Tunnels</th>
-                <th>Backups</th>
-                <th>Errors</th>
-                <th>Details</th>
+                <th scope="col">ID</th>
+                <th scope="col">Started</th>
+                <th scope="col">Finished</th>
+                <th scope="col">Status</th>
+                <th scope="col">Account ID</th>
+                <th scope="col" class="num">Tunnels</th>
+                <th scope="col" class="num">Backups</th>
+                <th scope="col" class="num">Errors</th>
+                <th scope="col">Details</th>
               </tr>
             </thead>
             <tbody>
               {% for item in runs %}
               {% set run = item.record %}
               <tr>
-                <td data-label="ID">#{{ run.id }}</td>
+                <td data-label="ID" class="mono">#{{ run.id }}</td>
                 <td data-label="Started">{{ run.started_at }}</td>
                 <td data-label="Finished">{{ run.finished_at or 'Running' }}</td>
                 <td data-label="Status">
@@ -71,9 +72,9 @@
                   {% endif %}
                 </td>
                 <td data-label="Account ID"><code>{{ run.account_id }}</code></td>
-                <td data-label="Tunnels">{{ run.tunnel_count }}</td>
-                <td data-label="Backups">{{ run.backup_count }}</td>
-                <td data-label="Errors">{{ run.error_count }}</td>
+                <td data-label="Tunnels" class="num">{{ run.tunnel_count }}</td>
+                <td data-label="Backups" class="num">{{ run.backup_count }}</td>
+                <td data-label="Errors" class="num">{{ run.error_count }}</td>
                 <td data-label="Details" class="wrap-anywhere">{{ item.details_summary or '—' }}</td>
               </tr>
               {% endfor %}
@@ -88,20 +89,21 @@
             <input type="hidden" name="page" value="1">
             <label class="page-size-label">
               <span>Per page</span>
-              <select name="page_size" onchange="this.form.submit()">
+              <select name="page_size">
                 {% for option in scheduled_runs_page_size_options %}
                 <option value="{{ option }}" {% if not scheduled_runs_pagination.is_all and scheduled_runs_pagination.page_size == option %}selected{% endif %}>{{ option }}</option>
                 {% endfor %}
                 <option value="all" {% if scheduled_runs_pagination.is_all %}selected{% endif %}>All</option>
               </select>
             </label>
+            <button type="submit" class="secondary-button">Apply</button>
           </form>
           {% if scheduled_runs_pagination.total_pages > 1 %}
-          <div class="pagination-actions">
+          <nav class="pagination-actions" aria-label="Pagination">
             {% if scheduled_runs_pagination.has_previous %}
             <a href="{{ '/automation/runs?page=%s&page_size=%s' | format(scheduled_runs_pagination.previous_page, scheduled_runs_pagination.page_size_param) }}#runs-archive" class="secondary-link-button">Previous</a>
             {% else %}
-            <span class="secondary-link-button is-disabled" aria-disabled="true">Previous</span>
+            <span class="secondary-link-button is-disabled">Previous</span>
             {% endif %}
 
             <span class="pagination-current">Page {{ scheduled_runs_pagination.current_page }} of {{ scheduled_runs_pagination.total_pages }}</span>
@@ -109,9 +111,9 @@
             {% if scheduled_runs_pagination.has_next %}
             <a href="{{ '/automation/runs?page=%s&page_size=%s' | format(scheduled_runs_pagination.next_page, scheduled_runs_pagination.page_size_param) }}#runs-archive" class="secondary-link-button">Next</a>
             {% else %}
-            <span class="secondary-link-button is-disabled" aria-disabled="true">Next</span>
+            <span class="secondary-link-button is-disabled">Next</span>
             {% endif %}
-          </div>
+          </nav>
           {% endif %}
         </div>
         {% else %}

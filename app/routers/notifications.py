@@ -14,6 +14,7 @@ from app.notifications import (
     NOTIFICATION_MESSAGE_PLACEHOLDERS,
     get_notification_message_templates,
     get_telegram_compact_notifications,
+    humanize_notification_event,
     set_notification_message_templates,
     set_telegram_compact_notifications,
 )
@@ -34,6 +35,7 @@ async def notification_messages_page(request: Request) -> HTMLResponse:
         "notification_messages.html",
         {
             "events": list(DEFAULT_NOTIFICATION_MESSAGES.keys()),
+            "event_label": humanize_notification_event,
             "defaults": DEFAULT_NOTIFICATION_MESSAGES,
             "placeholders": NOTIFICATION_MESSAGE_PLACEHOLDERS,
             "global_placeholders": NOTIFICATION_MESSAGE_GLOBAL_PLACEHOLDERS,

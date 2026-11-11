@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% set active_section = "backups" %}
 
-{% block title %}Tikka Masala · Backup #{{ backup.id }}{% endblock %}
+{% set page_error = error %}
+{% block title %}Backup #{{ backup.id }}{% endblock %}
 
 {% block content %}
       {% if demo_mode %}
@@ -15,7 +16,7 @@
         <h1 class="heading-with-icon">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="icon icon-tabler icons-tabler-outline icon-tabler-cloud-download">
+            class="icon icon-tabler icons-tabler-outline icon-tabler-cloud-download" aria-hidden="true" focusable="false">
             <path stroke="none" d="M0 0h24v24H0z" fill="none" />
             <path d="M19 18a3.5 3.5 0 0 0 0 -7h-1a5 4.5 0 0 0 -11 -2a4.6 4.4 0 0 0 -2.1 8.4" />
             <path d="M12 13l0 9" />
@@ -24,7 +25,7 @@
           <span>Backup #{{ backup.id }}</span>
         </h1>
         {% if created %}
-        <section class="notice success" role="status">Backup #{{ backup.id }} saved.</section>
+        <section class="notice success" role="status" tabindex="-1" data-focus-notice>Backup #{{ backup.id }} saved.</section>
         {% endif %}
         <dl class="meta-grid">
           <div>
@@ -51,9 +52,9 @@
             <dt>Origin</dt>
             <dd class="meta-value">
               {% if backup.origin == "automatic" %}
-              <span class="status-pill status-pill-compact status-alt">Automatic</span>
+              <span class="status-pill status-pill-tag status-pill-compact status-alt">Automatic</span>
               {% else %}
-              <span class="status-pill status-pill-compact status-muted">Manual</span>
+              <span class="status-pill status-pill-tag status-pill-compact status-muted">Manual</span>
               {% endif %}
             </dd>
           </div>
@@ -89,10 +90,11 @@
         </section>
         {% endif %}
         {% if ingress_rules %}
-        <div class="table-wrap top-gap">
+        <div class="table-wrap top-gap" data-scroll-region="Ingress rules in this snapshot">
           <table>
+            <caption class="sr-only">Ingress rules in this snapshot</caption>
             <thead>
-              <tr><th>Hostname</th><th>Path</th><th>Service (origin)</th><th>Origin settings</th></tr>
+              <tr><th scope="col">Hostname</th><th scope="col">Path</th><th scope="col">Service (origin)</th><th scope="col">Origin settings</th></tr>
             </thead>
             <tbody>
               {% for rule in ingress_rules %}
@@ -126,7 +128,7 @@
         <h2 class="heading-with-icon">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="icon icon-tabler icons-tabler-outline icon-tabler-database-import">
+            class="icon icon-tabler icons-tabler-outline icon-tabler-database-import" aria-hidden="true" focusable="false">
             <path stroke="none" d="M0 0h24v24H0z" fill="none" />
             <path d="M4 6c0 1.657 3.582 3 8 3s8 -1.343 8 -3s-3.582 -3 -8 -3s-8 1.343 -8 3" />
             <path d="M4 6v6c0 1.657 3.582 3 8 3c.856 0 1.68 -.05 2.454 -.144m5.546 -2.856v-6" />
@@ -138,25 +140,32 @@
         </h2>
         <p>
           Restoring will replace the current remote tunnel configuration with the configuration stored
-          in this snapshot.
+          in this snapshot. The current configuration is saved as a new backup first, so a restore can
+          be undone.
         </p>
         {% if message %}
-        <section class="notice success top-gap" id="restore-notice">{{ message }}</section>
+        <section class="notice success top-gap" id="restore-notice" role="status" tabindex="-1" data-focus-notice>
+          {{ message }}
+          {% if pre_restore_backup_id %}
+          The configuration it replaced was saved first as <a href="/backup/{{ pre_restore_backup_id }}">backup #{{ pre_restore_backup_id }}</a>: restore that one to undo.
+          {% endif %}
+        </section>
         {% endif %}
         {% if error %}
-        <section class="notice error top-gap" id="restore-notice">{{ error }}</section>
+        <section class="notice error top-gap" id="restore-notice" role="alert" tabindex="-1" data-focus-notice>{{ error }}</section>
         {% endif %}
         {% if ingress_diff is not none %}
-        <div class="table-wrap top-gap">
+        <div class="table-wrap top-gap" data-scroll-region="Changes against the live configuration">
           <table>
-            <thead><tr><th>Pos / change</th><th>Hostname / setting</th><th>Service (origin) / value</th></tr></thead>
+            <caption class="sr-only">Changes against the live configuration</caption>
+            <thead><tr><th scope="col">Pos / change</th><th scope="col">Hostname / setting</th><th scope="col">Service (origin) / value</th></tr></thead>
             <tbody>
               {% for row in ingress_diff.ordered %}
               <tr>
                 <td data-label="Pos / change">
                   <span class="diff-pos">#{{ row.position }}</span>
-                  {% if row.status == 'add' %}<span class="status-pill status-alt">add</span>
-                  {% elif row.status == 'change' %}<span class="status-pill status-warn">change</span>{% endif %}
+                  {% if row.status == 'add' %}<span class="status-pill status-pill-tag status-alt">add</span>
+                  {% elif row.status == 'change' %}<span class="status-pill status-pill-tag status-warn">change</span>{% endif %}
                 </td>
                 <td data-label="Hostname / setting">{{ row.incoming.hostname or 'catch-all' }}{% if row.incoming.path %} <code>{{ row.incoming.path }}</code>{% endif %}</td>
                 <td data-label="Service (origin) / value">
@@ -186,7 +195,7 @@
               {% endfor %}
               {% for position, rule in ingress_diff.removed_positions %}
               <tr>
-                <td data-label="Pos / change"><span class="diff-pos">#{{ position }}</span> <span class="status-pill status-warn">remove</span></td>
+                <td data-label="Pos / change"><span class="diff-pos">#{{ position }}</span> <span class="status-pill status-pill-tag status-warn">remove</span></td>
                 <td data-label="Hostname / setting">{{ rule.hostname or 'catch-all' }}{% if rule.path %} <code>{{ rule.path }}</code>{% endif %}</td>
                 <td data-label="Service (origin) / value">
                   <code>{{ rule.service }}</code>
@@ -201,11 +210,11 @@
               </tr>
               {% endfor %}
               {% if ingress_diff.reordered %}
-              <tr><td data-label="Pos / change"><span class="status-pill status-warn">reorder</span></td><td colspan="2">Rule order differs between the snapshot and the live configuration. Cloudflare matches rules top to bottom, so applying this snapshot can change which origin serves a request.</td></tr>
+              <tr><td data-label="Pos / change"><span class="status-pill status-pill-tag status-warn">reorder</span></td><td colspan="2">Rule order differs between the snapshot and the live configuration. Cloudflare matches rules top to bottom, so applying this snapshot can change which origin serves a request.</td></tr>
               {% endif %}
               {% for key, old, new in settings_delta or [] %}
               <tr>
-                <td data-label="Pos / change"><span class="status-pill status-warn">config</span></td>
+                <td data-label="Pos / change"><span class="status-pill status-pill-tag status-warn">config</span></td>
                 <td data-label="Hostname / setting"><code>{{ key }}</code></td>
                 <td data-label="Service (origin) / value"><code>{{ old | tojson if old is not none else '—' }}</code> &rarr; <code>{{ new | tojson if new is not none else '—' }}</code></td>
               </tr>
@@ -224,8 +233,13 @@
             <span>Tunnel ID</span>
             <input type="text" name="tunnel_id" value="{{ form_tunnel_id or backup.tunnel_id }}" required>
           </label>
+          {% set target_id = form_tunnel_id or backup.tunnel_id %}
+          <label class="checkbox-row full-row restore-confirm">
+            <input type="checkbox" name="confirm" value="replace" id="restore-confirm" required{% if confirm_missing %} aria-invalid="true" aria-describedby="restore-notice"{% endif %}>
+            <span>I understand this replaces the live configuration of tunnel {% if target_id == backup.tunnel_id and backup.tunnel_name %}{{ backup.tunnel_name }} ({{ target_id }}){% else %}{{ target_id }}{% endif %}.</span>
+          </label>
           <div class="full-row actions">
-            <button type="submit" name="mode" value="preview">Preview changes</button>
+            <button type="submit" name="mode" value="preview" formnovalidate>Preview changes</button>
             <button type="submit" name="mode" value="apply" class="danger">Restore backup</button>
           </div>
         </form>
@@ -236,7 +250,7 @@
 
       <section class="card code-card">
         <h2 class="heading-with-icon">
-          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
             <path d="M7 8l-4 4l4 4"/>
             <path d="M17 8l4 4l-4 4"/>
@@ -244,12 +258,12 @@
           </svg>
           <span>Snapshot JSON</span>
         </h2>
-        <pre class="json-view"><code>{{ content }}</code></pre>
+        <pre class="json-view" tabindex="0" role="region" aria-label="Snapshot JSON"><code>{{ content }}</code></pre>
       </section>
 
       <section class="card" id="restore-history">
         <h2 class="heading-with-icon">
-          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
             <path d="M12 8l0 4l2 2"/>
             <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
@@ -257,29 +271,30 @@
           <span>Restore history</span>
         </h2>
         {% if restores %}
-        <div class="table-wrap">
+        <div class="table-wrap" data-scroll-region="Restore history">
           <table>
+            <caption class="sr-only">Restore history</caption>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Restored</th>
-                <th>Target</th>
-                <th>Account ID</th>
-                <th>Tunnel ID</th>
+                <th scope="col">ID</th>
+                <th scope="col">Restored</th>
+                <th scope="col">Target</th>
+                <th scope="col">Account ID</th>
+                <th scope="col">Tunnel ID</th>
               </tr>
             </thead>
             <tbody>
               {% for restore in restores %}
               <tr>
-                <td data-label="ID">#{{ restore.id }}</td>
+                <td data-label="ID" class="mono">#{{ restore.id }}</td>
                 <td data-label="Restored">{{ restore.restored_at }}</td>
                 <td data-label="Target">
                   {% if restore.account_id == backup.account_id and restore.tunnel_id == backup.tunnel_id %}
-                  <span class="status-pill status-match">Original tunnel</span>
+                  <span class="status-pill status-pill-tag status-match">Original tunnel</span>
                   {% elif restore.account_id == backup.account_id %}
-                  <span class="status-pill status-alt">Different tunnel</span>
+                  <span class="status-pill status-pill-tag status-alt">Different tunnel</span>
                   {% else %}
-                  <span class="status-pill status-warn">Different account</span>
+                  <span class="status-pill status-pill-tag status-warn">Different account</span>
                   {% endif %}
                 </td>
                 <td data-label="Account ID"><code>{{ restore.account_id }}</code></td>
@@ -295,13 +310,4 @@
       </section>
 {% endblock %}
 
-{% block scripts %}
-    <script>
-      const restoreNotice = document.getElementById("restore-notice");
-      if (restoreNotice) {
-        window.requestAnimationFrame(() => {
-          smoothScrollToElement(restoreNotice, 68);
-        });
-      }
-    </script>
-{% endblock %}
+

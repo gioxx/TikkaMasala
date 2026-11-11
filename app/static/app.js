@@ -1,8 +1,30 @@
-// Shared behaviour for every page: smooth scrolling, back-to-top button, the collapsible
-// top navigation menu, the System/Dark/Light theme switcher and the tooltips.
-// Page scripts run after this file and may use smoothScrollToY / smoothScrollToElement.
+// Shared behaviour for every page: scrolling and focus helpers, back-to-top button, the
+// collapsible top navigation menu, the System/Dark/Light theme switcher and the tooltips.
+// Page scripts run after this file and may use the helpers defined here.
 
+const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+const topbar = document.querySelector("[data-topbar]");
+
+// Height of the top bar while it sticks to the top (0 when it scrolls away with the page).
+// Kept in --topbar-h for scroll-padding-top in styles.css, and used as the offset below.
+const stickyTopbarHeight = () =>
+  topbar && getComputedStyle(topbar).position === "sticky" ? topbar.getBoundingClientRect().height : 0;
+const syncTopbarHeight = () => {
+  document.documentElement.style.setProperty("--topbar-h", `${Math.ceil(stickyTopbarHeight())}px`);
+};
+if (topbar) {
+  syncTopbarHeight();
+  if (typeof ResizeObserver === "function") new ResizeObserver(syncTopbarHeight).observe(topbar);
+  window.addEventListener("resize", syncTopbarHeight, { passive: true });
+}
+const scrollOffset = () => stickyTopbarHeight() + 16;
+
+// Animated scroll, or an instant jump when the user asked for reduced motion.
 const smoothScrollToY = (targetY, duration = 560) => {
+  if (reducedMotionQuery.matches) {
+    window.scrollTo(0, targetY);
+    return;
+  }
   const startY = window.scrollY;
   const distance = targetY - startY;
   if (Math.abs(distance) < 2) return;
@@ -23,12 +45,30 @@ const smoothScrollToY = (targetY, duration = 560) => {
   window.requestAnimationFrame(step);
 };
 
-const smoothScrollToElement = (element, offset = 0, duration = 560) => {
+const smoothScrollToElement = (element, offset = scrollOffset(), duration = 560) => {
   if (!element) return;
   const targetY = Math.max(0, window.scrollY + element.getBoundingClientRect().top - offset);
   smoothScrollToY(targetY, duration);
 };
 
+// Move keyboard and screen-reader focus to an element that is not a control (a section, a
+// notice, <main>): it becomes focusable from script only.
+const focusElement = (element) => {
+  if (!element) return;
+  if (!element.matches("a[href], button, input, select, textarea, summary, [tabindex]")) {
+    element.setAttribute("tabindex", "-1");
+  }
+  element.focus({ preventScroll: true });
+};
+
+// Scroll to an element and move focus to it.
+const revealElement = (element, duration = 560) => {
+  if (!element) return;
+  focusElement(element);
+  smoothScrollToElement(element, scrollOffset(), duration);
+};
+
+const mainContent = document.getElementById("main");
 const backToTopButton = document.getElementById("back-to-top");
 
 if (backToTopButton) {
@@ -36,7 +76,9 @@ if (backToTopButton) {
     backToTopButton.classList.toggle("is-visible", window.scrollY > 240);
   };
 
+  // Focus follows the jump: the next Tab starts from the top of the content, not from the button.
   backToTopButton.addEventListener("click", () => {
+    focusElement(mainContent);
     smoothScrollToY(0, 620);
   });
 
@@ -44,15 +86,14 @@ if (backToTopButton) {
   toggleBackToTop();
 }
 
-// Top navigation: on narrow screens the sections collapse behind a menu button.
-const topbar = document.querySelector("[data-topbar]");
+// Top navigation: on narrow screens the sections collapse behind a menu button. Its name stays
+// "Menu"; aria-expanded tells whether it is open.
 const topnavToggle = document.querySelector("[data-topnav-toggle]");
 
 if (topbar && topnavToggle) {
   const setMenuOpen = (open) => {
     topbar.classList.toggle("is-open", open);
     topnavToggle.setAttribute("aria-expanded", open ? "true" : "false");
-    topnavToggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
   };
 
   topnavToggle.addEventListener("click", () => {
@@ -66,12 +107,19 @@ if (topbar && topnavToggle) {
     }
   });
 
+  // Focus leaving the top bar (Tab past the last link) closes the menu.
+  topbar.addEventListener("focusout", (event) => {
+    if (topbar.classList.contains("is-open") && event.relatedTarget && !topbar.contains(event.relatedTarget)) {
+      setMenuOpen(false);
+    }
+  });
+
   topbar.querySelectorAll(".topnav-link").forEach((link) => {
     link.addEventListener("click", () => setMenuOpen(false));
   });
 
   // Close the menu when the viewport grows past the collapse width (--topnav-collapse in styles.css).
-  const collapseWidth = getComputedStyle(document.documentElement).getPropertyValue("--topnav-collapse").trim() || "960px";
+  const collapseWidth = getComputedStyle(document.documentElement).getPropertyValue("--topnav-collapse").trim() || "60em";
   const narrowQuery = window.matchMedia(`(max-width: ${collapseWidth})`);
   const closeWhenWide = (event) => {
     if (!event.matches) setMenuOpen(false);
@@ -83,14 +131,15 @@ if (topbar && topnavToggle) {
   }
 }
 
+// In-page links (skip link, "Restore", "Restore history"): scroll and move focus to the target.
 document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
   anchor.addEventListener("click", (event) => {
     const href = anchor.getAttribute("href") || "";
-    if (!href.startsWith("#")) return;
-    const target = document.querySelector(href);
+    if (!href.startsWith("#") || href.length < 2) return;
+    const target = document.getElementById(href.slice(1));
     if (!target) return;
     event.preventDefault();
-    smoothScrollToElement(target, 68, href === "#page-top" ? 620 : 560);
+    revealElement(target, href === "#main" ? 620 : 560);
     history.replaceState(null, "", href);
   });
 });
@@ -249,12 +298,59 @@ const syncNoteTooltips = () => {
     }
   });
 };
-let noteSyncFrame = 0;
+// Tables that scroll sideways: while one actually overflows it becomes a named, focusable
+// region, so keyboard users can scroll it too (WCAG 2.1.1); otherwise it adds no tab stop.
+const syncScrollRegions = () => {
+  document.querySelectorAll("[data-scroll-region]").forEach((region) => {
+    if (region.scrollWidth > region.clientWidth + 1) {
+      region.tabIndex = 0;
+      region.setAttribute("role", "region");
+      region.setAttribute("aria-label", region.dataset.scrollRegion);
+    } else {
+      region.removeAttribute("tabindex");
+      region.removeAttribute("role");
+      region.removeAttribute("aria-label");
+    }
+  });
+};
+
+const syncLayoutDependentAttributes = () => {
+  syncNoteTooltips();
+  syncScrollRegions();
+};
+let layoutSyncFrame = 0;
 window.addEventListener("resize", () => {
-  window.cancelAnimationFrame(noteSyncFrame);
-  noteSyncFrame = window.requestAnimationFrame(syncNoteTooltips);
+  window.cancelAnimationFrame(layoutSyncFrame);
+  layoutSyncFrame = window.requestAnimationFrame(syncLayoutDependentAttributes);
 }, { passive: true });
-syncNoteTooltips();
+document.addEventListener("htmx:afterSettle", syncLayoutDependentAttributes);
+syncLayoutDependentAttributes();
+
+// The result of a form, rendered by the server as a notice with data-focus-notice, receives
+// focus: screen readers read it and keyboard users continue from there (WCAG 3.3.1, 4.1.3).
+const formResultNotice = document.querySelector("[data-focus-notice]");
+if (formResultNotice) {
+  revealElement(formResultNotice);
+}
+
+// htmx swaps replace the control that started them (Back up, Back up all, the data source
+// links): remember its id before the request (hx-disabled-elt drops focus right after) and
+// focus its new copy once the swap settles, so keyboard focus is not lost to <body> (2.4.3).
+let htmxFocusId = "";
+document.addEventListener("htmx:beforeRequest", (event) => {
+  const active = document.activeElement;
+  const submitter = event.detail.requestConfig?.triggeringEvent?.submitter;
+  htmxFocusId = (active && active !== document.body && active.id) || (submitter && submitter.id) || "";
+});
+document.addEventListener("htmx:afterSettle", () => {
+  if (!htmxFocusId) return;
+  const target = document.getElementById(htmxFocusId);
+  htmxFocusId = "";
+  const active = document.activeElement;
+  if (target && (!active || active === document.body || !active.isConnected)) {
+    target.focus({ preventScroll: true });
+  }
+});
 
 // Render [data-utc-datetime] elements in the scheduler timezone. Pages that
 // carry data-auto-backup-timezone follow the same rule as the Automation page

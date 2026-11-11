@@ -186,6 +186,29 @@ def test_request_without_token_rejected(client, access_on, caplog):
     assert "missing token" in caplog.text
 
 
+def test_access_denied_shows_formatted_version_badge(client, access_on, monkeypatch):
+    from app.web import templates
+
+    monkeypatch.setitem(templates.env.globals, "app_version_badge", "dev · 1.3.10+42 · 8cce54d")
+    response = client.get("/")
+    assert response.status_code == 403
+    assert 'Tikka Masala <span class="version">dev · 1.3.10+42 · 8cce54d</span>' in response.text
+    assert "1.3.10-42-g8cce54d" not in response.text
+
+
+def test_access_denied_page_uses_console_tokens_inline(client, access_on):
+    text = client.get("/").text
+    # Standalone: no /static assets (they sit behind Access too).
+    assert "/static/" not in text
+    assert "prefers-color-scheme: dark" in text
+    # Contrast of these tokens is computed in tests/test_contrast.py; here: the forced theme too.
+    assert 'localStorage.getItem("theme-preference")' in text
+    assert ':root:not([data-theme="light"])' in text and ':root[data-theme="dark"]' in text
+    assert "font: 0.875rem/1.55" in text
+    assert "border-radius: 8px" in text
+    assert '"JetBrains Mono"' in text and "monospace" in text
+
+
 def test_garbage_token_is_403_not_500(client, access_on):
     assert client.get("/", headers={ACCESS_HEADER: "garbage"}).status_code == 403
 

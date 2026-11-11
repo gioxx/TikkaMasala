@@ -376,4 +376,4 @@ def test_setup_page_never_shows_saved_token(client):
 def test_setup_page_uses_the_shared_width(client):
     response = client.get("/setup", follow_redirects=False)
     assert response.status_code == 200
-    assert '<main id="page-top" class="container">' in response.text
+    assert '<main id="main" class="container" tabindex="-1">' in response.text

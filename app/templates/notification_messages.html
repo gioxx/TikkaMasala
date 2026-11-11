@@ -1,22 +1,23 @@
 {% extends "base.html" %}
 {% set active_section = "settings" %}
 
-{% block title %}Tikka Masala · Notification Messages{% endblock %}
+{% set page_error = request.query_params.get("error") %}
+{% block title %}Notification messages{% endblock %}
 
 {% block content %}
       <section class="card" id="notification-messages-section">
         <p class="hint"><a href="/settings" class="secondary-link-button">Back to Settings</a></p>
         <div class="section-heading">
-          <h2 class="heading-with-icon">
+          <h1 class="heading-with-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="icon" aria-hidden="true">
+              class="icon" aria-hidden="true" focusable="false">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M10 14l11 -11" />
               <path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" />
             </svg>
             <span>Notification messages</span>
-          </h2>
+          </h1>
           <p class="hint">
             Customize the text sent with each notification event.
             Leave a field empty to use the built-in default message.
@@ -40,11 +41,11 @@
         {% set reset_flag = request.query_params.get("reset") %}
         {% set error_flag = request.query_params.get("error") %}
         {% if saved_flag %}
-        <section class="notice success top-gap">Notification messages saved.</section>
+        <section class="notice success top-gap" role="status" tabindex="-1" data-focus-notice>Notification messages saved.</section>
         {% elif reset_flag %}
-        <section class="notice success top-gap">Notification messages reset to defaults.</section>
+        <section class="notice success top-gap" role="status" tabindex="-1" data-focus-notice>Notification messages reset to defaults.</section>
         {% elif error_flag %}
-        <section class="notice error top-gap">An error occurred while saving. Please try again.</section>
+        <section class="notice error top-gap" role="alert" tabindex="-1" data-focus-notice>An error occurred while saving. Please try again.</section>
         {% endif %}
 
         <form method="post" action="/settings/notifications" class="stack top-gap" id="notification-messages-form">
@@ -72,11 +73,11 @@
           {% set tokens = placeholders.get(event, []) %}
           <div class="notification-msg-block">
             <label for="msg_{{ event }}">
-              <span class="notification-event-label">{{ event }}</span>
+              <span class="notification-event-label">{{ event_label(event) }}</span>
               {% if current %}
-              <span class="status-pill status-alt status-pill-compact">custom</span>
+              <span class="status-pill status-pill-tag status-alt status-pill-compact">custom</span>
               {% else %}
-              <span class="status-pill status-match status-pill-compact">default</span>
+              <span class="status-pill status-pill-tag status-match status-pill-compact">default</span>
               {% endif %}
             </label>
             <textarea
@@ -86,8 +87,8 @@
               placeholder="{{ default_msg }}"
               class="notification-msg-textarea"
             >{{ current }}</textarea>
-            <div class="token-list" aria-label="Available placeholders for {{ event }}">
-              <button type="button" class="token-chip preset-button secondary-button use-default-btn" data-target="msg_{{ event }}" data-default="{{ default_msg }}" style="border-color: var(--accent); color: var(--accent);">↩ Use default</button>
+            <div class="token-list" role="group" aria-label="Placeholders for {{ event_label(event) }}">
+              <button type="button" class="token-chip preset-button secondary-button use-default-btn" data-target="msg_{{ event }}" data-default="{{ default_msg }}" style="border-color: var(--link); color: var(--link);"><span aria-hidden="true">↩</span> Use default<span class="sr-only"> for {{ event_label(event) }}</span></button>
               {% for token in global_placeholders %}
               <button type="button" class="token-chip preset-button secondary-button" data-target="msg_{{ event }}" data-token="{{ '{' + token + '}' }}">{{'{'}}{{ token }}{{'}'}}</button>
               {% endfor %}
@@ -107,7 +108,7 @@
 
         <form id="notification-messages-reset-form" method="post" action="/settings/notifications/reset" style="display:none"></form>
         <div class="form-actions" style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 2.5rem;">
-          <button type="submit" form="notification-messages-form" class="auto-backup-primary" style="width: auto; flex: 1;">Save messages</button>
+          <button type="submit" form="notification-messages-form" class="auto-backup-primary" style="width: auto;">Save messages</button>
           <button type="button" class="secondary-button" id="reset-messages-btn">Reset all to defaults</button>
         </div>
       </section>

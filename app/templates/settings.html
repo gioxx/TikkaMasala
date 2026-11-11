@@ -1,16 +1,18 @@
 {% extends "base.html" %}
 {% set active_section = "settings" %}
 
-{% block title %}Tikka Masala · Settings{% endblock %}
+{% set page_error = errors or add_error %}
+{% block title %}Settings{% endblock %}
 
 {% block content %}
+      <h1 class="page-title">Settings</h1>
       {% if demo_mode %}
       <section class="demo-banner">
         <p>Demo mode: settings are read-only.</p>
       </section>
       {% endif %}
       {% if notice %}
-      <section class="notice success">
+      <section class="notice success" role="status" tabindex="-1" data-focus-notice>
         {{ notice }}
         {% if added_profile %}
         <form method="post" action="/profiles/active" class="actions top-gap">
@@ -27,7 +29,7 @@
           <h2 class="heading-with-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="icon icon-tabler icons-tabler-outline icon-tabler-key" aria-hidden="true">
+              class="icon icon-tabler icons-tabler-outline icon-tabler-key" aria-hidden="true" focusable="false">
               <path stroke="none" d="M0 0h24v24H0z" fill="none" />
               <path d="M16.555 3.843l3.602 3.602a2.877 2.877 0 0 1 0 4.069l-2.643 2.643a2.877 2.877 0 0 1 -4.069 0l-.301 -.301l-6.558 6.558a2 2 0 0 1 -1.239 .578l-.175 .008h-1.172a1 1 0 0 1 -.993 -.883l-.007 -.117v-1.172a2 2 0 0 1 .467 -1.284l.119 -.13l.414 -.414h2v-2h2v-2l2.144 -2.144l-.301 -.301a2.877 2.877 0 0 1 0 -4.069l2.643 -2.643a2.877 2.877 0 0 1 4.069 0z" />
               <path d="M15 9h.01" />
@@ -53,7 +55,7 @@
           <section class="notice warn top-gap">The saved API token cannot be decrypted with the current encryption key. Save it again.</section>
           {% endif %}
           {% if errors.get(pid) %}
-          <section class="notice error top-gap">{{ errors[pid] }}</section>
+          <section class="notice error top-gap" id="profile-{{ pid }}-error" role="alert" tabindex="-1" data-focus-notice>{{ errors[pid] }}</section>
           {% endif %}
 
           <dl class="meta-grid top-gap">
@@ -79,24 +81,28 @@
             <form method="post" action="/settings/profiles/{{ pid }}/name" class="stack top-gap">
               <label>
                 <span>Profile name</span>
-                <input type="text" name="name" value="{{ rename_value if rename_error else profile.name }}" maxlength="{{ profile_name_max }}" required autocomplete="off">
+                <input type="text" name="name" value="{{ rename_value if rename_error else profile.name }}" maxlength="{{ profile_name_max }}" required autocomplete="off"{% if rename_error %} aria-invalid="true" aria-describedby="profile-{{ pid }}-error"{% endif %}>
               </label>
               <div class="actions">
                 <button type="submit">Save name</button>
               </div>
             </form>
           </details>
-          <details class="top-gap"{% if errors.get(pid) and not rename_error and pid in form_values %} open{% endif %}>
-            <summary>{% if no_credentials %}Set credentials{% elif env_only %}Save a different value{% else %}Replace credentials{% endif %}</summary>
+          {% set credentials_error = errors.get(pid) and not rename_error and pid in form_values %}
+          {% set credentials_invalid = (' aria-invalid="true"' if credentials_error else '') | safe %}
+          <details class="top-gap"{% if credentials_error %} open{% endif %}>
+            <summary>{% if no_credentials %}Set credentials{% elif env_only %}Save a different value{% else %}Replace credentials{% endif %}<span class="sr-only"> of {{ profile.name }}</span></summary>
             <form method="post" action="/settings/profiles/{{ pid }}/credentials" class="stack top-gap">
               <label>
                 <span>Account ID</span>
-                <input type="text" name="account_id" value="{{ form_values.get(pid) or profile.account_id.value or '' }}" placeholder="32-character Account ID" autocomplete="off">
+                <input type="text" name="account_id" value="{{ form_values.get(pid) or profile.account_id.value or '' }}" placeholder="32-character Account ID" autocomplete="off"{% if credentials_error %} aria-describedby="profile-{{ pid }}-error"{% endif %}{{ credentials_invalid }}>
               </label>
               <label>
                 <span>API token</span>
-                <input type="password" name="api_token" value="" placeholder="Leave empty to keep the current token" autocomplete="off">
+                <input type="password" name="api_token" value="" placeholder="Leave empty to keep the current token" autocomplete="off"
+                  aria-describedby="{% if credentials_error %}profile-{{ pid }}-error {% endif %}api-token-hint-{{ pid }}"{{ credentials_invalid }}>
               </label>
+              <p class="hint field-hint" id="api-token-hint-{{ pid }}">Leave empty to keep the current token.</p>
               <p class="hint">Changes are checked against Cloudflare before they are saved.</p>
               <div class="actions">
                 <button type="submit">Verify and save</button>
@@ -105,7 +111,7 @@
           </details>
           {% if profile.has_saved_values %}
           <details class="forget-credentials top-gap">
-            <summary>Forget saved credentials…</summary>
+            <summary>Forget saved credentials…<span class="sr-only"> of {{ profile.name }}</span></summary>
             <p class="notice warn top-gap">This removes the Account ID and API token saved in the database. Cloudflare shows a token only once, so keep a copy if you need it again. Without values in environment variables you will be sent to setup.</p>
             <form method="post" action="/settings/profiles/{{ pid }}/clear-credentials" class="actions top-gap">
               <button type="submit" class="danger">Forget saved credentials</button>
@@ -127,20 +133,20 @@
         <details id="add-profile"{% if add_error %} open{% endif %}>
           <summary>Add profile</summary>
           {% if add_error %}
-          <section class="notice error top-gap" role="alert">{{ add_error }}</section>
+          <section class="notice error top-gap" id="add-profile-error" role="alert" tabindex="-1" data-focus-notice>{{ add_error }}</section>
           {% endif %}
           <form method="post" action="/settings/profiles" class="stack top-gap">
             <label>
               <span>Profile name</span>
-              <input type="text" name="name" value="{{ add_values.get('name', '') }}" maxlength="{{ profile_name_max }}" required autocomplete="off">
+              <input type="text" name="name" value="{{ add_values.get('name', '') }}" maxlength="{{ profile_name_max }}" required autocomplete="off"{% if add_error %} aria-describedby="add-profile-error"{% endif %}>
             </label>
             <label>
               <span>Account ID</span>
-              <input type="text" name="account_id" value="{{ add_values.get('account_id', '') }}" placeholder="32-character Account ID" required autocomplete="off">
+              <input type="text" name="account_id" value="{{ add_values.get('account_id', '') }}" placeholder="32-character Account ID" required autocomplete="off"{% if add_error %} aria-describedby="add-profile-error"{% endif %}>
             </label>
             <label>
               <span>API token</span>
-              <input type="password" name="api_token" value="" required autocomplete="off">
+              <input type="password" name="api_token" value="" required autocomplete="off"{% if add_error %} aria-describedby="add-profile-error"{% endif %}>
             </label>
             <p class="hint">Checked against Cloudflare before it is saved.</p>
             <div class="actions">
@@ -156,7 +162,7 @@
           <h2 class="heading-with-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="icon icon-tabler icons-tabler-outline icon-tabler-bell" aria-hidden="true">
+              class="icon icon-tabler icons-tabler-outline icon-tabler-bell" aria-hidden="true" focusable="false">
               <path stroke="none" d="M0 0h24v24H0z" fill="none" />
               <path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6" />
               <path d="M9 17v1a3 3 0 0 0 6 0v-1" />
@@ -177,7 +183,7 @@
           <h2 class="heading-with-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="icon icon-tabler icons-tabler-outline icon-tabler-shield-lock" aria-hidden="true">
+              class="icon icon-tabler icons-tabler-outline icon-tabler-shield-lock" aria-hidden="true" focusable="false">
               <path stroke="none" d="M0 0h24v24H0z" fill="none" />
               <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" />
               <path d="M12 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
@@ -199,7 +205,7 @@
           <h2 class="heading-with-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="icon icon-tabler icons-tabler-outline icon-tabler-info-circle" aria-hidden="true">
+              class="icon icon-tabler icons-tabler-outline icon-tabler-info-circle" aria-hidden="true" focusable="false">
               <path stroke="none" d="M0 0h24v24H0z" fill="none" />
               <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" />
               <path d="M12 9h.01" />

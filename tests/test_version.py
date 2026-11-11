@@ -58,7 +58,7 @@ def test_pages_show_display_version(client, monkeypatch):
     monkeypatch.setitem(templates.env.globals, "app_version", "dev · 1.3.10+42 · 8cce54d")
     monkeypatch.setitem(templates.env.globals, "app_version_badge", "dev · 1.3.10+42 · 8cce54d")
     text = client.get("/settings").text
-    assert '<sub>dev · 1.3.10+42 · 8cce54d</sub>' in text
+    assert '<sub title="dev · 1.3.10+42 · 8cce54d">dev · 1.3.10+42 · 8cce54d</sub>' in text
     assert "Version dev · 1.3.10+42 · 8cce54d" in text  # footer
     assert '<dd class="meta-value">dev · 1.3.10+42 · 8cce54d</dd>' in text  # Settings > About
     assert "vdev" not in text
@@ -70,7 +70,7 @@ def test_release_badge_keeps_v_prefix(client, monkeypatch):
     monkeypatch.setitem(templates.env.globals, "app_version", "1.3.11")
     monkeypatch.setitem(templates.env.globals, "app_version_badge", "v1.3.11")
     text = client.get("/settings").text
-    assert "<sub>v1.3.11</sub>" in text
+    assert '<sub title="v1.3.11">v1.3.11</sub>' in text
     assert "Version 1.3.11" in text
 
 
@@ -81,5 +81,5 @@ def test_workflow_passes_described_version_on_main():
         Path(__file__).resolve().parent.parent / ".github" / "workflows" / "Docker-BuildPublish.yml"
     ).read_text(encoding="utf-8")
     assert "fetch-depth: 0" in workflow
-    assert "git describe --tags --long --match '[0-9]*'" in workflow
+    assert "git describe --tags --long --match '[0-9]*' --exclude '*-*'" in workflow  # no pre-release base
     assert "APP_VERSION=${{ steps.version.outputs.app_version }}" in workflow

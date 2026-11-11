@@ -1,25 +1,26 @@
 {% extends "base.html" %}
 {% set active_section = "automation" %}
 
-{% block title %}Tikka Masala · Advanced Backup Schedule{% endblock %}
+{% set page_error = (notice and notice[0] == "error") or load_error %}
+{% block title %}Advanced backup schedule{% endblock %}
 
 {% block content %}
       {% set automation_tab = "tunnels" %}
       {% include "partials/automation_subnav.html" %}
       {% if notice %}
-      <p class="notice {{ notice[0] }}" role="status">{{ notice[1] }}</p>
+      <p class="notice {{ notice[0] }}" role="{{ 'alert' if notice[0] == 'error' else 'status' }}" tabindex="-1" data-focus-notice>{{ notice[1] }}</p>
       {% endif %}
       <section class="card" id="tunnel-filters-section">
         <div class="section-heading">
-          <h2 class="heading-with-icon">
+          <h1 class="heading-with-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="icon" aria-hidden="true">
+              class="icon" aria-hidden="true" focusable="false">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227z" />
             </svg>
             <span>Advanced backup schedule</span>
-          </h2>
+          </h1>
           <p class="hint">Control which tunnels are included in automatic backups and how often each tunnel is backed up.</p>
         </div>
 
@@ -58,14 +59,15 @@
           </fieldset>
 
           {% if tunnels %}
-          <div class="table-wrap top-gap">
+          <div class="table-wrap top-gap" data-scroll-region="Tunnels in automatic backups">
             <table id="tunnel-filters-table">
+              <caption class="sr-only">Tunnels in automatic backups</caption>
               <thead>
                 <tr>
-                  <th class="col-include" id="col-include-header">Include</th>
-                  <th>Tunnel name</th>
-                  <th>Tunnel ID</th>
-                  <th>Frequency</th>
+                  <th scope="col" class="col-include" id="col-include-header">Include</th>
+                  <th scope="col">Tunnel name</th>
+                  <th scope="col">Tunnel ID</th>
+                  <th scope="col">Frequency</th>
                 </tr>
               </thead>
               <tbody>
@@ -81,6 +83,7 @@
                       value="1"
                       class="tunnel-include-checkbox"
                       {% if schedule.mode != "selected" or tid in schedule.tunnels %}checked{% endif %}
+                      {% if schedule.mode != "selected" %}disabled{% endif %}
                     >
                   </td>
                   <td data-label="Tunnel name">
@@ -88,7 +91,7 @@
                   </td>
                   <td data-label="Tunnel ID"><code>{{ tid }}</code></td>
                   <td data-label="Frequency">
-                    <select name="freq_{{ tid }}" id="freq_{{ tid }}" class="compact-select">
+                    <select name="freq_{{ tid }}" id="freq_{{ tid }}" class="compact-select" aria-label="Backup frequency for {{ tunnel.name or tid }}">
                       <option value="always" {% if tcfg.get("frequency", "always") == "always" %}selected{% endif %}>Every run</option>
                       <option value="weekly"  {% if tcfg.get("frequency") == "weekly"  %}selected{% endif %}>Once per week</option>
                       <option value="monthly" {% if tcfg.get("frequency") == "monthly" %}selected{% endif %}>Once per month</option>
@@ -141,6 +144,11 @@
           if (cell !== colIncludeHeader) {
             cell.style.display = isSelected ? "" : "none";
           }
+        });
+        // Hidden checkboxes are also disabled: their tunnel-name labels must not toggle them
+        // ("All tunnels" backs up every tunnel; the server ignores them in that mode).
+        filtersTable && filtersTable.querySelectorAll(".tunnel-include-checkbox").forEach((checkbox) => {
+          checkbox.disabled = !isSelected;
         });
       };
 
