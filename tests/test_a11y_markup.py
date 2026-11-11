@@ -255,3 +255,33 @@ def test_page_size_has_an_apply_button_and_pagination_is_a_nav(client, populated
     form = text.split('class="page-size-form"', 1)[1].split("</form>", 1)[0]
     assert '<button type="submit" class="secondary-button">Apply</button>' in form
     assert '<nav class="pagination-actions" aria-label="Pagination">' in text
+
+
+# --- Status and forced colours (S2, S8, M7; review #122 item 2) ---
+
+def test_phone_status_keeps_its_word():
+    from tests.css_helpers import declarations, media_block, rule_body, rules
+
+    phone = media_block(_css(), "(max-width: 40em)")
+    for selector, body in rules(phone):
+        if ".status-label" in selector:
+            assert "clip" not in body and "position: absolute" not in body, selector
+    pill = declarations(rule_body(phone, ".tunnel-table .col-status .status-pill"))
+    assert "background" not in pill and pill["padding"] == "0 0.4rem"
+
+
+def test_forced_colours_keep_dots_and_current_markers():
+    from tests.css_helpers import declarations, media_block, rule_body
+
+    forced = media_block(_css(), "(forced-colors: active)")
+    dots = declarations(rule_body(forced, ".status-dot, .status-pill::before"))
+    assert dots["forced-color-adjust"] == "none" and dots["background"] == "CanvasText"
+    assert "Highlight" in rule_body(forced, '.topnav-link[aria-current="page"], .subnav a[aria-current="page"]')
+    assert "Highlight" in rule_body(forced, ".theme-button.is-active, .source-switch a[aria-current]")
+
+
+def test_long_ingress_pills_wrap():
+    from tests.css_helpers import declarations, rule_body, without_at_rules
+
+    rule = declarations(rule_body(without_at_rules(_css()), ".ingress-table .status-pill"))
+    assert rule["white-space"] == "normal" and rule["overflow-wrap"] == "anywhere"
