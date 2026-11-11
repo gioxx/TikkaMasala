@@ -45,7 +45,7 @@
         <a class="topbar-brand" href="/">
           <img src="/static/favicon.ico" alt="" width="20" height="20">
           <span>Tikka Masala</span>
-          <sub>v{{ app_version }}</sub>
+          <sub>{{ app_version_badge }}</sub>
         </a>
         {% if not hide_sections %}
         <button type="button" class="topnav-toggle" data-topnav-toggle aria-expanded="false" aria-controls="topnav-menu" aria-label="Open menu">
@@ -77,7 +77,7 @@
         {% endif %}
       </div>
     </header>
-    <main id="page-top" class="{% block main_class %}container narrow{% endblock %}"{% block main_attrs %}{% endblock %}>
+    <main id="page-top" class="container"{% block main_attrs %}{% endblock %}>
 {% block content %}{% endblock %}
 
       <footer class="site-footer footer-panel">

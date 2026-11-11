@@ -14,6 +14,7 @@ import app.setup as setup
 import app.web as web
 from app.access import AccessIdentity, AccessSettings
 from app.profiles import DEFAULT_PROFILE_ID, update_profile
+from tests.css_helpers import media_block as _media_block
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "app" / "static"
 SECTIONS = ("tunnels", "hostnames", "backups", "automation", "settings")
@@ -148,20 +149,6 @@ def test_sign_out_never_shrinks(client):
     assert "text-overflow: ellipsis" in strong and "overflow: hidden" in strong
 
 
-def _media_block(css: str, query: str) -> str:
-    """The body of the first ``@media {query}`` block, up to its matching closing brace."""
-    start = css.index("{", css.index(f"@media {query}")) + 1
-    depth = 1
-    for index in range(start, len(css)):
-        if css[index] == "{":
-            depth += 1
-        elif css[index] == "}":
-            depth -= 1
-            if depth == 0:
-                return css[start:index]
-    raise AssertionError(f"unclosed @media {query}")
-
-
 def test_signed_in_label_visually_hidden_not_display_none():
     css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
     block = _media_block(css, "(min-width: 961px) and (max-width: 1200px)")
@@ -222,3 +209,29 @@ def test_static_assets_are_cache_busted_by_content(client):
     page = client.get("/settings").text
     assert f'href="/static/styles.css?v={version}"' in page
     assert f'src="/static/app.js?v={version}"' in page
+
+
+MAIN_CLASS = re.compile(r'<main id="page-top" class="([^"]*)"')
+
+
+@pytest.mark.parametrize("path", [p for p, _ in PAGES])
+def test_every_page_uses_the_same_width(client, path):
+    response = client.get(path)
+    assert response.status_code == 200, path
+    assert MAIN_CLASS.findall(response.text) == ["container"], path
+
+
+def test_backup_detail_uses_the_same_width(client, make_backup):
+    backup_id = make_backup()
+    text = client.get(f"/backup/{backup_id}").text
+    assert MAIN_CLASS.findall(text) == ["container"]
+
+
+def test_single_width_rule_in_css():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    assert ".container.narrow" not in css
+    templates_dir = STATIC_DIR.parent / "templates"
+    for template in templates_dir.glob("*.html"):
+        if template.name == "base.html":
+            continue
+        assert "main_class" not in template.read_text(encoding="utf-8"), template.name
