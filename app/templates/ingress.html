@@ -85,7 +85,7 @@
           }
         }
         if (announce) {
-          const emptyText = emptyRow && !emptyRow.hidden ? emptyRow.textContent.trim() : "";
+          const emptyText = emptyRow && !emptyRow.hidden ? emptyRow.textContent.replace(/\s+/g, " ").trim() : "";
           announceIngress(emptyText || `${visible} of ${rows.length} rule${rows.length === 1 ? "" : "s"} shown.`, 500);
         }
       };
@@ -117,7 +117,9 @@
         const count = Number(results.dataset.hostnameCount || 0);
         const label = results.dataset.source === "live" ? "Live configuration loaded" : "Saved snapshots loaded";
         const error = results.querySelector(".notice.error");
-        announceIngress(error ? `${label} with errors: ${error.textContent.trim()}` : `${label}: ${count} hostname${count === 1 ? "" : "s"}.`);
+        const hostnames = `${count} hostname${count === 1 ? "" : "s"}`;
+        const problem = error ? ` ${error.textContent.replace(/\s+/g, " ").trim()}` : "";
+        announceIngress(`${label}: ${hostnames}.${problem}`);
       });
       applyIngressFilter();
       formatIngressDates();

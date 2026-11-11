@@ -330,7 +330,7 @@ syncLayoutDependentAttributes();
 // focus: screen readers read it and keyboard users continue from there (WCAG 3.3.1, 4.1.3).
 const formResultNotice = document.querySelector("[data-focus-notice]");
 if (formResultNotice) {
-  window.requestAnimationFrame(() => revealElement(formResultNotice));
+  revealElement(formResultNotice);
 }
 
 // htmx swaps replace the control that started them (Back up, Back up all, the data source
