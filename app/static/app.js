@@ -1,5 +1,5 @@
-// Shared behaviour for every page: smooth scrolling, back-to-top button,
-// the collapsible top navigation menu and the System/Dark/Light theme switcher.
+// Shared behaviour for every page: smooth scrolling, back-to-top button, the collapsible
+// top navigation menu, the System/Dark/Light theme switcher and the tooltips.
 // Page scripts run after this file and may use smoothScrollToY / smoothScrollToElement.
 
 const smoothScrollToY = (targetY, duration = 560) => {
@@ -137,6 +137,124 @@ if (typeof systemThemeQuery.addEventListener === "function") {
 }
 
 applyThemePreference(root.dataset.themePreference || "system");
+
+// Tooltips ([data-tooltip]): one shared element positioned in the viewport, so scrolling
+// tables never clip it. Shown on hover and on keyboard focus; it stays open while the pointer
+// is over it and Escape closes it (WCAG 1.4.13). aria-hidden: every host already carries the
+// same text as its accessible name (icon actions) or its content (notes).
+const tooltip = document.createElement("div");
+tooltip.className = "tooltip";
+tooltip.setAttribute("aria-hidden", "true");
+tooltip.hidden = true;
+const tooltipBubble = document.createElement("span");
+tooltipBubble.className = "tooltip-bubble";
+tooltip.appendChild(tooltipBubble);
+document.body.appendChild(tooltip);
+root.classList.add("js-tooltips");
+let tooltipHost = null;
+let dismissedTooltipHost = null;
+
+const placeTooltip = () => {
+  if (!tooltipHost) return;
+  const margin = 8;
+  const host = tooltipHost.getBoundingClientRect();
+  tooltip.style.left = "0px";
+  tooltip.style.top = "0px";
+  tooltip.style.width = "";
+  tooltip.dataset.side = "above";
+  const { width, height } = tooltip.getBoundingClientRect();
+  let top = host.top - height;
+  if (top < margin) {
+    tooltip.dataset.side = "below";
+    top = host.bottom;
+  }
+  const viewportWidth = document.documentElement.clientWidth;
+  const alignStart = tooltipHost.dataset.tooltipAlign === "start";
+  let left = alignStart ? host.left : host.right - width;
+  left = Math.max(margin, Math.min(left, viewportWidth - width - margin));
+  tooltip.style.width = `${Math.ceil(width)}px`;
+  tooltip.style.left = `${Math.round(left)}px`;
+  tooltip.style.top = `${Math.round(top)}px`;
+};
+
+const showTooltip = (host) => {
+  const text = host.dataset.tooltip;
+  if (!text || host === dismissedTooltipHost) return;
+  tooltipHost = host;
+  tooltipBubble.textContent = text;
+  tooltip.hidden = false;
+  placeTooltip();
+};
+
+const hideTooltip = () => {
+  tooltipHost = null;
+  tooltip.hidden = true;
+};
+
+// Kept open while the pointer is over the host or the tooltip, or the host has keyboard focus.
+const tooltipStillWanted = () =>
+  tooltipHost && (tooltipHost.matches(":hover") || tooltip.matches(":hover") || tooltipHost.matches(":focus-visible"));
+
+document.addEventListener("mouseover", (event) => {
+  const host = event.target.closest && event.target.closest("[data-tooltip]");
+  if (host && host !== tooltipHost) showTooltip(host);
+});
+
+document.addEventListener("mouseout", (event) => {
+  const host = event.target.closest && event.target.closest("[data-tooltip]");
+  if (host && host === dismissedTooltipHost && !host.contains(event.relatedTarget)) dismissedTooltipHost = null;
+  if (!tooltipHost) return;
+  const to = event.relatedTarget;
+  if (to && (tooltipHost.contains(to) || tooltip.contains(to))) return;
+  window.requestAnimationFrame(() => {
+    if (!tooltipStillWanted()) hideTooltip();
+  });
+});
+
+document.addEventListener("focusin", (event) => {
+  const host = event.target.closest && event.target.closest("[data-tooltip]");
+  if (host && host.matches(":focus-visible")) showTooltip(host);
+});
+
+document.addEventListener("focusout", (event) => {
+  if (event.target === dismissedTooltipHost) dismissedTooltipHost = null;
+  if (tooltipHost && event.target === tooltipHost && !tooltipHost.matches(":hover") && !tooltip.matches(":hover")) {
+    hideTooltip();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && tooltipHost) {
+    dismissedTooltipHost = tooltipHost;
+    hideTooltip();
+  }
+});
+
+window.addEventListener("scroll", placeTooltip, { passive: true, capture: true });
+window.addEventListener("resize", placeTooltip, { passive: true });
+
+// Archive notes are cut short with an ellipsis: only a truncated note gets the tooltip and a
+// tab stop (to reach it from the keyboard); a note shown in full gets neither.
+const syncNoteTooltips = () => {
+  document.querySelectorAll(".archive-notes-tip").forEach((host) => {
+    const note = host.querySelector(".archive-notes");
+    if (!note) return;
+    if (note.scrollWidth > note.clientWidth + 1) {
+      host.dataset.tooltip = note.textContent;
+      host.tabIndex = 0;
+    } else {
+      delete host.dataset.tooltip;
+      host.removeAttribute("tabindex");
+      if (host === tooltipHost) hideTooltip();
+    }
+  });
+};
+let noteSyncFrame = 0;
+window.addEventListener("resize", () => {
+  window.cancelAnimationFrame(noteSyncFrame);
+  noteSyncFrame = window.requestAnimationFrame(syncNoteTooltips);
+}, { passive: true });
+syncNoteTooltips();
 
 // Render [data-utc-datetime] elements in the scheduler timezone. Pages that
 // carry data-auto-backup-timezone follow the same rule as the Automation page

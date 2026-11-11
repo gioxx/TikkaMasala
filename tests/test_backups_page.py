@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from tests.css_helpers import declarations, load_css, media_block, rule_body, rules, without_at_rules
+
+STATIC_DIR = Path(__file__).resolve().parent.parent / "app" / "static"
+
 GOOD = "0123456789abcdef0123456789abcdef"
 OTHER = "acc-other"
 T1 = "11111111-1111-4111-8111-111111111111"
@@ -73,13 +79,34 @@ def test_backups_pagination_keeps_filters(client, configured_default, make_backu
 def test_backups_notes_column(client, configured_default, make_backup):
     _seed(make_backup)
     text = client.get("/backups").text
-    # Truncated on screen; the full note is a hover / keyboard-focus tooltip. The text itself is
-    # the only copy screen readers get (no title, which would be announced a second time).
+    # Truncated on screen; the full note is a hover tooltip. No tab stop in the markup: app.js
+    # adds one (and keeps the tooltip) only while the note is actually cut short. The text itself
+    # is the only copy screen readers get (no title, which would be announced a second time).
     assert (
-        '<span class="archive-notes-tip" tabindex="0" data-tooltip="before upgrade" data-tooltip-align="start">'
+        '<span class="archive-notes-tip" data-tooltip="before upgrade" data-tooltip-align="start">'
         '<span class="archive-notes">before upgrade</span></span>'
     ) in text
     assert 'title="before upgrade"' not in text
+    assert 'tabindex="0"' not in text
+
+
+def test_backups_long_tunnel_name_wraps_inside_the_card(client, configured_default, make_backup):
+    name = "x" * 120
+    backup_id = make_backup(T1, name, account_id=GOOD)
+    text = client.get("/backups").text
+    row = text.split(f'id="backup-row-{backup_id}"', 1)[1].split("</tr>", 1)[0]
+    assert f'<div class="archive-tunnel-name">{name}</div>' in row
+    css = load_css()
+    assert declarations(rule_body(without_at_rules(css), ".archive-tunnel-name"))["overflow-wrap"] == "anywhere"
+    # The archive table keeps its scroll container at every width (never overflow: visible).
+    for selector, body in rules(css):
+        if ".table-wrap" in selector:
+            assert "overflow: visible" not in body, selector
+
+
+def test_backups_notes_shrink_between_card_layout_and_nav_collapse():
+    block = media_block(load_css(), "(min-width: 721px) and (max-width: 960px)")
+    assert declarations(rule_body(block, ".archive-notes"))["max-width"] == "9rem"
 
 
 def test_backups_notes_tooltip_escapes_the_note(client, configured_default, make_backup):
@@ -107,37 +134,47 @@ def test_backups_row_actions_are_icon_links_with_tooltips(client, configured_def
     assert ">View<" not in actions and ">Download<" not in actions
 
 
-def _css_rules() -> list[tuple[str, str]]:
-    import re
-    from pathlib import Path
+def test_tooltip_is_one_viewport_element_hoverable_and_dismissible():
+    css = load_css()
+    flat = without_at_rules(css)
+    # app.js: one shared aria-hidden element in the viewport (never clipped by .table-wrap),
+    # open while the pointer is over host or tooltip, closed by Escape (WCAG 1.4.13).
+    tip = declarations(rule_body(flat, ".tooltip"))
+    assert tip["position"] == "fixed"
+    assert "pointer-events" not in tip
+    assert declarations(rule_body(flat, '.tooltip[data-side="above"]'))["padding"] == "0 0 0.4rem"
+    bubble = rule_body(flat, '.tooltip-bubble, html:not(.js-tooltips) [data-tooltip]::after')
+    assert "var(--" in bubble
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert 'root.classList.add("js-tooltips")' in js
+    assert 'tooltip.setAttribute("aria-hidden", "true")' in js
+    assert 'event.key === "Escape" && tooltipHost' in js
+    assert 'tooltip.matches(":hover")' in js
+    assert 'addEventListener("scroll", placeTooltip' in js
+    # Notes: tooltip and tab stop only while the note is cut short.
+    assert "note.scrollWidth > note.clientWidth" in js and "host.tabIndex = 0" in js
 
-    css = (Path(__file__).resolve().parent.parent / "app" / "static" / "styles.css").read_text(encoding="utf-8")
-    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
-    return [(sel.strip(), body) for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css)]
 
-
-def test_tooltip_pattern_shows_on_hover_and_keyboard_focus():
-    rules = _css_rules()
-    shown = [sel for sel, body in rules if "visibility: visible" in body and "[data-tooltip]" in sel]
-    assert shown, "no rule reveals [data-tooltip]"
+def test_tooltip_fallback_without_script_shows_on_hover_and_focus():
+    flat = without_at_rules(load_css())
+    shown = [sel for sel, body in rules(flat) if "visibility: visible" in body and "[data-tooltip]" in sel]
     assert any(":hover::after" in sel and ":focus-visible::after" in sel for sel in shown)
-    base = next(body for sel, body in rules if sel == "[data-tooltip]::after")
-    assert "content: attr(data-tooltip)" in base
+    base = rule_body(flat, "html:not(.js-tooltips) [data-tooltip]::after")
     # Alt text "" keeps the generated copy out of the accessibility tree (no double reading).
     assert 'content: attr(data-tooltip) / "";' in base
     assert "max-width: min(" in base and "100vw" in base
-    assert "var(--" in base
+    assert "pointer-events: none" not in base
+    # A strip bridges the gap so the pointer can move onto the fallback tooltip.
+    assert "height: 0.4rem" in rule_body(flat, "html:not(.js-tooltips) [data-tooltip]:hover::before")
 
 
 def test_icon_actions_meet_target_sizes():
-    import re
-    from pathlib import Path
-
-    css = (Path(__file__).resolve().parent.parent / "app" / "static" / "styles.css").read_text(encoding="utf-8")
-    bodies = [body for sel, body in re.findall(r"([^{}]+)\{([^{}]*)\}", css) if sel.strip().endswith(".icon-action")]
-    assert any("width: 2rem" in b and "height: 2rem" in b for b in bodies)  # 32px
-    phone = css.split("@media (max-width: 640px)", 1)[1]
-    assert re.search(r"\.icon-action\s*\{[^}]*width: 2\.75rem;[^}]*height: 2\.75rem;", phone)  # 44px
+    css = load_css()
+    flat = without_at_rules(css)
+    base = declarations(rule_body(flat, ".icon-action, .inline-actions .icon-action"))
+    assert base["width"] == "2rem" and base["height"] == "2rem"  # 32px
+    phone = declarations(rule_body(media_block(css, "(max-width: 640px)"), ".icon-action, .inline-actions .icon-action"))
+    assert phone["width"] == "2.75rem" and phone["height"] == "2.75rem"  # 44px
 
 
 def test_backups_empty_states(client, configured_default, make_backup):

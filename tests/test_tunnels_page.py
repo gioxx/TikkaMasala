@@ -11,6 +11,7 @@ import app.credentials as credentials
 import app.tunnels as tunnels
 import app.web as web
 from app.credentials import DEMO_NO_CREDENTIALS_MESSAGE
+from tests.css_helpers import media_block as _media_block
 
 GOOD = "0123456789abcdef0123456789abcdef"
 T1 = "11111111-1111-4111-8111-111111111111"
@@ -194,23 +195,10 @@ def test_home_uses_cache_between_loads(client, configured_default, fake_list):
     assert len(recorder.calls) == 1
 
 
-def _media_block(css: str, query: str) -> str:
-    start = css.index(f"@media ({query})")
-    depth = 0
-    for index in range(css.index("{", start), len(css)):
-        if css[index] == "{":
-            depth += 1
-        elif css[index] == "}":
-            depth -= 1
-            if depth == 0:
-                return css[start:index]
-    raise AssertionError(f"unterminated @media ({query})")
-
-
 def test_css_phone_layout(client):
     css = client.get("/static/styles.css").text
     assert re.search(r"\.tiles\s*\{[^}]*repeat\(4, minmax\(0, 1fr\)\)", css)
-    block = _media_block(css, "max-width: 640px")
+    block = _media_block(css, "(max-width: 640px)")
     assert re.search(r"\.tiles\s*\{[^}]*repeat\(2", block)
     assert ".tunnel-table .col-hostnames" in block
     # Status words and column headers are hidden visually only, never removed (WCAG 1.4.1).
@@ -220,7 +208,7 @@ def test_css_phone_layout(client):
             assert "display: none" not in body, selectors
     assert re.search(r"\.tunnel-table \.status-label\s*\{[^}]*clip: rect\(0 0 0 0\)", block)
     # The phone layout has its own breakpoint, not the nav collapse.
-    assert ".tunnel-table" not in _media_block(css, "max-width: 960px")
+    assert ".tunnel-table" not in _media_block(css, "(max-width: 960px)")
 
 
 def test_partial_region_with_feedback_and_notice(configured_default, seeded, fake_list):
