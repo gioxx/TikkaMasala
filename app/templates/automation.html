@@ -1,14 +1,18 @@
 {% extends "base.html" %}
 {% set active_section = "automation" %}
 
+{#- The result of a form in its card. app.js focuses it ([data-focus-notice]). -#}
 {% macro notice_for(notice, section) -%}
 {% if notice and notice[0] == section %}
-<p class="notice {{ notice[1] }} top-gap" id="{{ section }}-notice" role="status">{{ notice[2] }}</p>
+<p class="notice {{ notice[1] }} top-gap" id="{{ section }}-notice" role="{{ 'alert' if notice[1] == 'error' else 'status' }}" tabindex="-1" data-focus-notice>{{ notice[2] }}</p>
 {% endif %}
 {%- endmacro %}
+{% set page_error = notice and notice[1] == "error" %}
+{% set schedule_invalid = schedule_input and schedule_input.invalid == "cron" %}
+{% set retention_invalid = notice and notice[0] == "retention" and notice[1] == "error" %}
 
 {% block title %}Automation{% endblock %}
-{% block main_attrs %} data-notice-target="{{ notice[0] if notice else '' }}" data-auto-backup-timezone="{{ auto_backup.timezone_name }}" data-auto-backup-timezone-source="{{ auto_backup.timezone_source }}"{% endblock %}
+{% block main_attrs %} data-auto-backup-timezone="{{ auto_backup.timezone_name }}" data-auto-backup-timezone-source="{{ auto_backup.timezone_source }}"{% endblock %}
 
 {% block content %}
       <h1 class="page-title">Automation</h1>
@@ -60,19 +64,20 @@
                 <input
                   type="checkbox"
                   name="enabled"
-                  {% if auto_backup.enabled %}checked{% endif %}
+                  {% if (schedule_input.enabled if schedule_input else auto_backup.enabled) %}checked{% endif %}
                   {% if not prereqs.ready and not auto_backup.enabled %}disabled{% endif %}
                 >
                 <span>Enable automatic backups</span>
               </label>
               <label>
                 <span>Cron expression</span>
-                <small class="hint cron-timezone-note" id="cron-timezone-note">Automatic backups currently use UTC.</small>
-                <input type="text" class="mono" name="cron_expression" value="{{ auto_backup.cron }}" placeholder="0 3 * * *" required>
+                <input type="text" class="mono" name="cron_expression" value="{{ schedule_input.cron if schedule_input else auto_backup.cron }}" placeholder="0 3 * * *" required
+                  aria-describedby="{% if schedule_invalid %}schedule-notice {% endif %}cron-timezone-note cron-explanation"{% if schedule_invalid %} aria-invalid="true"{% endif %}>
               </label>
+              <p class="hint field-hint cron-timezone-note" id="cron-timezone-note">Automatic backups currently use UTC.</p>
               <input type="hidden" name="browser_timezone" id="browser-timezone-input" value="">
-              <p class="hint cron-explanation" id="cron-explanation"></p>
-              <div class="preset-list" aria-label="Suggested cron expressions">
+              <p class="hint cron-explanation" id="cron-explanation" aria-live="polite"></p>
+              <div class="preset-list" role="group" aria-label="Suggested cron expressions">
                 <button type="button" class="secondary-button preset-button" data-cron-preset="0 * * * *">Every hour</button>
                 <button type="button" class="secondary-button preset-button" data-cron-preset="0 3 * * *">Daily at 03:00</button>
                 <button type="button" class="secondary-button preset-button" data-cron-preset="0 */12 * * *">Every 12 hours</button>
@@ -156,10 +161,11 @@
           <label>
             <span>Keep backups for (days)</span>
             <input type="number" name="retention_days" min="1" max="36500" step="1" inputmode="numeric"
+              aria-describedby="{% if retention_invalid %}retention-notice {% endif %}retention-hint"{% if retention_invalid %} aria-invalid="true"{% endif %}
               value="{{ retention_input if retention_input is not none else (retention_value or '') }}"
               placeholder="{% if backup_retention.default_days %}Default: {{ backup_retention.default_days }} days{% else %}Default: keep forever{% endif %}">
           </label>
-          <p class="hint">Leave empty to use the default. Cleanup runs when the next backup is saved.</p>
+          <p class="hint field-hint" id="retention-hint">Leave empty to use the default. Cleanup runs when the next backup is saved.</p>
           <button type="submit" class="primary">Save retention</button>
         </form>
       </section>
@@ -263,7 +269,7 @@
             <p class="hint">Set with {{ destination.env_names }}</p>
             <div class="destination-actions">
               <form method="post" action="/automation/destinations/env/{{ destination.kind }}/test">
-                <button type="submit" class="secondary-button">Test</button>
+                <button type="submit" class="secondary-button">Test<span class="sr-only"> {{ destination.label }}</span></button>
               </form>
             </div>
           </li>
@@ -315,8 +321,7 @@
 
 {% block scripts %}
     <script>
-      const pageContainer = document.querySelector("[data-notice-target]");
-      const noticeTarget = pageContainer?.dataset.noticeTarget || "";
+      const pageContainer = document.querySelector("[data-auto-backup-timezone]");
       const schedulerTimezone = pageContainer?.dataset.autoBackupTimezone || "UTC";
       const schedulerTimezoneSource = pageContainer?.dataset.autoBackupTimezoneSource || "default";
       const browserTimezoneName = Intl.DateTimeFormat().resolvedOptions().timeZone || "your local timezone";
@@ -325,15 +330,6 @@
       const cronTimezoneNote = document.getElementById("cron-timezone-note");
       const cronExplanation = document.getElementById("cron-explanation");
       const browserTimezoneInput = document.getElementById("browser-timezone-input");
-
-      if (noticeTarget) {
-        const noticeElement = document.getElementById(`${noticeTarget}-notice`);
-        if (noticeElement) {
-          window.requestAnimationFrame(() => {
-            smoothScrollToElement(noticeElement);
-          });
-        }
-      }
 
       document.querySelectorAll("[data-cron-preset]").forEach((button) => {
         button.addEventListener("click", () => {

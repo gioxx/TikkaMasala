@@ -218,6 +218,7 @@ def render_automation_page(
     *,
     notice: tuple[str, str, str] | None = None,
     retention_input: str | None = None,
+    schedule_input: dict[str, Any] | None = None,
     status_code: int = 200,
 ) -> HTMLResponse:
     """The Automation overview. ``notice`` is ``(section, tone, message)``; the section names the card
@@ -246,6 +247,7 @@ def render_automation_page(
             "can_test_all": can_test_all,
             "notice": notice,
             "retention_input": retention_input,
+            "schedule_input": schedule_input,
             "retention_value": get_profile_retention_value(profile_id),
             "demo_mode": DEMO_MODE,
         },

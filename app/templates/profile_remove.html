@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set active_section = "settings" %}
 
+{% set page_error = error %}
 {% block title %}Remove profile {{ preview.name }}{% endblock %}
 
 {% block content %}
@@ -20,7 +21,7 @@
         </div>
 
         {% if error %}
-        <p class="notice error top-gap" role="alert">{{ error }}</p>
+        <p class="notice error top-gap" role="alert" tabindex="-1" data-focus-notice>{{ error }}</p>
         {% endif %}
 
         <p class="top-gap">The profile, its schedule, its run history and its notification destinations are removed. This cannot be undone.</p>

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set active_section = "backups" %}
 
+{% set page_error = error %}
 {% block title %}Backup #{{ backup.id }}{% endblock %}
 
 {% block content %}
@@ -24,7 +25,7 @@
           <span>Backup #{{ backup.id }}</span>
         </h1>
         {% if created %}
-        <section class="notice success" role="status">Backup #{{ backup.id }} saved.</section>
+        <section class="notice success" role="status" tabindex="-1" data-focus-notice>Backup #{{ backup.id }} saved.</section>
         {% endif %}
         <dl class="meta-grid">
           <div>
@@ -142,10 +143,10 @@
           in this snapshot.
         </p>
         {% if message %}
-        <section class="notice success top-gap" id="restore-notice">{{ message }}</section>
+        <section class="notice success top-gap" id="restore-notice" role="status" tabindex="-1" data-focus-notice>{{ message }}</section>
         {% endif %}
         {% if error %}
-        <section class="notice error top-gap" id="restore-notice">{{ error }}</section>
+        <section class="notice error top-gap" id="restore-notice" role="alert" tabindex="-1" data-focus-notice>{{ error }}</section>
         {% endif %}
         {% if ingress_diff is not none %}
         <div class="table-wrap top-gap" data-scroll-region="Changes against the live configuration">
@@ -298,13 +299,4 @@
       </section>
 {% endblock %}
 
-{% block scripts %}
-    <script>
-      const restoreNotice = document.getElementById("restore-notice");
-      if (restoreNotice) {
-        window.requestAnimationFrame(() => {
-          smoothScrollToElement(restoreNotice);
-        });
-      }
-    </script>
-{% endblock %}
+

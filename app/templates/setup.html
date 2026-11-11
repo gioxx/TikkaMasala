@@ -2,6 +2,7 @@
 {% import "partials/ui.html" as ui %}
 {% set hide_sections = true %}
 
+{% set page_error = error %}
 {% block title %}Setup{% endblock %}
 
 {% block content %}
@@ -28,7 +29,7 @@
         <section class="notice warn top-gap">The saved API token cannot be decrypted with the current encryption key. Enter it again.</section>
         {% endif %}
         {% if error %}
-        <section class="notice error top-gap">{{ error }}</section>
+        <section class="notice error top-gap" id="setup-error" role="alert" tabindex="-1" data-focus-notice>{{ error }}</section>
         {% endif %}
 
         <section class="guide-copy">
@@ -46,17 +47,19 @@
         </section>
 
         <form method="post" action="/setup" class="stack">
+          {% set invalid = ' aria-invalid="true"' if error else '' %}
           <label>
             <span>Account ID</span>
-            <input type="text" name="account_id" value="{{ account_id or '' }}" placeholder="32-character Account ID" autocomplete="off" required>
-            {% if account_id_in_env %}<span class="hint">Found in CLOUDFLARE_ACCOUNT_ID</span>{% endif %}
+            <input type="text" name="account_id" value="{{ account_id or '' }}" placeholder="32-character Account ID" autocomplete="off" required
+              aria-describedby="{% if error %}setup-error {% endif %}account-id-hint"{{ invalid | safe }}>
           </label>
+          <p class="hint field-hint" id="account-id-hint">32 characters, on the Account home page of the dashboard.{% if account_id_in_env %} Found in CLOUDFLARE_ACCOUNT_ID.{% endif %}</p>
           <label>
             <span>API token</span>
-            <input type="password" name="api_token" value="" placeholder="{% if token_available %}Leave empty to keep the saved token{% else %}Paste the Cloudflare API token{% endif %}" autocomplete="off"{% if not token_available %} required{% endif %}>
-            {% if token_available %}<span class="hint">A token is already saved ({{ token_hint }}).</span>{% endif %}
-            {% if api_token_in_env %}<span class="hint">Found in CLOUDFLARE_API_TOKEN</span>{% endif %}
+            <input type="password" name="api_token" value="" placeholder="{% if token_available %}Leave empty to keep the saved token{% else %}Paste the Cloudflare API token{% endif %}" autocomplete="off"{% if not token_available %} required{% endif %}
+              aria-describedby="{% if error %}setup-error {% endif %}api-token-hint"{{ invalid | safe }}>
           </label>
+          <p class="hint field-hint" id="api-token-hint">{% if token_available %}A token is already saved ({{ token_hint }}): leave the field empty to keep it.{% else %}The token with the permissions listed above.{% endif %}{% if api_token_in_env %} Found in CLOUDFLARE_API_TOKEN.{% endif %}</p>
           <div class="actions">
             <button type="submit">Verify and save</button>
           </div>

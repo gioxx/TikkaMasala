@@ -71,6 +71,7 @@ async def automation_schedule_action(
     logger.info("Automatic backup settings update requested.")
     profile_id = current_profile_id(request)
     enabled_flag = enabled == "on"
+    failed_field: str | None = None
     try:
         # Every check runs before anything is written: a rejected form changes nothing.
         timezone_name: str | None = None
@@ -79,12 +80,20 @@ async def automation_schedule_action(
                 timezone_name = normalize_timezone_name(browser_timezone)
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
+        failed_field = "cron"
         normalized_cron = validate_cron_expression(cron_expression)
+        failed_field = None
         if enabled_flag and not get_auto_backup_prerequisites(profile_id)["ready"]:
             raise HTTPException(status_code=400, detail=MISSING_CREDENTIALS_MESSAGE)
     except HTTPException as exc:
         logger.warning("Automatic backup settings update failed: %s", exc.detail)
-        return render_automation_page(request, notice=("schedule", "error", str(exc.detail)), status_code=400)
+        # The form comes back as it was submitted (WCAG 3.3.7), the invalid field marked.
+        return render_automation_page(
+            request,
+            notice=("schedule", "error", str(exc.detail)),
+            schedule_input={"cron": cron_expression, "enabled": enabled_flag, "invalid": failed_field},
+            status_code=400,
+        )
 
     timezone_changed = timezone_name is not None and timezone_name != get_saved_auto_backup_timezone()
     if timezone_changed:

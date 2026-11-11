@@ -326,6 +326,13 @@ window.addEventListener("resize", () => {
 document.addEventListener("htmx:afterSettle", syncLayoutDependentAttributes);
 syncLayoutDependentAttributes();
 
+// The result of a form, rendered by the server as a notice with data-focus-notice, receives
+// focus: screen readers read it and keyboard users continue from there (WCAG 3.3.1, 4.1.3).
+const formResultNotice = document.querySelector("[data-focus-notice]");
+if (formResultNotice) {
+  window.requestAnimationFrame(() => revealElement(formResultNotice));
+}
+
 // htmx swaps replace the control that started them (Back up, Back up all, the data source
 // links): remember its id before the request (hx-disabled-elt drops focus right after) and
 // focus its new copy once the swap settles, so keyboard focus is not lost to <body> (2.4.3).

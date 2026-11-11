@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}{% endblock %} · Tikka Masala</title>
+    <title>{% if page_error %}Error: {% endif %}{% block title %}{% endblock %} · Tikka Masala</title>
     <link rel="icon" href="/static/favicon.ico" sizes="any">
     <script>
       (() => {

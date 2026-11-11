@@ -314,3 +314,89 @@ def test_ingress_status_region_outside_the_swapped_results(client, populated):
     assert '<span id="ingress-loading" class="htmx-indicator hint" aria-hidden="true">' in text
     assert 'data-hostname-count="' in text and 'data-source="snapshot"' in text
     assert "of ${rows.length} rule" in text and "Live configuration loaded" in text
+
+
+# --- Forms and errors (S3, M5, M6, M8, M9, m2, m7, m14, m18; review #122 item 7) ---
+
+def test_frequency_selects_are_named_and_hidden_includes_disabled(client, populated):
+    text = client.get("/automation/tunnels").text
+    assert f'id="freq_{T1}" class="compact-select" aria-label="Backup frequency for Home"' in text
+    # "All tunnels" mode: the include checkboxes are hidden and disabled.
+    checkbox = text.split(f'id="include_{T1}"', 1)[1].split(">", 1)[0]
+    assert "disabled" in checkbox
+    assert "checkbox.disabled = !isSelected" in text
+
+
+def test_invalid_cron_keeps_what_was_typed(client, populated):
+    response = client.post(
+        "/automation/schedule", data={"enabled": "on", "cron_expression": "every tuesday", "browser_timezone": ""}
+    )
+    assert response.status_code == 400
+    text = response.text
+    assert "<title>Error: Automation · Tikka Masala</title>" in text
+    assert 'id="schedule-notice" role="alert" tabindex="-1" data-focus-notice' in text
+    field = text.split('name="cron_expression"', 1)[1].split(">", 1)[0]
+    assert 'value="every tuesday"' in field
+    assert 'aria-invalid="true"' in field
+    assert 'aria-describedby="schedule-notice cron-timezone-note cron-explanation"' in field
+    enabled = text.split('name="enabled"', 1)[1].split(">", 1)[0]
+    assert "checked" in enabled
+
+
+def test_retention_error_marks_the_field(client, populated):
+    text = client.post("/automation/retention", data={"retention_days": "-4"}).text
+    field = text.split('name="retention_days"', 1)[1].split(">", 1)[0]
+    assert 'aria-invalid="true"' in field and "retention-notice retention-hint" in field
+
+
+def test_cron_hints_are_outside_the_label_and_announced(client, populated):
+    text = client.get("/automation").text
+    label = text.split("<span>Cron expression</span>", 1)[1].split("</label>", 1)[0]
+    assert "<small" not in label and "cron-timezone-note\"" not in label.split("aria-describedby", 1)[0]
+    assert '<p class="hint field-hint cron-timezone-note" id="cron-timezone-note">' in text
+    assert '<p class="hint cron-explanation" id="cron-explanation" aria-live="polite"></p>' in text
+    assert '<div class="preset-list" role="group" aria-label="Suggested cron expressions">' in text
+    assert "data-notice-target" not in text
+
+
+def test_form_results_receive_focus():
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert 'document.querySelector("[data-focus-notice]")' in js
+    assert "revealElement(formResultNotice)" in js
+
+
+def test_destination_form_hints_are_visible_text(client, populated):
+    telegram = client.get("/automation/destinations/new?kind=telegram").text
+    assert 'aria-describedby="secret-hint"' in telegram and 'id="secret-hint"' in telegram
+    assert 'aria-describedby="chat-id-hint"' in telegram and 'id="chat-id-hint"' in telegram
+    response = client.post(
+        "/automation/destinations", data={"kind": "webhook", "label": "W", "secret": "not a url", "events": []}
+    )
+    text = response.text
+    assert "<title>Error: Add webhook · Tikka Masala</title>" in text
+    field = text.split('name="secret"', 1)[1].split(">", 1)[0]
+    assert 'aria-invalid="true"' in field and 'aria-describedby="destination-error secret-hint"' in field
+
+
+def test_settings_credential_errors_mark_the_fields(client, populated):
+    text = client.post("/settings/profiles/1/credentials", data={"account_id": "nope", "api_token": ""}).text
+    assert "<title>Error: Settings · Tikka Masala</title>" in text
+    assert 'id="profile-1-error" role="alert" tabindex="-1" data-focus-notice' in text
+    for name in ("account_id", "api_token"):
+        block = text.split('action="/settings/profiles/1/credentials"', 1)[1]
+        field = block.split(f'name="{name}"', 1)[1].split(">", 1)[0]
+        assert 'aria-invalid="true"' in field and "profile-1-error" in field, name
+    assert 'id="api-token-hint-1">Leave empty to keep the current token.</p>' in text
+
+
+def test_repeated_names_get_context(client, populated):
+    text = client.get("/settings").text
+    assert '<span class="sr-only"> of Default</span></summary>' in text
+
+
+def test_notification_messages_use_event_names(client):
+    text = client.get("/settings/notifications").text
+    assert '<span class="notification-event-label">Manual backup completed</span>' in text
+    assert 'role="group" aria-label="Placeholders for Manual backup completed"' in text
+    assert '<span aria-hidden="true">↩</span> Use default<span class="sr-only"> for Manual backup completed</span>' in text
+    assert "flex: 1" not in text

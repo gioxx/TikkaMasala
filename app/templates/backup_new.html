@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% set active_section = "backups" %}
 
+{% set page_error = error %}
 {% block title %}Back up with a note{% endblock %}
 
 {% block content %}
@@ -24,7 +25,7 @@
         </div>
 
         {% if error %}
-        <p class="notice error top-gap" role="alert">{{ error }}</p>
+        <p class="notice error top-gap" role="alert" id="backup-new-error" tabindex="-1" data-focus-notice>{{ error }}</p>
         {% endif %}
 
         {% if credentials_missing %}
