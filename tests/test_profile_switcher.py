@@ -24,7 +24,7 @@ def test_switcher_lists_profiles_and_marks_active(client, second_profile):
     assert f'<option value="{DEFAULT_PROFILE_ID}">Default</option>' in text
     assert 'name="profile_id"' in text
     assert 'action="/profiles/active"' in text
-    assert '<span class="sr-only">Profile</span>' in text
+    assert '<span class="sr-only profile-switcher-label">Profile</span>' in text
 
 
 @pytest.mark.parametrize("path,section", PAGES)

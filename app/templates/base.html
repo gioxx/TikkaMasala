@@ -49,7 +49,7 @@
           <sub title="{{ app_version_badge }}">{{ app_version_badge }}</sub>
         </a>
         {% if not hide_sections %}
-        <button type="button" class="topnav-toggle" data-topnav-toggle aria-expanded="false" aria-controls="topnav-menu" aria-label="Open menu">
+        <button type="button" class="topnav-toggle" data-topnav-toggle aria-expanded="false" aria-controls="topnav-menu" aria-label="Menu">
           {{ nav_icon("menu-2") }}
         </button>
         <nav id="topnav-menu" class="topnav" aria-label="Sections">
@@ -63,7 +63,7 @@
           {%- if request.method == "GET" %}{% set ns.next = request.url.path %}
           {%- else %}{% for section in nav_sections() %}{% if section.key == active_section %}{% set ns.next = section.href %}{% endif %}{% endfor %}{% endif %}
           <input type="hidden" name="next" value="{{ ns.next }}">
-          <label for="profile-switcher-select">{{ nav_icon("cloud") }}<span class="sr-only">Profile</span></label>
+          <label for="profile-switcher-select">{{ nav_icon("cloud") }}<span class="sr-only profile-switcher-label">Profile</span></label>
           <select id="profile-switcher-select" name="profile_id">
             {%- for option_id, option_name in switcher.options %}
             <option value="{{ option_id }}"{% if option_id == switcher.active_id %} selected{% endif %}>{{ option_name }}</option>

@@ -112,14 +112,19 @@ def test_menu_toggle_markup(client):
 
 def test_css_collapses_nav_on_narrow_screens(client):
     css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
-    collapse = re.search(r"--topnav-collapse:\s*(\d+px);", css).group(1)
-    assert collapse == "960px"
-    start = css.index(f"@media (max-width: {collapse})")
-    end = css.find("\n@media", start + 1)
-    block = css[start:end if end != -1 else len(css)]
+    collapse = re.search(r"--topnav-collapse:\s*([\d.]+em);", css).group(1)
+    assert collapse == "60em"  # 960px at the default text size; em follows text-only zoom
+    block = _media_block(css, f"(max-width: {collapse})")
     assert ".topnav-toggle" in block
     assert ".topbar.is-open .topnav" in block
     assert ".floating-nav" not in css
+
+
+def test_breakpoints_are_in_em():
+    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    for line in css.splitlines():
+        if line.lstrip().startswith("@media"):
+            assert "px)" not in line, line
 
 
 def test_app_js_has_menu_toggle_and_no_floating_nav(client):
@@ -151,7 +156,7 @@ def test_sign_out_never_shrinks(client):
 
 def test_signed_in_label_visually_hidden_not_display_none():
     css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
-    block = _media_block(css, "(min-width: 961px) and (max-width: 1200px)")
+    block = _media_block(css, "(min-width: 60.0625em) and (max-width: 75em)")
     rule = re.search(r"\.topnav-identity-label \{([^}]*)\}", block).group(1)
     assert "clip" in rule
     assert "display: none" not in rule
@@ -159,14 +164,14 @@ def test_signed_in_label_visually_hidden_not_display_none():
 
 def test_switcher_wraps_below_bar_on_narrow_screens():
     css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
-    block = _media_block(css, "(max-width: 960px)")
+    block = _media_block(css, "(max-width: 60em)")
     rule = re.search(r"\.profile-switcher \{([^}]*)\}", block).group(1)
     assert "flex: 1 1 100%" in rule
 
 
 def test_long_version_badge_is_capped_next_to_the_switcher(client):
     css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
-    blocks = css.split("@media (min-width: 961px) and (max-width: 1200px)")[1:]
+    blocks = css.split("@media (min-width: 60.0625em) and (max-width: 75em)")[1:]
     rule = next(
         m.group(1) for b in blocks if (m := re.search(r"\.topbar\.has-profile-switcher \.topbar-brand sub \{([^}]*)\}", b))
     )
@@ -205,7 +210,7 @@ def test_version_tag_never_hidden_without_switcher():
         if "display: none" in body and ".topbar-brand sub" in selector:
             assert ".has-profile-switcher" in selector, selector
     # Nor is the bar tightened for single-profile installs.
-    block = _media_block(css, "(min-width: 961px) and (max-width: 1200px)")
+    block = _media_block(css, "(min-width: 60.0625em) and (max-width: 75em)")
     for selector, _body in re.findall(r"([^{}]+)\{([^{}]*)\}", block):
         if ".topbar-inner" in selector or ".topnav-link" in selector:
             assert ".has-profile-switcher" in selector, selector
