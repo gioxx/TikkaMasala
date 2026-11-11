@@ -400,3 +400,9 @@ def test_notification_messages_use_event_names(client):
     assert 'role="group" aria-label="Placeholders for Manual backup completed"' in text
     assert '<span aria-hidden="true">↩</span> Use default<span class="sr-only"> for Manual backup completed</span>' in text
     assert "flex: 1" not in text
+
+
+def test_long_codes_wrap_anywhere():
+    from tests.css_helpers import declarations, rule_body, without_at_rules
+
+    assert declarations(rule_body(without_at_rules(_css()), "code"))["overflow-wrap"] == "anywhere"

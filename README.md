@@ -357,7 +357,7 @@ If `NOTIFICATION_WEBHOOK_EVENTS` or `TELEGRAM_NOTIFICATION_EVENTS` is left empty
 
 Webhook notifications send a JSON payload with:
 
-- app name and version
+- app name and version: `version` is the display form shown in the UI (`1.3.11`, or `dev · 1.3.10+42 · 8cce54d` for a dev image), `version_raw` the raw build value (the tag or `git describe` output, e.g. `1.3.10-42-g8cce54d`) for scripts
 - event name
 - message
 - timestamp

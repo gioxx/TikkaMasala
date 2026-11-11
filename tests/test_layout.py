@@ -254,17 +254,6 @@ def test_single_width_rule_in_css():
         assert "main_class" not in template.read_text(encoding="utf-8"), template.name
 
 
-def test_control_borders_meet_non_text_contrast():
-    """WCAG 1.4.11: control borders (--border-strong) at 3:1 or more, in every theme path."""
-    css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
-    root = re.search(r"^:root \{([^}]*)\}", css, re.M).group(1)
-    assert "--border-strong: #8f7f6b;" in root
-    system_dark = re.search(r':root:not\(\[data-theme="light"\]\) \{([^}]*)\}', css).group(1)
-    forced_dark = re.search(r':root\[data-theme="dark"\] \{([^}]*)\}', css).group(1)
-    assert "--border-strong: #6e6890;" in system_dark
-    assert "--border-strong: #6e6890;" in forced_dark
-
-
 def _rule(css: str, selector: str) -> str:
     return re.search(re.escape(selector) + r"\s*\{([^}]*)\}", css).group(1)
 

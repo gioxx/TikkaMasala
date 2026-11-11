@@ -1279,6 +1279,9 @@ html:not(.js-tooltips) .tunnel-table-wrap tbody tr:first-child [data-tooltip]::a
 html:not(.js-tooltips) .table-wrap tbody tr:first-child [data-tooltip]:hover::before,
 html:not(.js-tooltips) .tunnel-table-wrap tbody tr:first-child [data-tooltip]:hover::before { top: 100%; bottom: auto; }
 
+/* Long unbroken values (32-character account IDs, tunnel IDs) wrap anywhere rather than widen the
+   page at 320px or with increased text spacing (WCAG 1.4.10, 1.4.12). */
+code { overflow-wrap: anywhere; }
 /* Long IDs break only when the table would otherwise outgrow its card */
 .table-wrap td code { overflow-wrap: anywhere; }
 

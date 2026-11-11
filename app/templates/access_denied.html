@@ -4,18 +4,33 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Access required · Tikka Masala</title>
+    <script>
+      // Same theme preference as the rest of the app (System / Dark / Light in the footer).
+      (() => {
+        try {
+          const storedTheme = window.localStorage.getItem("theme-preference") || "system";
+          if (storedTheme === "light" || storedTheme === "dark") {
+            document.documentElement.setAttribute("data-theme", storedTheme);
+          }
+        } catch (error) {
+          // Storage blocked: follow the system preference.
+        }
+      })();
+    </script>
     <style>
-      /* Standalone on purpose (no /static assets behind Access): the Console tokens, inlined. */
-      :root { color-scheme: light dark; --bg: #f7f4ef; --fg: #1d1710; --muted: #6b5d4b; --card: #ffffff; --border: #e6ddd0; --badge: #f1ebe2; }
+      /* Standalone on purpose (no /static assets behind Access): the Console tokens, inlined.
+         Dark follows the system preference unless Light was chosen, or Dark was forced. */
+      :root { color-scheme: light; --bg: #f7f4ef; --fg: #1d1710; --muted: #6b5d4b; --card: #ffffff; --border: #e6ddd0; --badge: #f1ebe2; }
       @media (prefers-color-scheme: dark) {
-        :root { --bg: #0d0b14; --fg: #efeafc; --muted: #a9a3c6; --card: #15121f; --border: #262236; --badge: #1b1827; }
+        :root:not([data-theme="light"]) { color-scheme: dark; --bg: #0d0b14; --fg: #efeafc; --muted: #a9a3c6; --card: #15121f; --border: #262236; --badge: #1b1827; }
       }
-      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font: 14px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      :root[data-theme="dark"] { color-scheme: dark; --bg: #0d0b14; --fg: #efeafc; --muted: #a9a3c6; --card: #15121f; --border: #262236; --badge: #1b1827; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font: 0.875rem/1.55 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
       main { max-width: 32rem; margin: 1rem; padding: 1.5rem; background: var(--card); border: 1px solid var(--border); border-radius: 8px; }
       h1 { margin: 0 0 0.75rem; font-size: 1.0625rem; font-weight: 600; }
       p { margin: 0 0 0.75rem; }
-      .meta { display: flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.8125rem; margin: 1.25rem 0 0; }
-      .version { padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--badge); font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.6875rem; }
+      .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.8125rem; margin: 1.25rem 0 0; }
+      .version { padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--badge); font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.6875rem; overflow-wrap: anywhere; }
     </style>
   </head>
   <body>

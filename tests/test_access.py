@@ -201,10 +201,10 @@ def test_access_denied_page_uses_console_tokens_inline(client, access_on):
     # Standalone: no /static assets (they sit behind Access too).
     assert "/static/" not in text
     assert "prefers-color-scheme: dark" in text
-    for token in ("#f7f4ef", "#ffffff", "#e6ddd0", "#1d1710", "#6b5d4b"):  # light
-        assert token in text, token
-    for token in ("#0d0b14", "#15121f", "#262236", "#efeafc", "#a9a3c6"):  # dark
-        assert token in text, token
+    # Contrast of these tokens is computed in tests/test_contrast.py; here: the forced theme too.
+    assert 'localStorage.getItem("theme-preference")' in text
+    assert ':root:not([data-theme="light"])' in text and ':root[data-theme="dark"]' in text
+    assert "font: 0.875rem/1.55" in text
     assert "border-radius: 8px" in text
     assert '"JetBrains Mono"' in text and "monospace" in text
 
