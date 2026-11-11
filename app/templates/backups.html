@@ -89,7 +89,7 @@
                 <td data-label="ID"><a href="/backup/{{ backup.id }}">#{{ backup.id }}</a></td>
                 <td data-label="Created"><time datetime="{{ backup.created_at }}" title="{{ backup.created_at }}">{{ backup.created_at|when }}</time></td>
                 <td data-label="Tunnel">
-                  <div>{{ backup.tunnel_name or 'Unknown tunnel' }}</div>
+                  <div class="archive-tunnel-name">{{ backup.tunnel_name or 'Unknown tunnel' }}</div>
                   <small><code>{{ backup.tunnel_id }}</code></small>
                 </td>
                 <td data-label="Origin">
@@ -101,7 +101,7 @@
                 </td>
                 <td data-label="Routes">{{ backup.route_count }}</td>
                 <td data-label="Notes">
-                  {% if backup.notes %}<span class="archive-notes-tip" tabindex="0" data-tooltip="{{ backup.notes }}" data-tooltip-align="start"><span class="archive-notes">{{ backup.notes }}</span></span>{% else %}—{% endif %}
+                  {% if backup.notes %}<span class="archive-notes-tip" data-tooltip="{{ backup.notes }}" data-tooltip-align="start"><span class="archive-notes">{{ backup.notes }}</span></span>{% else %}—{% endif %}
                 </td>
                 <td data-label="Actions">
                   <div class="inline-actions icon-actions">

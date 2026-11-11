@@ -848,8 +848,16 @@ details.forget-credentials > summary { color: var(--danger-text); }
   white-space: nowrap;
   vertical-align: bottom;
 }
-/* Tooltip host for the truncated note: outside .archive-notes, whose overflow would clip it. */
+/* Tooltip host for the note: outside .archive-notes, whose overflow would clip the fallback.
+   app.js gives it the tooltip and a tab stop only while the note is cut short. */
 .archive-notes-tip { display: inline-block; max-width: 100%; border-radius: 4px; }
+/* Long unbroken tunnel names wrap instead of pushing Notes and Actions out of the card. */
+.archive-tunnel-name { overflow-wrap: anywhere; }
+/* Between the card layout (720px) and the nav collapse (960px) the archive table keeps its
+   columns: a shorter note keeps it inside the card. */
+@media (min-width: 721px) and (max-width: 960px) {
+  .archive-notes { max-width: 9rem; }
+}
 .archive-notes-tip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* === Pagination === */
@@ -1178,20 +1186,30 @@ tbody tr:hover {
 .inline-actions .icon-action svg { flex: 0 0 auto; }
 
 /* === Tooltip ===
-   One pattern for any element with data-tooltip: shown on hover and on keyboard focus.
-   Opens above, aligned to the element's end edge (row actions sit in the last column);
-   data-tooltip-align="start" aligns it to the start edge instead. The alt text "" keeps the
-   generated copy out of the accessibility tree: the element's own name is read once. */
-[data-tooltip] { position: relative; }
-[data-tooltip]::after {
-  content: attr(data-tooltip);
-  content: attr(data-tooltip) / "";
-  position: absolute;
-  bottom: calc(100% + 0.4rem);
-  right: 0;
-  z-index: 30;
-  width: max-content;
-  max-width: min(20rem, calc(100vw - 5rem));
+   One pattern for any element with data-tooltip: shown on hover and on keyboard focus, aligned
+   to the element's end edge (row actions sit in the last column); data-tooltip-align="start"
+   aligns it to the start edge instead.
+   With JavaScript (html.js-tooltips) app.js shows the text in one shared .tooltip element,
+   positioned in the viewport so that scrolling tables never clip it: it stays open while the
+   pointer is over it and Escape closes it (WCAG 1.4.13). It is aria-hidden: every host already
+   carries the same text as its accessible name or content.
+   Without JavaScript the ::after fallback below shows the same text. Its alt text "" keeps the
+   copy out of the accessibility tree; browsers without alt text for generated content read
+   the note twice there (accepted for the no-script case). */
+.tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  max-width: min(20rem, calc(100vw - 1rem));
+  /* Transparent strip on the host side: the pointer crosses into the tooltip without a gap. */
+  padding: 0.4rem 0 0;
+}
+.tooltip[data-side="above"] { padding: 0 0 0.4rem; }
+.tooltip[hidden] { display: none; }
+.tooltip-bubble,
+html:not(.js-tooltips) [data-tooltip]::after {
+  display: block;
   padding: 0.35rem 0.6rem;
   border-radius: 6px;
   background: var(--text);
@@ -1205,26 +1223,43 @@ tbody tr:hover {
   text-transform: none;
   white-space: normal;
   overflow-wrap: anywhere;
-  pointer-events: none;
+}
+[data-tooltip] { position: relative; }
+html:not(.js-tooltips) [data-tooltip]::after {
+  content: attr(data-tooltip);
+  content: attr(data-tooltip) / "";
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 30;
+  width: max-content;
+  max-width: min(20rem, calc(100vw - 5rem));
   opacity: 0;
   visibility: hidden;
   transition: opacity 120ms ease, visibility 120ms ease;
 }
-[data-tooltip-align="start"]::after { left: 0; right: auto; }
-[data-tooltip]:hover::after,
-[data-tooltip]:focus-visible::after {
+html:not(.js-tooltips) [data-tooltip-align="start"]::after { left: 0; right: auto; }
+html:not(.js-tooltips) [data-tooltip]:hover::after,
+html:not(.js-tooltips) [data-tooltip]:focus-visible::after {
   opacity: 1;
   visibility: visible;
 }
+/* Bridges the gap to the fallback tooltip so the pointer can move onto it. */
+html:not(.js-tooltips) [data-tooltip]:hover::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 0.4rem;
+}
 @media (prefers-reduced-motion: reduce) {
-  [data-tooltip]::after { transition: none; }
+  html:not(.js-tooltips) [data-tooltip]::after { transition: none; }
 }
-/* .table-wrap scrolls sideways, which also clips anything above or below it: in the first row
-   the tooltip opens downwards, and where the table fits (wide screens) nothing is clipped. */
-.table-wrap tbody tr:first-child [data-tooltip]::after { top: calc(100% + 0.4rem); bottom: auto; }
-@media (min-width: 961px) {
-  .table-wrap:has([data-tooltip]) { overflow: visible; }
-}
+/* .table-wrap scrolls sideways, which also clips the fallback above or below it:
+   in the first row it opens downwards. */
+html:not(.js-tooltips) .table-wrap tbody tr:first-child [data-tooltip]::after { top: calc(100% + 0.4rem); bottom: auto; }
+html:not(.js-tooltips) .table-wrap tbody tr:first-child [data-tooltip]:hover::before { top: 100%; bottom: auto; }
 
 /* Long IDs break only when the table would otherwise outgrow its card */
 .table-wrap td code { overflow-wrap: anywhere; }
@@ -1869,8 +1904,8 @@ a.tile:hover {
   .archive-header-actions { justify-content: flex-start; }
   .archive-notes { max-width: 100%; white-space: normal; }
   .inline-actions .icon-action { width: 2.75rem; height: 2.75rem; }
-  /* Notes wrap in full here: the tooltip would only repeat them. */
-  .archive-notes-tip::after { display: none; }
+  /* Notes wrap in full here: the tooltip would only repeat them (app.js drops it too). */
+  html:not(.js-tooltips) .archive-notes-tip::after { display: none; }
   /* The checkbox wraps below the filter box here: no need to match its height. */
   .ingress-toolbar .checkbox-row { min-height: 0; }
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
