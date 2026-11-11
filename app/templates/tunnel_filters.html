@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% set active_section = "automation" %}
 
-{% block title %}Tikka Masala · Advanced Backup Schedule{% endblock %}
+{% block title %}Advanced backup schedule{% endblock %}
 
 {% block content %}
       {% set automation_tab = "tunnels" %}
@@ -11,15 +11,15 @@
       {% endif %}
       <section class="card" id="tunnel-filters-section">
         <div class="section-heading">
-          <h2 class="heading-with-icon">
+          <h1 class="heading-with-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="icon" aria-hidden="true">
+              class="icon" aria-hidden="true" focusable="false">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M4 4h16v2.172a2 2 0 0 1 -.586 1.414l-4.414 4.414v7l-6 2v-8.5l-4.48 -4.928a2 2 0 0 1 -.52 -1.345v-2.227z" />
             </svg>
             <span>Advanced backup schedule</span>
-          </h2>
+          </h1>
           <p class="hint">Control which tunnels are included in automatic backups and how often each tunnel is backed up.</p>
         </div>
 
@@ -60,12 +60,13 @@
           {% if tunnels %}
           <div class="table-wrap top-gap">
             <table id="tunnel-filters-table">
+              <caption class="sr-only">Tunnels in automatic backups</caption>
               <thead>
                 <tr>
-                  <th class="col-include" id="col-include-header">Include</th>
-                  <th>Tunnel name</th>
-                  <th>Tunnel ID</th>
-                  <th>Frequency</th>
+                  <th scope="col" class="col-include" id="col-include-header">Include</th>
+                  <th scope="col">Tunnel name</th>
+                  <th scope="col">Tunnel ID</th>
+                  <th scope="col">Frequency</th>
                 </tr>
               </thead>
               <tbody>

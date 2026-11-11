@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% set active_section = "backups" %}
 
-{% block title %}Backups - Tikka Masala{% endblock %}
+{% block title %}Backups{% endblock %}
 
 {% block content %}
       {% if not demo_mode %}
@@ -11,15 +11,15 @@
       <section class="card" id="saved-backups-section">
         <div class="section-heading section-header-row">
           <div>
-            <h2 class="heading-with-icon">
-              <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <h1 class="heading-with-icon">
+              <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v3h-18z" />
                 <path d="M4 10v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-8" />
                 <path d="M10 12l4 0" />
               </svg>
               <span>Backups</span>
-            </h2>
+            </h1>
             <p class="hint">Saved snapshots of the tunnels of the selected scope. Backups of accounts no profile uses stay readable under Other accounts.</p>
           </div>
           <div class="archive-header-actions">
@@ -72,6 +72,7 @@
         {% if archive.backups %}
         <div class="table-wrap">
           <table>
+            <caption class="sr-only">Backups</caption>
             <thead>
               <tr>
                 <th scope="col">#ID</th>
@@ -162,7 +163,7 @@
         {% endif %}
         <div class="saved-backups-overview top-gap">
           <section class="saved-backups-panel">
-            <h3>Archive statistics</h3>
+            <h2>Archive statistics</h2>
             <p class="hint">The whole archive, every account included.</p>
             <dl class="status-grid archive-stats-grid">
               <div>
@@ -205,7 +206,7 @@
           </section>
           <section class="saved-backups-panel" id="backup-retention-status">
             <div class="panel-heading-inline">
-              <h3>Archive retention</h3>
+              <h2>Archive retention</h2>
               {% if backup_retention.enabled %}
               <span class="status-pill status-alt status-pill-compact">{{ profile_name }}: {{ backup_retention.days }} day(s)</span>
               {% else %}

@@ -1,15 +1,16 @@
 {% extends "base.html" %}
+{% import "partials/ui.html" as ui %}
 {% set hide_sections = true %}
 
-{% block title %}Tikka Masala · Setup{% endblock %}
+{% block title %}Setup{% endblock %}
 
 {% block content %}
       <section class="card" id="setup-section">
         <div class="section-heading">
-          <h2 class="heading-with-icon">
+          <h1 class="heading-with-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="icon icon-tabler icons-tabler-outline icon-tabler-plug-connected" aria-hidden="true">
+              class="icon icon-tabler icons-tabler-outline icon-tabler-plug-connected" aria-hidden="true" focusable="false">
               <path stroke="none" d="M0 0h24v24H0z" fill="none" />
               <path d="M7 12l5 5l-1.5 1.5a3.536 3.536 0 1 1 -5 -5l1.5 -1.5z" />
               <path d="M17 12l-5 -5l1.5 -1.5a3.536 3.536 0 1 1 5 5l-1.5 1.5z" />
@@ -19,7 +20,7 @@
               <path d="M13 14l-2 2" />
             </svg>
             <span>Connect your Cloudflare account</span>
-          </h2>
+          </h1>
           <p class="hint">Tikka Masala needs your Cloudflare Account ID and an API token. They are checked against Cloudflare before they are saved, and you can change them later in Settings.</p>
         </div>
 
@@ -32,7 +33,7 @@
 
         <section class="guide-copy">
           <p>
-            Create a custom API token in the <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer">Cloudflare dashboard</a> with:
+            Create a custom API token in the <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer">Cloudflare dashboard{{ ui.new_tab() }}</a> with:
           </p>
           <ul>
             <li><strong>Account</strong>: Cloudflare Tunnel - Edit</li>
@@ -40,7 +41,7 @@
           </ul>
           <p class="hint">
             The Account ID is on the <strong>Account home</strong> page of the dashboard (<strong>Copy account ID</strong> in the account menu).
-            More details in the <a href="https://github.com/gioxx/TikkaMasala#first-run-and-credentials" target="_blank" rel="noopener noreferrer">README</a>.
+            More details in the <a href="https://github.com/gioxx/TikkaMasala#first-run-and-credentials" target="_blank" rel="noopener noreferrer">README{{ ui.new_tab() }}</a>.
           </p>
         </section>
 

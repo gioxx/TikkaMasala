@@ -7,10 +7,11 @@
 {% endif %}
 {%- endmacro %}
 
-{% block title %}Automation - Tikka Masala{% endblock %}
+{% block title %}Automation{% endblock %}
 {% block main_attrs %} data-notice-target="{{ notice[0] if notice else '' }}" data-auto-backup-timezone="{{ auto_backup.timezone_name }}" data-auto-backup-timezone-source="{{ auto_backup.timezone_source }}"{% endblock %}
 
 {% block content %}
+      <h1 class="page-title">Automation</h1>
       {% set automation_tab = "overview" %}
       {% include "partials/automation_subnav.html" %}
       {% if not demo_mode %}
@@ -21,7 +22,7 @@
             <h2 class="heading-with-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                class="icon icon-tabler icons-tabler-outline icon-tabler-calendar-clock" aria-hidden="true">
+                class="icon icon-tabler icons-tabler-outline icon-tabler-calendar-clock" aria-hidden="true" focusable="false">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                 <path d="M10.5 21h-4.5a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v3" />
                 <path d="M16 3v4" />
@@ -138,7 +139,7 @@
       <section class="card" id="retention-section">
         <div class="section-heading">
           <h2 class="heading-with-icon">
-            <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M4 7l16 0" />
               <path d="M10 11l0 6" />
@@ -167,7 +168,7 @@
         <div class="section-heading section-header-row">
           <div>
             <h2 class="heading-with-icon">
-              <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M12 8l0 4l2 2" />
                 <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5" />
@@ -181,14 +182,15 @@
         {% if auto_backup.recent_runs %}
         <div class="table-wrap">
           <table>
+            <caption class="sr-only">Recent runs</caption>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Started</th>
-                <th>Status</th>
-                <th class="num">Tunnels</th>
-                <th class="num">Backups</th>
-                <th class="num">Errors</th>
+                <th scope="col">ID</th>
+                <th scope="col">Started</th>
+                <th scope="col">Status</th>
+                <th scope="col" class="num">Tunnels</th>
+                <th scope="col" class="num">Backups</th>
+                <th scope="col" class="num">Errors</th>
               </tr>
             </thead>
             <tbody>
@@ -228,7 +230,7 @@
             <h2 class="heading-with-icon">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                class="icon icon-tabler icons-tabler-outline icon-tabler-bell" aria-hidden="true">
+                class="icon icon-tabler icons-tabler-outline icon-tabler-bell" aria-hidden="true" focusable="false">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                 <path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6" />
                 <path d="M9 17v1a3 3 0 0 0 6 0v-1" />

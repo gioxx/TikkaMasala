@@ -133,7 +133,7 @@ def test_ingress_page_snapshot(client, configured_default, make_backup):
     response = client.get("/ingress")
     assert response.status_code == 200
     body = response.text
-    assert "<title>Tikka Masala · Hostnames</title>" in body
+    assert "<title>Hostnames · Tikka Masala</title>" in body
     assert 'href="https://page.example.com"' in body
     assert "http://localhost:8080" in body
     assert "PageTunnel" in body
@@ -306,7 +306,7 @@ def test_ingress_snapshots_follow_active_account(client, configured_default, mak
         {"hostname": "far.example.com", "service": "http://10.0.0.2:80"},
     ])
     body = client.get("/ingress").text
-    assert 'class="wrap-anywhere">home.example.com</a>' in body
+    assert 'class="wrap-anywhere">home.example.com<svg class="new-tab-icon"' in body
     assert "far.example.com" not in body
 
 

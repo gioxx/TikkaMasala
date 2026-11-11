@@ -1,4 +1,5 @@
 {#- The Tunnels home region: summary tiles and the tunnel table. htmx actions swap it whole. -#}
+{% import "partials/ui.html" as ui %}
 {%- macro tunnels_icon() -%}
 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler heading-icon" aria-hidden="true" focusable="false"><path stroke="none" d="M0 0h24v24H0z" fill="none"/>
 <path d="M6 9a6 6 0 1 0 12 0a6 6 0 0 0 -12 0"/><path d="M12 3c1.333 .333 2 2.333 2 6s-.667 5.667 -2 6"/><path d="M12 3c-1.333 .333 -2 2.333 -2 6s.667 5.667 2 6"/><path d="M6 9h12"/><path d="M3 20h7"/><path d="M14 20h7"/><path d="M10 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/><path d="M12 15v3"/>
@@ -18,7 +19,7 @@
 
         <section class="card tunnels-panel">
           <div class="tunnels-panel-head">
-            <h2 class="heading-with-icon">{{ tunnels_icon() }}<span>Tunnels</span></h2>
+            <h1 class="heading-with-icon">{{ tunnels_icon() }}<span>Tunnels</span></h1>
             {% if not home.credentials_message and not demo_mode %}
             <div class="tunnels-panel-actions">
               <a class="secondary-link-button" href="/backups/new">Back up with a note</a>
@@ -44,6 +45,7 @@
           {% if home.rows %}
           <div class="tunnel-table-wrap top-gap">
             <table class="tunnel-table">
+              <caption class="sr-only">Tunnels</caption>
               <thead>
                 <tr>
                   <th scope="col" class="col-name">Tunnel</th>
@@ -59,7 +61,7 @@
                 <tr id="tunnel-row-{{ row.tunnel_id }}" class="tunnel-row{% if fb %} has-feedback{% endif %}">
                   <td class="col-name">
                     {%- if home.account_id -%}
-                    <a href="https://dash.cloudflare.com/{{ home.account_id }}/tunnels/{{ row.tunnel_id }}/overview" target="_blank" rel="noopener noreferrer" title="Open {{ row.name }} in the Cloudflare dashboard">{{ row.name }}</a>
+                    <a href="https://dash.cloudflare.com/{{ home.account_id }}/tunnels/{{ row.tunnel_id }}/overview" target="_blank" rel="noopener noreferrer" title="Open {{ row.name }} in the Cloudflare dashboard">{{ row.name }}{{ ui.new_tab() }}</a>
                     {%- else -%}
                     {{ row.name }}
                     {%- endif -%}
@@ -106,8 +108,8 @@
 
           {% if home.account_id %}
           <p class="tunnels-links hint">
-            <a href="https://dash.cloudflare.com/{{ home.account_id }}/one/access-controls/apps" target="_blank" rel="noopener noreferrer">Access Controls: Applications</a>
-            <a href="https://dash.cloudflare.com/{{ home.account_id }}/one/access-controls/policies" target="_blank" rel="noopener noreferrer">Access Controls: Policies</a>
+            <a href="https://dash.cloudflare.com/{{ home.account_id }}/one/access-controls/apps" target="_blank" rel="noopener noreferrer">Access Controls: Applications{{ ui.new_tab() }}</a>
+            <a href="https://dash.cloudflare.com/{{ home.account_id }}/one/access-controls/policies" target="_blank" rel="noopener noreferrer">Access Controls: Policies{{ ui.new_tab() }}</a>
           </p>
           {% endif %}
         </section>

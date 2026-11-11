@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% set active_section = "automation" %}
 
-{% block title %}Tikka Masala · Automatic Backup Archive{% endblock %}
+{% block title %}Run history{% endblock %}
 
 {% block content %}
       {% set automation_tab = "runs" %}
@@ -16,16 +16,16 @@
       <section class="card" id="runs-archive">
         <div class="section-header-row">
           <div>
-            <h2 class="heading-with-icon">
+            <h1 class="heading-with-icon">
               <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                 <path d="M3 4m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v3h-18z" />
                 <path d="M4 10v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-8" />
                 <path d="M10 12l4 0" />
               </svg>
-              <span>Automatic backup archive</span>
-            </h2>
+              <span>Run history</span>
+            </h1>
             <p class="hint">Full execution history for scheduled and manual automatic backup runs.</p>
             <p class="hint">
               Total recorded runs: {{ scheduled_runs_stats.run_count }}.
@@ -37,17 +37,18 @@
         {% if runs %}
         <div class="table-wrap">
           <table>
+            <caption class="sr-only">Run history</caption>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Started</th>
-                <th>Finished</th>
-                <th>Status</th>
-                <th>Account ID</th>
-                <th class="num">Tunnels</th>
-                <th class="num">Backups</th>
-                <th class="num">Errors</th>
-                <th>Details</th>
+                <th scope="col">ID</th>
+                <th scope="col">Started</th>
+                <th scope="col">Finished</th>
+                <th scope="col">Status</th>
+                <th scope="col">Account ID</th>
+                <th scope="col" class="num">Tunnels</th>
+                <th scope="col" class="num">Backups</th>
+                <th scope="col" class="num">Errors</th>
+                <th scope="col">Details</th>
               </tr>
             </thead>
             <tbody>

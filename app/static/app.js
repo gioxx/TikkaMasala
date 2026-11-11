@@ -90,7 +90,7 @@ document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
     const target = document.querySelector(href);
     if (!target) return;
     event.preventDefault();
-    smoothScrollToElement(target, 68, href === "#page-top" ? 620 : 560);
+    smoothScrollToElement(target, 68, href === "#main" ? 620 : 560);
     history.replaceState(null, "", href);
   });
 });

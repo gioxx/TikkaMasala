@@ -223,7 +223,7 @@ def test_static_assets_are_cache_busted_by_content(client):
     assert f'src="/static/app.js?v={version}"' in page
 
 
-MAIN_CLASS = re.compile(r'<main id="page-top" class="([^"]*)"')
+MAIN_CLASS = re.compile(r'<main id="main" class="([^"]*)"')
 
 
 @pytest.mark.parametrize("path", [p for p, _ in PAGES])

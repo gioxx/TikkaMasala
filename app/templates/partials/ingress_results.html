@@ -1,3 +1,4 @@
+{% import "partials/ui.html" as ui %}
 <div id="ingress-results" class="ingress-results">
         <div class="ingress-source-row">
           <div class="source-switch" role="group" aria-label="Data source">
@@ -73,13 +74,14 @@
         {% if overview.rows %}
         <div class="table-wrap top-gap">
           <table class="ingress-table">
+            <caption class="sr-only">Hostnames</caption>
             <thead>
               <tr>
-                <th>Hostname</th>
-                <th>Path</th>
-                <th>Service (origin)</th>
-                <th>Tunnel</th>
-                <th>{% if overview.source == "snapshot" %}Snapshot{% else %}Rule{% endif %}</th>
+                <th scope="col">Hostname</th>
+                <th scope="col">Path</th>
+                <th scope="col">Service (origin)</th>
+                <th scope="col">Tunnel</th>
+                <th scope="col">{% if overview.source == "snapshot" %}Snapshot{% else %}Rule{% endif %}</th>
               </tr>
             </thead>
             <tbody>
@@ -87,7 +89,7 @@
               <tr data-search="{{ row.search_text }}" data-catch-all="{{ 'true' if row.rule.is_catch_all else 'false' }}">
                 <td data-label="Hostname">
                   {% if row.link %}
-                  <a href="{{ row.link }}" target="_blank" rel="noopener noreferrer" class="wrap-anywhere">{{ row.rule.hostname }}</a>
+                  <a href="{{ row.link }}" target="_blank" rel="noopener noreferrer" class="wrap-anywhere">{{ row.rule.hostname }}{{ ui.new_tab() }}</a>
                   {% elif row.rule.hostname %}
                   <span class="wrap-anywhere">{{ row.rule.hostname }}</span>
                   {% elif row.rule.is_catch_all %}
@@ -111,7 +113,7 @@
                 </td>
                 <td data-label="Tunnel">
                   {% if row.account_id %}
-                  <a href="https://dash.cloudflare.com/{{ row.account_id }}/tunnels/{{ row.tunnel_id }}/overview" target="_blank" rel="noopener noreferrer" title="Open in the Cloudflare dashboard">{{ row.tunnel_name }}</a>
+                  <a href="https://dash.cloudflare.com/{{ row.account_id }}/tunnels/{{ row.tunnel_id }}/overview" target="_blank" rel="noopener noreferrer" title="Open in the Cloudflare dashboard">{{ row.tunnel_name }}{{ ui.new_tab() }}</a>
                   {% else %}
                   {{ row.tunnel_name }}
                   {% endif %}

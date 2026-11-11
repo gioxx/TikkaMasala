@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% set active_section = "backups" %}
 
-{% block title %}Tikka Masala · Backup #{{ backup.id }}{% endblock %}
+{% block title %}Backup #{{ backup.id }}{% endblock %}
 
 {% block content %}
       {% if demo_mode %}
@@ -15,7 +15,7 @@
         <h1 class="heading-with-icon">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="icon icon-tabler icons-tabler-outline icon-tabler-cloud-download">
+            class="icon icon-tabler icons-tabler-outline icon-tabler-cloud-download" aria-hidden="true" focusable="false">
             <path stroke="none" d="M0 0h24v24H0z" fill="none" />
             <path d="M19 18a3.5 3.5 0 0 0 0 -7h-1a5 4.5 0 0 0 -11 -2a4.6 4.4 0 0 0 -2.1 8.4" />
             <path d="M12 13l0 9" />
@@ -91,8 +91,9 @@
         {% if ingress_rules %}
         <div class="table-wrap top-gap">
           <table>
+            <caption class="sr-only">Ingress rules in this snapshot</caption>
             <thead>
-              <tr><th>Hostname</th><th>Path</th><th>Service (origin)</th><th>Origin settings</th></tr>
+              <tr><th scope="col">Hostname</th><th scope="col">Path</th><th scope="col">Service (origin)</th><th scope="col">Origin settings</th></tr>
             </thead>
             <tbody>
               {% for rule in ingress_rules %}
@@ -126,7 +127,7 @@
         <h2 class="heading-with-icon">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            class="icon icon-tabler icons-tabler-outline icon-tabler-database-import">
+            class="icon icon-tabler icons-tabler-outline icon-tabler-database-import" aria-hidden="true" focusable="false">
             <path stroke="none" d="M0 0h24v24H0z" fill="none" />
             <path d="M4 6c0 1.657 3.582 3 8 3s8 -1.343 8 -3s-3.582 -3 -8 -3s-8 1.343 -8 3" />
             <path d="M4 6v6c0 1.657 3.582 3 8 3c.856 0 1.68 -.05 2.454 -.144m5.546 -2.856v-6" />
@@ -149,7 +150,8 @@
         {% if ingress_diff is not none %}
         <div class="table-wrap top-gap">
           <table>
-            <thead><tr><th>Pos / change</th><th>Hostname / setting</th><th>Service (origin) / value</th></tr></thead>
+            <caption class="sr-only">Changes against the live configuration</caption>
+            <thead><tr><th scope="col">Pos / change</th><th scope="col">Hostname / setting</th><th scope="col">Service (origin) / value</th></tr></thead>
             <tbody>
               {% for row in ingress_diff.ordered %}
               <tr>
@@ -236,7 +238,7 @@
 
       <section class="card code-card">
         <h2 class="heading-with-icon">
-          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
             <path d="M7 8l-4 4l4 4"/>
             <path d="M17 8l4 4l-4 4"/>
@@ -249,7 +251,7 @@
 
       <section class="card" id="restore-history">
         <h2 class="heading-with-icon">
-          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg class="heading-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
             <path d="M12 8l0 4l2 2"/>
             <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
@@ -259,13 +261,14 @@
         {% if restores %}
         <div class="table-wrap">
           <table>
+            <caption class="sr-only">Restore history</caption>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Restored</th>
-                <th>Target</th>
-                <th>Account ID</th>
-                <th>Tunnel ID</th>
+                <th scope="col">ID</th>
+                <th scope="col">Restored</th>
+                <th scope="col">Target</th>
+                <th scope="col">Account ID</th>
+                <th scope="col">Tunnel ID</th>
               </tr>
             </thead>
             <tbody>

@@ -1,22 +1,22 @@
 {% extends "base.html" %}
 {% set active_section = "settings" %}
 
-{% block title %}Tikka Masala · Notification Messages{% endblock %}
+{% block title %}Notification messages{% endblock %}
 
 {% block content %}
       <section class="card" id="notification-messages-section">
         <p class="hint"><a href="/settings" class="secondary-link-button">Back to Settings</a></p>
         <div class="section-heading">
-          <h2 class="heading-with-icon">
+          <h1 class="heading-with-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="icon" aria-hidden="true">
+              class="icon" aria-hidden="true" focusable="false">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M10 14l11 -11" />
               <path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" />
             </svg>
             <span>Notification messages</span>
-          </h2>
+          </h1>
           <p class="hint">
             Customize the text sent with each notification event.
             Leave a field empty to use the built-in default message.

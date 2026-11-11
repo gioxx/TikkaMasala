@@ -17,7 +17,7 @@ def test_index_renders(client):
     response = client.get("/")
     assert response.status_code == 200
     body = response.text
-    assert "<title>Tikka Masala</title>" in body
+    assert "<title>Tunnels · Tikka Masala</title>" in body
     assert 'id="tunnels-home"' in body
     assert "/static/app.js" in body or "smoothScrollToY" in body
 
@@ -38,14 +38,14 @@ def test_backups_pagination_params(client):
 def test_scheduled_runs_page(client):
     response = client.get("/automation/runs")
     assert response.status_code == 200
-    assert "Automatic Backup Archive" in response.text
+    assert "<title>Run history · Tikka Masala</title>" in response.text
     assert client.get("/automation/runs?page_size=all").status_code == 200
 
 
 def test_notification_messages_page(client):
     response = client.get("/settings/notifications")
     assert response.status_code == 200
-    assert "Notification Messages" in response.text
+    assert "<title>Notification messages · Tikka Masala</title>" in response.text
     assert "manual_backup_success" in response.text
 
 
@@ -67,7 +67,7 @@ def test_tunnel_filters_page_without_credentials(client):
     # No server-side credentials: the page must render without calling Cloudflare.
     response = client.get("/automation/tunnels")
     assert response.status_code == 200
-    assert "Advanced Backup Schedule" in response.text
+    assert "<title>Advanced backup schedule · Tikka Masala</title>" in response.text
 
 
 def test_backup_detail_shows_ingress(client, make_backup):
