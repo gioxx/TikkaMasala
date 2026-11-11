@@ -160,9 +160,9 @@ html {
   scroll-padding-top: calc(var(--topbar-h, 0px) + 1rem);
   scroll-padding-bottom: 4.5rem;
 }
-@media (prefers-reduced-motion: no-preference) {
-  html { scroll-behavior: smooth; }
-}
+/* No CSS smooth scrolling: it made Chrome drop the scroll that brings a keyboard-focused control
+   into view (seen in the open menu at 320x225). In-page links animate in app.js, which jumps
+   instantly when reduced motion is requested. */
 body {
   margin: 0;
   background: var(--bg);
@@ -916,8 +916,10 @@ details.forget-credentials > summary { color: var(--danger-text); }
 }
 .secondary-link-button.primary-link:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--accent-contrast); }
 .backup-notes { margin: 0; overflow-wrap: anywhere; }
+/* Pagination ends with nowhere to go: plain text, muted but readable (4.5:1), with a faint frame. */
 .secondary-link-button.is-disabled {
-  opacity: 0.5;
+  border-color: var(--border);
+  color: var(--muted);
   pointer-events: none;
 }
 

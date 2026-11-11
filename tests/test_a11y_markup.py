@@ -147,8 +147,8 @@ def test_scroll_padding_follows_the_measured_topbar_and_reduced_motion():
     html = declarations(rule_body(without_at_rules(css), "html"))
     assert html["scroll-padding-top"] == "calc(var(--topbar-h, 0px) + 1rem)"
     assert html["scroll-padding-bottom"] == "4.5rem"
-    assert "scroll-behavior" not in html
-    assert "smooth" in rule_body(media_block(css, "(prefers-reduced-motion: no-preference)"), "html")
+    # Never CSS smooth scrolling (it can cancel the scroll that reveals a keyboard-focused control).
+    assert "scroll-behavior" not in css
     js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
     assert "new ResizeObserver(syncTopbarHeight)" in js
     assert 'setProperty("--topbar-h"' in js
