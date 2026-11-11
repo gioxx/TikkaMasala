@@ -298,12 +298,33 @@ const syncNoteTooltips = () => {
     }
   });
 };
-let noteSyncFrame = 0;
+// Tables that scroll sideways: while one actually overflows it becomes a named, focusable
+// region, so keyboard users can scroll it too (WCAG 2.1.1); otherwise it adds no tab stop.
+const syncScrollRegions = () => {
+  document.querySelectorAll("[data-scroll-region]").forEach((region) => {
+    if (region.scrollWidth > region.clientWidth + 1) {
+      region.tabIndex = 0;
+      region.setAttribute("role", "region");
+      region.setAttribute("aria-label", region.dataset.scrollRegion);
+    } else {
+      region.removeAttribute("tabindex");
+      region.removeAttribute("role");
+      region.removeAttribute("aria-label");
+    }
+  });
+};
+
+const syncLayoutDependentAttributes = () => {
+  syncNoteTooltips();
+  syncScrollRegions();
+};
+let layoutSyncFrame = 0;
 window.addEventListener("resize", () => {
-  window.cancelAnimationFrame(noteSyncFrame);
-  noteSyncFrame = window.requestAnimationFrame(syncNoteTooltips);
+  window.cancelAnimationFrame(layoutSyncFrame);
+  layoutSyncFrame = window.requestAnimationFrame(syncLayoutDependentAttributes);
 }, { passive: true });
-syncNoteTooltips();
+document.addEventListener("htmx:afterSettle", syncLayoutDependentAttributes);
+syncLayoutDependentAttributes();
 
 // Render [data-utc-datetime] elements in the scheduler timezone. Pages that
 // carry data-auto-backup-timezone follow the same rule as the Automation page

@@ -849,7 +849,8 @@ details.forget-credentials > summary { color: var(--danger-text); }
   flex-wrap: wrap;
 }
 .pagination-summary { color: var(--muted); font-size: 0.8125rem; }
-.page-size-form { margin: 0; }
+.page-size-form { display: flex; align-items: center; gap: 0.5rem; margin: 0; }
+.page-size-form .secondary-button { min-height: var(--control-height); }
 .page-size-label {
   display: inline-flex;
   align-items: center;
@@ -1649,6 +1650,11 @@ a:hover { color: var(--link-hover); }
 .ingress-issues { margin: 0.45rem 0 0; padding-left: 1.2rem; }
 .ingress-table td .status-pill { margin: 0.2rem 0.2rem 0 0; }
 .ingress-table td .hint { display: block; margin: 0.15rem 0 0; }
+/* "N origin settings": the values open in place (keyboard and touch too, unlike a title). */
+.origin-settings { margin-top: 0.25rem; }
+.origin-settings > summary { font-size: 0.8125rem; font-weight: 500; color: var(--status-info-text); }
+.origin-settings ul { margin: 0.25rem 0 0; padding-left: 1.1rem; font-size: 0.8125rem; }
+.origin-settings code { overflow-wrap: anywhere; }
 .ingress-filter-empty td { color: var(--muted); text-align: center; }
 /* Filtered rows must stay hidden even where tables become cards on mobile. */
 .table-wrap tr[hidden] { display: none; }
@@ -1771,8 +1777,11 @@ a.tile:hover {
 .tunnel-table .col-last { white-space: nowrap; }
 .tunnel-table .col-action { width: 1%; text-align: right; white-space: nowrap; }
 .tunnel-table .col-action form { display: inline-flex; margin: 0; }
+/* As wide as the message (up to 16rem) even in the shrink-to-fit action column: never one
+   character per line. */
 .row-feedback {
   display: block;
+  width: max-content;
   max-width: 16rem;
   margin: 0.35rem 0 0 auto;
   font-size: 0.8rem;

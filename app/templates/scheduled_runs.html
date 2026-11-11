@@ -35,7 +35,7 @@
         </div>
 
         {% if runs %}
-        <div class="table-wrap">
+        <div class="table-wrap" data-scroll-region="Run history">
           <table>
             <caption class="sr-only">Run history</caption>
             <thead>
@@ -89,20 +89,21 @@
             <input type="hidden" name="page" value="1">
             <label class="page-size-label">
               <span>Per page</span>
-              <select name="page_size" onchange="this.form.submit()">
+              <select name="page_size">
                 {% for option in scheduled_runs_page_size_options %}
                 <option value="{{ option }}" {% if not scheduled_runs_pagination.is_all and scheduled_runs_pagination.page_size == option %}selected{% endif %}>{{ option }}</option>
                 {% endfor %}
                 <option value="all" {% if scheduled_runs_pagination.is_all %}selected{% endif %}>All</option>
               </select>
             </label>
+            <button type="submit" class="secondary-button">Apply</button>
           </form>
           {% if scheduled_runs_pagination.total_pages > 1 %}
-          <div class="pagination-actions">
+          <nav class="pagination-actions" aria-label="Pagination">
             {% if scheduled_runs_pagination.has_previous %}
             <a href="{{ '/automation/runs?page=%s&page_size=%s' | format(scheduled_runs_pagination.previous_page, scheduled_runs_pagination.page_size_param) }}#runs-archive" class="secondary-link-button">Previous</a>
             {% else %}
-            <span class="secondary-link-button is-disabled" aria-disabled="true">Previous</span>
+            <span class="secondary-link-button is-disabled">Previous</span>
             {% endif %}
 
             <span class="pagination-current">Page {{ scheduled_runs_pagination.current_page }} of {{ scheduled_runs_pagination.total_pages }}</span>
@@ -110,9 +111,9 @@
             {% if scheduled_runs_pagination.has_next %}
             <a href="{{ '/automation/runs?page=%s&page_size=%s' | format(scheduled_runs_pagination.next_page, scheduled_runs_pagination.page_size_param) }}#runs-archive" class="secondary-link-button">Next</a>
             {% else %}
-            <span class="secondary-link-button is-disabled" aria-disabled="true">Next</span>
+            <span class="secondary-link-button is-disabled">Next</span>
             {% endif %}
-          </div>
+          </nav>
           {% endif %}
         </div>
         {% else %}

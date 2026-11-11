@@ -43,7 +43,7 @@
           <p class="notice error top-gap">Could not load tunnel status from Cloudflare: {{ home.list_error }} Showing saved data.</p>
           {% endif %}
           {% if home.rows %}
-          <div class="tunnel-table-wrap top-gap">
+          <div class="tunnel-table-wrap top-gap" data-scroll-region="Tunnels">
             <table class="tunnel-table">
               <caption class="sr-only">Tunnels</caption>
               <thead>
@@ -67,7 +67,7 @@
                     {%- endif -%}
                   </td>
                   {%- set tone = {"healthy": "match", "degraded": "alt", "down": "warn"}.get(row.status, "muted") %}
-                  <td class="col-status"><span class="status-pill status-{{ tone }}" title="{{ row.status }}"><span class="status-label">{{ row.status }}</span></span></td>
+                  <td class="col-status"><span class="status-pill status-{{ tone }}"><span class="status-label">{{ row.status }}</span></span></td>
                   <td class="col-hostnames num">{{ row.hostname_count if row.hostname_count is not none else "—" }}</td>
                   <td class="col-last">
                     {%- if row.last_backup_at -%}

@@ -13,9 +13,13 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "app" / "static"
 GOOD = "0123456789abcdef0123456789abcdef"
 T1 = "11111111-1111-4111-8111-111111111111"
 T2 = "22222222-2222-4222-8222-222222222222"
+T3 = "33333333-3333-4333-8333-333333333333"
+T4 = "44444444-4444-4444-8444-444444444444"
 TUNNELS = [
     {"id": T1, "name": "Home", "status": "healthy"},
     {"id": T2, "name": "Lab", "status": "down"},
+    {"id": T3, "name": "Media", "status": "degraded"},
+    {"id": T4, "name": "Old", "status": "inactive"},
 ]
 
 PAGES = [
@@ -196,3 +200,58 @@ def test_profile_switcher_label_visible_when_collapsed(client, second_profile):
     collapse = media_block(_css(), "(max-width: 60em)")
     label = declarations(rule_body(collapse, ".profile-switcher .profile-switcher-label"))
     assert label["position"] == "static" and label["clip"] == "auto"
+
+
+# --- Tables, tooltips and pagination (review #122 items 1, 4, 9; S7, M1, M10, m3) ---
+
+def _row(text: str, tunnel_id: str) -> str:
+    return text.split(f'id="tunnel-row-{tunnel_id}"', 1)[1].split("</tr>", 1)[0]
+
+
+def test_tunnel_rows_icon_button_and_status_pills(client, populated):
+    text = client.get("/").text
+    for tunnel_id, name, status, tone in [
+        (T1, "Home", "healthy", "match"),
+        (T2, "Lab", "down", "warn"),
+        (T3, "Media", "degraded", "alt"),
+        (T4, "Old", "inactive", "muted"),
+    ]:
+        row = _row(text, tunnel_id)
+        assert f'aria-label="Back up {name}" data-tooltip="Back up"' in row
+        assert f'<span class="status-pill status-{tone}"><span class="status-label">{status}</span></span>' in row
+        # No title on the pill: it only repeated the visible word.
+        assert "title=" not in row.split('class="col-status"', 1)[1].split("</td>", 1)[0]
+
+
+def test_row_feedback_is_as_wide_as_its_message():
+    from tests.css_helpers import declarations, rule_body, without_at_rules
+
+    rule = declarations(rule_body(without_at_rules(_css()), ".row-feedback"))
+    assert rule["width"] == "max-content" and rule["max-width"] == "16rem"
+
+
+def test_scrollable_regions_are_keyboard_reachable(client, populated):
+    detail = client.get(f"/backup/{populated[0]}").text
+    assert '<pre class="json-view" tabindex="0" role="region" aria-label="Snapshot JSON">' in detail
+    for path, label in [("/backups", "Backups"), ("/automation/runs", "Run history"), ("/", "Tunnels")]:
+        text = client.get(path).text
+        if "<table" in text:
+            assert f'data-scroll-region="{label}"' in text, path
+    for wrap in re.findall(r'<div class="(?:tunnel-)?table-wrap[^"]*"[^>]*>', detail + client.get("/backups").text):
+        assert "data-scroll-region=" in wrap, wrap
+    js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    assert "region.scrollWidth > region.clientWidth" in js
+    assert 'region.setAttribute("role", "region")' in js and "region.tabIndex = 0" in js
+
+
+def test_page_size_has_an_apply_button_and_pagination_is_a_nav(client, populated, make_backup):
+    for _ in range(7):
+        make_backup(T1, "Home", account_id=GOOD)
+    for path in ["/backups", "/automation/runs"]:
+        text = client.get(path).text
+        assert "onchange" not in text, path
+        assert "aria-disabled" not in text, path
+    text = client.get("/backups").text
+    form = text.split('class="page-size-form"', 1)[1].split("</form>", 1)[0]
+    assert '<button type="submit" class="secondary-button">Apply</button>' in form
+    assert '<nav class="pagination-actions" aria-label="Pagination">' in text

@@ -89,7 +89,7 @@
         </section>
         {% endif %}
         {% if ingress_rules %}
-        <div class="table-wrap top-gap">
+        <div class="table-wrap top-gap" data-scroll-region="Ingress rules in this snapshot">
           <table>
             <caption class="sr-only">Ingress rules in this snapshot</caption>
             <thead>
@@ -148,7 +148,7 @@
         <section class="notice error top-gap" id="restore-notice">{{ error }}</section>
         {% endif %}
         {% if ingress_diff is not none %}
-        <div class="table-wrap top-gap">
+        <div class="table-wrap top-gap" data-scroll-region="Changes against the live configuration">
           <table>
             <caption class="sr-only">Changes against the live configuration</caption>
             <thead><tr><th scope="col">Pos / change</th><th scope="col">Hostname / setting</th><th scope="col">Service (origin) / value</th></tr></thead>
@@ -246,7 +246,7 @@
           </svg>
           <span>Snapshot JSON</span>
         </h2>
-        <pre class="json-view"><code>{{ content }}</code></pre>
+        <pre class="json-view" tabindex="0" role="region" aria-label="Snapshot JSON"><code>{{ content }}</code></pre>
       </section>
 
       <section class="card" id="restore-history">
@@ -259,7 +259,7 @@
           <span>Restore history</span>
         </h2>
         {% if restores %}
-        <div class="table-wrap">
+        <div class="table-wrap" data-scroll-region="Restore history">
           <table>
             <caption class="sr-only">Restore history</caption>
             <thead>
