@@ -202,3 +202,36 @@ def second_profile(data_dir: Path):
         conn.execute("DELETE FROM scheduled_runs WHERE profile_id != 1")
         conn.execute("DELETE FROM profiles WHERE id != 1")
         conn.commit()
+
+
+@pytest.fixture
+def live_snapshots(monkeypatch, data_dir: Path):
+    """Fake Cloudflare reads for the pre-restore snapshot (``app.backups.take_snapshot``).
+
+    Records each fetch in ``calls`` and removes the backups it led to afterwards. Set ``error`` to an
+    exception to make the snapshot fail.
+    """
+    import app.backups
+
+    state = {"calls": [], "error": None}
+
+    async def fake_fetch(account_id, tunnel_id, api_token):
+        state["calls"].append((account_id, tunnel_id, api_token))
+        if state["error"] is not None:
+            raise state["error"]
+        return (
+            {"result": {"id": tunnel_id, "name": "Live tunnel"}},
+            {"result": {"config": {"ingress": [{"hostname": "live.example.com", "service": "http://10.0.0.9"}, {"service": "http_status:404"}]}}},
+        )
+
+    monkeypatch.setattr(app.backups, "fetch_tunnel_configuration", fake_fetch)
+    yield state
+    with closing(sqlite3.connect(data_dir / "app.db")) as conn:
+        rows = conn.execute(
+            "SELECT id, filename FROM backups WHERE notes LIKE 'Automatic snapshot before restoring backup #%'"
+        ).fetchall()
+        for backup_id, filename in rows:
+            conn.execute("DELETE FROM restores WHERE backup_id = ?", (backup_id,))
+            conn.execute("DELETE FROM backups WHERE id = ?", (backup_id,))
+            (data_dir / "backups" / filename).unlink(missing_ok=True)
+        conn.commit()

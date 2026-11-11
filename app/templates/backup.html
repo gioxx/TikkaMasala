@@ -140,10 +140,16 @@
         </h2>
         <p>
           Restoring will replace the current remote tunnel configuration with the configuration stored
-          in this snapshot.
+          in this snapshot. The current configuration is saved as a new backup first, so a restore can
+          be undone.
         </p>
         {% if message %}
-        <section class="notice success top-gap" id="restore-notice" role="status" tabindex="-1" data-focus-notice>{{ message }}</section>
+        <section class="notice success top-gap" id="restore-notice" role="status" tabindex="-1" data-focus-notice>
+          {{ message }}
+          {% if pre_restore_backup_id %}
+          The configuration it replaced was saved first as <a href="/backup/{{ pre_restore_backup_id }}">backup #{{ pre_restore_backup_id }}</a>: restore that one to undo.
+          {% endif %}
+        </section>
         {% endif %}
         {% if error %}
         <section class="notice error top-gap" id="restore-notice" role="alert" tabindex="-1" data-focus-notice>{{ error }}</section>
@@ -227,8 +233,13 @@
             <span>Tunnel ID</span>
             <input type="text" name="tunnel_id" value="{{ form_tunnel_id or backup.tunnel_id }}" required>
           </label>
+          {% set target_id = form_tunnel_id or backup.tunnel_id %}
+          <label class="checkbox-row full-row restore-confirm">
+            <input type="checkbox" name="confirm" value="replace" id="restore-confirm" required{% if confirm_missing %} aria-invalid="true" aria-describedby="restore-notice"{% endif %}>
+            <span>I understand this replaces the live configuration of tunnel {% if target_id == backup.tunnel_id and backup.tunnel_name %}{{ backup.tunnel_name }} ({{ target_id }}){% else %}{{ target_id }}{% endif %}.</span>
+          </label>
           <div class="full-row actions">
-            <button type="submit" name="mode" value="preview">Preview changes</button>
+            <button type="submit" name="mode" value="preview" formnovalidate>Preview changes</button>
             <button type="submit" name="mode" value="apply" class="danger">Restore backup</button>
           </div>
         </form>

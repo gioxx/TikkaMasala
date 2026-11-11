@@ -264,6 +264,9 @@ def render_backup_page(
     settings_delta: list[tuple[str, Any, Any]] | None = None,
     form_tunnel_id: str | None = None,
     created: bool = False,
+    confirm_missing: bool = False,
+    pre_restore_backup_id: int | None = None,
+    status_code: int = 200,
 ) -> HTMLResponse:
     backup = get_backup(backup_id)
     content = load_backup_json(backup_id)
@@ -286,8 +289,11 @@ def render_backup_page(
             "restore_target": restore_target,
             "created": created,
             "form_tunnel_id": form_tunnel_id,
+            "confirm_missing": confirm_missing,
+            "pre_restore_backup_id": pre_restore_backup_id,
             "demo_mode": DEMO_MODE,
         },
+        status_code=status_code,
     )
 
 

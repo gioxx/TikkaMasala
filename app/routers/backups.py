@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
-from app.backups import NOTES_MAX_LENGTH, clean_notes, get_backup, load_backup_json, record_restore
+from app.backups import NOTES_MAX_LENGTH, clean_notes, create_backup, get_backup, load_backup_json, record_restore
 from app.cloudflare import cloudflare_put, fetch_tunnel_configuration
 from app.config import BACKUP_DIR, DEMO_MODE
 from app.credentials import get_api_credentials, resolve_restore_target
@@ -20,6 +20,13 @@ from app.web import render_backup_page, render_backups_page, templates
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+RESTORE_CONFIRM_VALUE = "replace"
+RESTORE_CONFIRM_ERROR = (
+    "Tick the confirmation to restore: restoring replaces the live configuration of the tunnel. Nothing was changed."
+)
+PRE_RESTORE_SNAPSHOT_NOTE = "Automatic snapshot before restoring backup #{backup_id}"
+PRE_RESTORE_SNAPSHOT_ERROR = "Could not save a snapshot of the live configuration first, so nothing was restored"
 
 
 @router.get("/backups", response_class=HTMLResponse)
@@ -140,6 +147,7 @@ async def restore_backup(
     backup_id: int,
     tunnel_id: str = Form(...),
     mode: str = Form("apply"),
+    confirm: str | None = Form(default=None),
 ) -> HTMLResponse:
     if DEMO_MODE:
         return RedirectResponse(url="/", status_code=303)
@@ -152,6 +160,17 @@ async def restore_backup(
             backup_id,
             error=f"No profile has credentials for account {backup.account_id}. Add them in Settings to restore this backup.",
             form_tunnel_id=tunnel_id.strip() or None,
+        )
+    # Applying replaces the live configuration: it needs the explicit confirmation (WCAG 3.3.4),
+    # checked here too, not only by the required checkbox in the browser.
+    if mode != "preview" and confirm != RESTORE_CONFIRM_VALUE:
+        return render_backup_page(
+            request,
+            backup_id,
+            error=RESTORE_CONFIRM_ERROR,
+            form_tunnel_id=tunnel_id.strip() or None,
+            confirm_missing=True,
+            status_code=400,
         )
     account_id = credentials.account_id
     api_token = credentials.api_token
@@ -182,6 +201,18 @@ async def restore_backup(
                 settings_delta=settings_delta,
                 form_tunnel_id=tunnel_id,
             )
+        # The restore is reversible: the live configuration is saved as a backup first. Without
+        # that snapshot nothing is restored.
+        try:
+            pre_restore = await create_backup(
+                account_id, tunnel_id, api_token, PRE_RESTORE_SNAPSHOT_NOTE.format(backup_id=backup_id), origin="manual"
+            )
+        except HTTPException as exc:
+            raise HTTPException(status_code=exc.status_code, detail=f"{PRE_RESTORE_SNAPSHOT_ERROR}: {exc.detail}") from exc
+        except Exception as exc:
+            logger.exception("Pre-restore snapshot failed (backup_id=%s, tunnel_id=%s).", backup_id, tunnel_id)
+            raise HTTPException(status_code=502, detail=f"{PRE_RESTORE_SNAPSHOT_ERROR}.") from exc
+        logger.info("Pre-restore snapshot saved (backup_id=%s, snapshot_id=%s).", backup_id, pre_restore.id)
         await cloudflare_put(account_id, f"cfd_tunnel/{tunnel_id}/configurations", api_token, {"config": config_body})
         record_restore(backup_id, account_id, tunnel_id)
         logger.info("Restore completed successfully (backup_id=%s, account_id=%s, tunnel_id=%s).", backup_id, account_id, tunnel_id)
@@ -202,6 +233,7 @@ async def restore_backup(
             backup_id,
             message="Backup restored successfully.",
             form_tunnel_id=tunnel_id,
+            pre_restore_backup_id=pre_restore.id,
         )
     except HTTPException as exc:
         if mode == "preview":

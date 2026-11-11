@@ -391,7 +391,7 @@ def test_new_backup_page_notification_carries_profile(client, second_profile, mo
     assert [r["profile_id"] for r in recorded] == [second_profile.id]
 
 
-def test_restore_notification_carries_profile(client, second_profile, make_backup, monkeypatch, queued):
+def test_restore_notification_carries_profile(client, second_profile, make_backup, monkeypatch, queued, live_snapshots):
     import app.routers.backups as backups_router
 
     recorded = queued(backups_router)
@@ -401,7 +401,7 @@ def test_restore_notification_carries_profile(client, second_profile, make_backu
 
     monkeypatch.setattr(backups_router, "cloudflare_put", fake_put)
     backup_id = make_backup(account_id=CLIENT, tunnel_id=T1)
-    client.post(f"/backup/{backup_id}/restore", data={"tunnel_id": T1, "mode": "apply"})
+    client.post(f"/backup/{backup_id}/restore", data={"tunnel_id": T1, "mode": "apply", "confirm": "replace"})
     assert [(r["event"], r["profile_id"]) for r in recorded] == [("restore_success", second_profile.id)]
 
 

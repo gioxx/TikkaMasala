@@ -249,6 +249,8 @@ It does not back up arbitrary account-wide Cloudflare settings.
 
 Restoring a backup replaces the current remote configuration of the selected tunnel with the configuration stored in the snapshot.
 
+Applying a restore needs an explicit confirmation (a checkbox on the restore form, checked by the server too). Before it touches the tunnel, Tikka Masala saves the live configuration as a new manual backup with the note "Automatic snapshot before restoring backup #N"; the success message links to it, so a restore can be undone by restoring that backup. If the snapshot cannot be saved, nothing is restored.
+
 A backup is restored within its own Cloudflare account: the target is the original tunnel or another tunnel in the same account, and the restore uses the credentials saved for that account's profile. Restoring needs a profile for that account.
 
 The backup detail page keeps a restore history so you can see:
