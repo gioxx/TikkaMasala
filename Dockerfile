@@ -19,4 +19,9 @@ RUN mkdir -p /data/backups
 
 EXPOSE 8080
 
+# python:slim has no curl/wget, so the check uses the standard library.
+# /healthz is exempt from Cloudflare Access and from the setup gate.
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=5)"]
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

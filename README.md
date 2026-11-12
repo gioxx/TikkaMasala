@@ -123,6 +123,13 @@ Then open:
 http://localhost:8080
 ```
 
+The image has a built-in Docker healthcheck: every 60 seconds it calls `/healthz` from inside the container, and after three failures in a row Docker marks the container `unhealthy`. `docker ps` shows the state, and monitoring tools that read it (Uptime Kuma, Portainer, Komodo…) can alert on it. `/healthz` needs no login and is exempt from [Cloudflare Access](#cloudflare-access). To change the timing, override it in Compose:
+
+```yaml
+    healthcheck:
+      interval: 30s
+```
+
 Example `.env` for Compose:
 
 ```env
