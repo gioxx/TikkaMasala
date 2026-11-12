@@ -1,4 +1,4 @@
-Third-party notices for tikkamasala.gioxx.org
+Third-party notices for tikkamasala.gxware.org
 
 Tikka Masala is released under the MIT license:
 https://github.com/gioxx/TikkaMasala/blob/main/LICENSE
