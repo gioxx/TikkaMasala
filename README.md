@@ -1,6 +1,6 @@
 # Tikka Masala
 
-Tikka Masala is a small FastAPI web app for backing up and restoring Cloudflare Tunnel configurations. It gives you a simple UI to list available tunnels, save JSON snapshots locally, and restore a saved configuration later.
+Tikka Masala is a small self-hosted FastAPI web app for backing up and restoring Cloudflare Tunnel configurations. It lists the tunnels of one or more Cloudflare accounts, saves JSON snapshots locally (by hand or on a schedule), shows where every ingress rule points, and previews a restore as a diff before applying it.
 
 Website: <https://tikkamasala.gxware.org>
 
@@ -31,7 +31,9 @@ Website: <https://tikkamasala.gxware.org>
 - [Notifications](#notifications)
 - [Demo Mode](#demo-mode)
 - [Cloudflare Access](#cloudflare-access)
+- [Accessibility](#accessibility)
 - [Upgrading](#upgrading)
+  - [Upgrading from 1.3.x](#upgrading-from-13x)
 - [Security Notes](#security-notes)
 - [Project Notes](#project-notes)
 - [Credits](#credits)
@@ -47,17 +49,19 @@ Website: <https://tikkamasala.gxware.org>
 - Download saved snapshots
 - See every ingress rule of a snapshot (hostname, path, origin `service`, `originRequest` settings), with host-local origins such as `localhost` flagged
 - Restore a snapshot to the original tunnel or to another tunnel in the same account
-- Preview a restore as an ingress diff against the tunnel's live configuration before applying it
+- Preview a restore as an ingress diff against the tunnel's live configuration before applying it; applying needs an explicit confirmation and first saves the live configuration as a new backup, so a restore can be undone
 - See every public hostname of every tunnel and the origin it points to on one **Hostnames** page (`/ingress`) for the active profile: read from the latest snapshot of each tunnel, or live from the Cloudflare API, with filtering and warnings for host-local origins and hostnames served by more than one tunnel
 - Manage several Cloudflare accounts as **profiles**, each with its own credentials, schedule, retention and notification destinations, and switch between them from the top bar
 - Keep local metadata in SQLite
 - Track restore history per backup
 - Manage the saved credentials on a **Settings** page (token masked, replace, forget) without deleting backups
-- Switch between system, dark, and light theme
+- A compact "Console" interface with system, dark (slate) and light themes, designed to meet WCAG 2.2 AA (see [Accessibility](#accessibility))
 - Schedule automatic backups for all tunnels or a selected subset of tunnels in the account from the **Automation** section (overview, per-tunnel schedule, run history), and edit the backup retention per profile
 - Set per-tunnel backup frequency (every run, once per week, once per month)
 - Send notifications through webhooks and/or Telegram: each profile has its own destinations, added and edited on **Automation** (URLs and bot tokens stored encrypted, never shown again), each with its own **Test** button; destinations from the environment belong to the Default profile and are shown read-only
 - Customize the notification message for each event with plain text and dynamic placeholders under **Settings**
+- Optionally require a Cloudflare Access login on every request
+- Built-in Docker healthcheck on `/healthz`
 - Run in demo mode without persisting authentication data, scheduler state, or notifications
 
 ## Requirements
@@ -457,7 +461,42 @@ Things to know:
 - The signed-in email (or "service token") and a **Sign out** link appear in the page header.
 - Rejected requests are logged with the client address and the reason, never with the token.
 
+## Accessibility
+
+The interface targets [WCAG 2.2](https://www.w3.org/TR/WCAG22/) level AA, in both themes and at every width:
+
+- a **Skip to content** link, landmarks, one `h1` per page and a page title that names the section
+- a visible focus indicator on every control, including checkboxes, and keyboard access to everything, including tables that scroll sideways
+- text at 4.5:1 contrast or more and control borders at 3:1 or more; the test suite computes these ratios from the theme's colour tokens
+- form errors that are announced, stay on screen and are tied to their fields; results of in-page updates (backups, Hostnames refresh) are announced and keep focus where it was
+- statuses written as words, not only colours, and markers that stay visible in Windows forced-colours (high contrast) mode
+- on small screens tables become lists of cards and the top bar scrolls away instead of covering the page
+
+If something does not work with your assistive technology, please [open an issue](https://github.com/gioxx/TikkaMasala/issues).
+
 ## Upgrading
+
+### Upgrading from 1.3.x
+
+Upgrading from 1.3.x needs no manual steps: pull the new image and start it on the same `DATA_DIR`. On the first start:
+
+- the database is copied to `app.db.pre-v1.bak`, then the saved Account ID, API token, automatic backup schedule and per-tunnel settings move into a profile named **Default**; all backups, restore history and run history are kept
+- if `TOKEN_ENCRYPTION_KEY` was set, **keep it set**: the saved token was encrypted with it. If it was not set, a key is generated as `DATA_DIR/encryption.key`
+- a token that 1.3.x kept only in a browser cookie is saved into the database (encrypted) the first time that browser opens the app, then the cookie is deleted. If no token is saved anywhere, the app opens the setup screen
+- `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` are no longer just form prefills: when both are set, the app uses them directly for the Default profile and skips setup
+- notification destinations set through environment variables keep working and belong to the Default profile
+- old page addresses redirect to the new ones (see [Old URLs](#old-urls))
+
+Behaviour that changes:
+
+- applying a restore now needs the confirmation checkbox, and it first saves the live configuration as a new backup (see [Restore Behavior](#restore-behavior))
+- a restore always targets a tunnel in the backup's own account, with that account's profile credentials
+- the image has a healthcheck; if your Compose file already defines one, yours takes precedence
+- if you shared container logs written while Telegram notifications were enabled, rotate the bot token (see [Security Notes](#security-notes))
+
+The details of the migration and how to roll back follow.
+
+### Profiles migration and rollback
 
 On the first start after upgrading to a version with profiles, the app migrates the saved Account ID, API token and automatic backup settings from the global settings into a profile named "Default". Existing backups and schedule history are kept, and the UI behaves as before.
 
@@ -511,7 +550,8 @@ Some pages moved. The old addresses answer with a permanent redirect (308, query
 - HTTP routes: [`app/routers/`](app/routers)
 - Hostnames overview: [`app/ingress_overview.py`](app/ingress_overview.py); live refresh uses [htmx](https://htmx.org) 2.0.4, vendored in [`app/static/vendor/`](app/static/vendor) (0BSD license)
 - Templates extend [`app/templates/base.html`](app/templates/base.html) (head, top navigation, footer); shared page behaviour lives in [`app/static/app.js`](app/static/app.js)
-- Page templates: [`tunnels.html`](app/templates/tunnels.html), [`backup.html`](app/templates/backup.html), [`backups.html`](app/templates/backups.html), [`backup_new.html`](app/templates/backup_new.html), [`automation.html`](app/templates/automation.html), [`scheduled_runs.html`](app/templates/scheduled_runs.html), [`tunnel_filters.html`](app/templates/tunnel_filters.html), [`notification_messages.html`](app/templates/notification_messages.html)
+- Page templates: [`tunnels.html`](app/templates/tunnels.html), [`ingress.html`](app/templates/ingress.html), [`backup.html`](app/templates/backup.html), [`backups.html`](app/templates/backups.html), [`backup_new.html`](app/templates/backup_new.html), [`automation.html`](app/templates/automation.html), [`scheduled_runs.html`](app/templates/scheduled_runs.html), [`tunnel_filters.html`](app/templates/tunnel_filters.html), [`settings.html`](app/templates/settings.html), [`setup.html`](app/templates/setup.html), [`notification_messages.html`](app/templates/notification_messages.html)
+- Version display (release, `dev` builds): [`app/version.py`](app/version.py)
 - Tests: `pip install -r requirements-dev.txt && pytest`
 
 ## Credits
