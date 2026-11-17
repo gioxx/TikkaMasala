@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tikka Masala — Cloudflare Tunnel backup &amp; restore</title>
-  <meta name="description" content="Self-hosted web app that snapshots Cloudflare Tunnel configurations to JSON, shows every ingress rule and its origin, previews a restore as a diff, and runs scheduled backups with notifications.">
+  <meta name="description" content="Self-hosted web app that snapshots Cloudflare Tunnel configurations to JSON for one or more accounts, shows every ingress rule and its origin, previews a restore as a diff, and runs scheduled backups with notifications.">
   <link rel="canonical" href="https://tikkamasala.gxware.org/">
   <meta name="theme-color" content="#120d1d">
 
@@ -523,7 +523,7 @@
     <a class="btn-ghost" href="https://github.com/gioxx/TikkaMasala" target="_blank" rel="noopener">View on GitHub</a>
   </div>
   <div class="hero-shot">
-    <img src="img/dashboard-hero.webp" width="2560" height="1188" alt="Tikka Masala Tunnels page">
+    <img src="img/dashboard-hero.webp" width="2560" height="1248" alt="Tikka Masala Tunnels page: summary tiles and the tunnel table with status, hostnames and last backup">
   </div>
 </div>
 
@@ -557,7 +557,7 @@
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg></div>
         <h3>Connect &amp; browse</h3>
-        <p>Enter your credentials once (checked against Cloudflare before they are saved), list every tunnel in the account, open any of them in the Cloudflare dashboard, and jump to Access Applications and Policies.</p>
+        <p>Enter your credentials once (checked against Cloudflare before they are saved). The Tunnels page shows every tunnel with its health, hostname count and last backup, and links to the Cloudflare dashboard and to Access Applications and Policies.</p>
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 12a1 1 0 0 0-1 1v1a1 1 0 0 1-1 1 1 1 0 0 1 1 1v1a1 1 0 0 0 1 1"/><path d="M14 18a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1 1 1 0 0 1-1-1v-1a1 1 0 0 0-1-1"/></svg></div>
@@ -567,7 +567,7 @@
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg></div>
         <h3>Every ingress rule, visible</h3>
-        <p>The backup page lists hostname, path, origin and <code>originRequest</code> settings for each rule, and flags <code>localhost</code> origins that can break when <code>cloudflared</code> runs elsewhere.</p>
+        <p>The backup page lists hostname, path, origin and <code>originRequest</code> settings for each rule, and flags <code>localhost</code> origins that can break when <code>cloudflared</code> runs elsewhere. The Hostnames page shows every public hostname of every tunnel on one page.</p>
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></svg></div>
@@ -576,8 +576,8 @@
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></div>
-        <h3>Restore anywhere</h3>
-        <p>Push a snapshot back to its original tunnel or another tunnel in the same account, with a restore history that records where each backup went.</p>
+        <h3>Restores you can undo</h3>
+        <p>Push a snapshot back to its original tunnel or another tunnel in the same account. Applying asks for an explicit confirmation and first saves the live configuration as a new backup, so one more restore undoes it.</p>
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -587,17 +587,32 @@
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg></div>
         <h3>Notifications</h3>
-        <p>Results over a generic webhook and/or Telegram, per-event, with messages you can rewrite using placeholders.</p>
+        <p>Results over webhooks and/or Telegram, per event and per account, with messages you can rewrite using placeholders. Destinations are added in the UI, each with its own Test button.</p>
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
         <h3>Encrypted token storage</h3>
-        <p>The API token is saved encrypted (Fernet) in SQLite. The key comes from <code>TOKEN_ENCRYPTION_KEY</code> or is generated automatically as <code>encryption.key</code> in the data directory.</p>
+        <p>API tokens, webhook URLs and Telegram bot tokens are saved encrypted (Fernet) in SQLite. The key comes from <code>TOKEN_ENCRYPTION_KEY</code> or is generated automatically as <code>encryption.key</code> in the data directory.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <h3>Multiple accounts</h3>
+        <p>Each Cloudflare account is a profile with its own credentials, schedule, retention and notification destinations. Switch between them from the top bar.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></div>
+        <h3>Cloudflare Access built in</h3>
+        <p>Set two variables and every request must carry a valid Cloudflare Access login, so nobody gets in around Access through the LAN address or another proxy.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="16" cy="4" r="1"/><path d="m18 19 1-7-6 1"/><path d="m5 8 3-3 5.5 3-2.36 3.5"/><path d="M4.24 14.5a5 5 0 0 0 6.88 6"/><path d="M13.76 17.5a5 5 0 0 0-6.88-6"/></svg></div>
+        <h3>Accessible, light or dark</h3>
+        <p>A compact interface with light and dark themes, designed to WCAG 2.2 AA: keyboard access, visible focus, announced updates and checked contrast.</p>
       </div>
       <div class="feature-card reveal">
         <div class="feature-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.72 1.72 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.72 1.72 0 0 0 1.7 0l10.3-6c.5-.3.9-1 .9-1.5Z"/><path d="M10 21.9V14L2.1 9.1"/><path d="m10 14 11.9-6.9"/><path d="M14 19.8v-8.1"/><path d="M18 17.5V9.4"/></svg></div>
         <h3>Official Docker images</h3>
-        <p>Multi-arch images (<code>amd64</code>, <code>arm64</code>) on Docker Hub and GHCR. A demo mode lets you try the UI without persisting anything.</p>
+        <p>Multi-arch images (<code>amd64</code>, <code>arm64</code>) on Docker Hub and GHCR, with a built-in healthcheck. A demo mode lets you try the UI without persisting anything.</p>
       </div>
     </div>
   </div>
@@ -610,22 +625,22 @@
     <p class="section-sub">Screenshots from a demo instance with made-up tunnels on <code>example.*</code> hosts.</p>
 
     <div class="shot shot-scroll reveal">
-      <img src="img/backup-detail.webp" width="2560" height="4472" loading="lazy" alt="Backup detail page: ingress table with a host-local origin flagged, and a restore preview listing changed, added, removed and reordered rules">
+      <img src="img/backup-detail.webp" width="2560" height="5812" loading="lazy" alt="Backup detail page: ingress table with a host-local origin flagged, and a restore preview listing changed, added, removed and reordered rules">
     </div>
-    <p class="shot-caption"><strong>Backup detail and restore preview.</strong> Every ingress rule of the snapshot with its origin and settings; the <code>localhost</code> origin is flagged. Below, <em>Preview changes</em> diffs the snapshot against the live tunnel: two changed rules, one added, one removed, and a warning that the order differs. (Scroll inside the image.)</p>
+    <p class="shot-caption"><strong>Backup detail and restore preview.</strong> Every ingress rule of the snapshot with its origin and settings; the <code>localhost</code> origin is flagged. Below, <em>Preview changes</em> diffs the snapshot against the live tunnel: two changed rules, one added, one removed, and a warning that the order differs. Applying needs the confirmation checkbox. (Scroll inside the image.)</p>
 
     <div class="shots-grid reveal">
       <div>
         <div class="shot shot-scroll">
-          <img src="img/dashboard.webp" width="2560" height="8942" loading="lazy" alt="Tikka Masala screenshot">
+          <img src="img/dashboard.webp" width="2560" height="1612" loading="lazy" alt="Tikka Masala Tunnels page in the dark theme, with the profile switcher in the top bar">
         </div>
-        <p class="shot-caption"><strong>Tunnels page.</strong> Four summary tiles (tunnels and their health, hostnames, automatic backup state, saved backups) and a live table with each tunnel's status, hostname count and last backup, a per-row Back up button, and Back up all now. The top bar leads to Hostnames, Backups (archive with filters and notes), Automation (schedule, retention, run history, notification destinations) and Settings. (Scroll inside the image.)</p>
+        <p class="shot-caption"><strong>Tunnels page.</strong> Four summary tiles (tunnels and their health, hostnames, automatic backup state, saved backups) and a live table with each tunnel's status, hostname count and last backup, a per-row Back up button, and Back up all now. The top bar leads to Hostnames, Backups (archive with filters and notes), Automation (schedule, retention, run history, notification destinations) and Settings; with two or more accounts, a profile switcher sits on the right.</p>
       </div>
       <div>
         <div class="shot-phone">
           <img src="img/dashboard-mobile.webp" width="1170" height="2532" loading="lazy" alt="Tikka Masala on a phone">
         </div>
-        <p class="shot-caption"><strong>Mobile.</strong> On phones, the tunnel table becomes a compact list and other tables reflow, so nothing gets cut off.</p>
+        <p class="shot-caption"><strong>Mobile.</strong> On phones, the menu folds into a button, the tiles stack two by two and the tunnel table becomes a compact list, so nothing gets cut off.</p>
       </div>
     </div>
   </div>
@@ -669,7 +684,7 @@
         <div class="step-num">5</div>
         <div class="step-body">
           <h3>Restore &amp; get notified</h3>
-          <p>Confirm and apply the snapshot. The live configuration is saved as a backup first, so the restore can be undone; then the snapshot replaces the tunnel's whole remote configuration, gets recorded in the restore history, and triggers a notification if you set one up.</p>
+          <p>Tick the confirmation and apply the snapshot. The live configuration is saved as a backup first, so the restore can be undone; then the snapshot replaces the tunnel's whole remote configuration, gets recorded in the restore history, and triggers a notification if you set one up.</p>
         </div>
       </div>
     </div>
@@ -703,7 +718,7 @@ docker run -d \
   -p 8080:8080 \
   -v "$(pwd)/data:/data" \
   gfsolone/tikkamasala:latest</pre>
-        <p class="note">The web UI is available at <strong>http://localhost:8080</strong>. Backups and settings live in <code>./data</code>, so they survive container updates.</p>
+        <p class="note">The web UI is available at <strong>http://localhost:8080</strong>. Backups and settings live in <code>./data</code>, so they survive container updates. The image has a built-in healthcheck on <code>/healthz</code>, so <code>docker ps</code> shows the container as <code>healthy</code> or <code>unhealthy</code>.</p>
       </div>
       <div>
         <h3>Generate the encryption key</h3>
@@ -713,7 +728,7 @@ docker run -d \
 <pre>docker pull gfsolone/tikkamasala:latest
 docker rm -f tikkamasala   <span class="comment"># data stays in ./data</span>
 <span class="comment"># then run the same docker run command again</span></pre>
-        <p class="note">Pin a release (e.g. <code>gfsolone/tikkamasala:1.3.9</code>) instead of <code>latest</code> to upgrade on your own schedule. Compose and Portainer setups are in the docs below.</p>
+        <p class="note">Pin a release (<code>gfsolone/tikkamasala:X.Y.Z</code>) instead of <code>latest</code> to upgrade on your own schedule. Compose and Portainer setups are in the docs below.</p>
       </div>
     </div>
   </div>
@@ -739,7 +754,10 @@ docker rm -f tikkamasala   <span class="comment"># data stays in ./data</span>
         <a href="#doc-scheduling">Automatic backups</a>
         <a href="#doc-notifications">Notifications</a>
         <a href="#doc-demo">Demo mode</a>
+        <a href="#doc-access">Cloudflare Access</a>
         <a href="#doc-security">Security</a>
+        <a href="#doc-accessibility">Accessibility</a>
+        <a href="#doc-upgrading">Upgrading from 1.3.x</a>
         <a href="#doc-faq">FAQ</a>
       </aside>
 
@@ -760,6 +778,8 @@ docker rm -f tikkamasala   <span class="comment"># data stays in ./data</span>
               <tr><td><code>CLOUDFLARE_ACCOUNT_ID</code></td><td>No</td><td>Account ID of the Default profile. With the token also set, setup is skipped and Settings shows both read-only.</td></tr>
               <tr><td><code>CLOUDFLARE_API_TOKEN</code></td><td>No</td><td>API token of the Default profile.</td></tr>
               <tr><td><code>TOKEN_ENCRYPTION_KEY</code></td><td>No</td><td>Fernet key used to encrypt the saved API token. If unset, the app generates one as <code>DATA_DIR/encryption.key</code> (mode <code>0600</code>).</td></tr>
+              <tr><td><code>CF_ACCESS_TEAM_DOMAIN</code></td><td>No</td><td>Cloudflare Zero Trust team domain, e.g. <code>yourteam.cloudflareaccess.com</code> (or just <code>yourteam</code>). Set together with <code>CF_ACCESS_AUD</code> to require a valid Cloudflare Access login on every request. See <a href="#doc-access">Cloudflare Access</a>.</td></tr>
+              <tr><td><code>CF_ACCESS_AUD</code></td><td>No</td><td>Application Audience (AUD) tag of the Access application that protects Tikka Masala. Set together with <code>CF_ACCESS_TEAM_DOMAIN</code>.</td></tr>
               <tr><td><code>AUTO_BACKUP_TIMEZONE</code></td><td>No</td><td>Force automatic backups to use a specific IANA timezone such as <code>Europe/Rome</code>.</td></tr>
               <tr><td><code>BACKUP_RETENTION_DAYS</code></td><td>No</td><td>Automatically delete backups older than this many days after new backups are created.</td></tr>
               <tr><td><code>NOTIFICATION_WEBHOOK_URL</code></td><td>No</td><td>Send JSON notifications to a generic webhook endpoint.</td></tr>
@@ -784,6 +804,7 @@ docker rm -f tikkamasala   <span class="comment"># data stays in ./data</span>
 cp .env.sample .env
 docker compose up -d --build</pre>
         <p>Then open <code>http://localhost:8080</code>. To use a prebuilt image instead, replace <code>build: .</code> with <code>image: gfsolone/tikkamasala:latest</code>.</p>
+        <p>The image has a built-in Docker healthcheck: every 60 seconds it calls <code>/healthz</code> from inside the container, and after three failures in a row Docker marks the container <code>unhealthy</code>. <code>docker ps</code> shows the state, and monitoring tools that read it (Uptime Kuma, Portainer, Komodo…) can alert on it. <code>/healthz</code> needs no login and is exempt from Cloudflare Access. To change the timing, add a <code>healthcheck:</code> block (for example <code>interval: 30s</code>) to the service in Compose.</p>
         <h4>Without Docker</h4>
 <pre>python3 -m venv .venv
 source .venv/bin/activate
@@ -817,7 +838,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
 
         <h3 id="doc-prefill">First run &amp; credentials</h3>
         <p>If <code>CLOUDFLARE_ACCOUNT_ID</code> and <code>CLOUDFLARE_API_TOKEN</code> are both set in the environment, setup is skipped. Otherwise the first page is a setup screen (<code>/setup</code>): enter your Account ID and API token, the app checks them against Cloudflare and saves them only if the check passes. The token is stored encrypted and never shown again in clear.</p>
-        <p>Afterwards, manage credentials on the <strong>Settings</strong> page: the token appears as "configured, ending in XXXX", <strong>Replace credentials</strong> validates new values before saving, and <strong>Forget saved credentials</strong> removes them from the database without touching backups. Settings also shows the Cloudflare Access status, the version and the encryption key source.</p>
+        <p>Afterwards, manage credentials on the <strong>Settings</strong> page: the token appears as "configured, ending in XXXX", <strong>Replace credentials</strong> validates new values before saving, and <strong>Forget saved credentials</strong> removes them from the database without touching backups. Settings also shows the Cloudflare Access status, the version and the encryption key source. Release images show their version number; <code>dev</code> images built from main show the release they are based on, the commits since it and the commit, e.g. <code>dev · 1.3.10+42 · 8cce54d</code>.</p>
         <p>Precedence is per field: database, then environment. Environment values are shown read-only, with a <strong>Save a different value</strong> option. Every page, the scheduler and restore use these server-side credentials; the browser holds none.</p>
         <div class="callout">Upgrading from a version that kept the token in a browser cookie: the cookie is migrated into the database once and then deleted (with <code>CLOUDFLARE_API_TOKEN</code> set, it is only deleted). If the token can't be saved (for example the encryption key is invalid), the cookie is kept and the migration is retried on a later request. If the saved token can't be decrypted (for example <code>encryption.key</code> was removed), the app returns to the setup screen so you can save a new one.</div>
 
@@ -832,6 +853,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
           <li><code>app.db</code>: SQLite database for backup metadata, restore history, and saved credentials (the token is encrypted)</li>
           <li><code>encryption.key</code>: generated on first use when <code>TOKEN_ENCRYPTION_KEY</code> is not set (mode <code>0600</code>); keep it, or the saved token can't be read</li>
           <li><code>backups/*.json</code>: exported tunnel configuration snapshots</li>
+          <li><code>app.db.pre-v1.bak</code>: copy of the database taken before the profiles migration (see <a href="#doc-upgrading">Upgrading</a>)</li>
         </ul>
         <p class="note">With the generated key, a copy of the data directory holds both the encrypted token and its key. If you share or back up that directory, set <code>TOKEN_ENCRYPTION_KEY</code> in the environment instead.</p>
 
@@ -842,6 +864,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
 
         <h3 id="doc-restore">Restore</h3>
         <p>Restoring a backup replaces the current remote configuration of the selected tunnel with the configuration stored in the snapshot. The target is the original tunnel or another tunnel in the same account, and the restore uses the credentials saved for that account's profile (restoring needs a profile for that account).</p>
+        <p>Applying a restore needs an explicit confirmation: a checkbox on the restore form, checked by the server too. Before it touches the tunnel, Tikka Masala saves the live configuration as a new manual backup with the note "Automatic snapshot before restoring backup #N"; the success message links to it, so a restore can be undone by restoring that backup. If the snapshot cannot be saved, nothing is restored.</p>
         <p>The backup detail page keeps a restore history: when a backup was restored, which account and tunnel it was restored to, and whether the restore targeted the original tunnel or a different tunnel. Entries written by older versions, which allowed restoring to another account, may still show a different account.</p>
         <h4>Preview changes before restoring</h4>
         <p>The restore form has a <strong>Preview changes</strong> button next to <strong>Restore backup</strong>. It fetches the target tunnel's current live configuration and compares it against the snapshot without applying anything, then shows:</p>
@@ -852,7 +875,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
           <li>a note when only the rule order differs (Cloudflare matches ingress rules top to bottom, so a pure reorder can still change routing)</li>
           <li>changes to non-ingress config fields such as <code>warp-routing</code>, since restore replaces the whole tunnel configuration, not just <code>ingress</code></li>
         </ul>
-        <p>Previewing does not apply anything or record restore history; the account ID, tunnel ID, and API token you entered stay filled in so you can review the diff and then press <strong>Restore backup</strong>.</p>
+        <p>Previewing does not apply anything or record restore history; the tunnel ID you entered stays filled in, so you can review the diff, tick the confirmation and then press <strong>Restore backup</strong>.</p>
 
         <h3 id="doc-scheduling">Automatic backups</h3>
         <p>The scheduler is built into the app and stores its configuration in the local SQLite database. From the Automation page you can enable or disable automatic backups, set a cron expression, run the job immediately with <strong>Run now</strong>, set the retention, and see the last run, next run, and recent execution history (full history at <code>/automation/runs</code>).</p>
@@ -894,19 +917,57 @@ uvicorn app.main:app --host 0.0.0.0 --port 8080</pre>
         <h3 id="doc-demo">Demo mode</h3>
         <p>Set <code>DEMO=true</code> to try the UI without persisting auth data or enabling server-side automation: credentials come only from the environment (no setup screen, Settings is read-only), nothing is written to SQLite and no key file is created, automatic backups, notifications and the backup archive are disabled, and there is a single profile with no switcher. Only Tunnels and Settings are available; the per-row Back up button downloads a snapshot of the tunnel's JSON without saving it.</p>
 
+        <h3 id="doc-access">Cloudflare Access</h3>
+        <p>If you publish Tikka Masala through a Cloudflare Tunnel, protect it with a Cloudflare Access application (Zero Trust → Access → Applications). Access handles the login (Google, GitHub, one-time PIN by email, and so on); Tikka Masala has no accounts or passwords of its own.</p>
+        <p>By default the app trusts whoever reaches it. Set both <code>CF_ACCESS_TEAM_DOMAIN</code> (Zero Trust → Settings, your team domain) and <code>CF_ACCESS_AUD</code> (your application → Overview → Application Audience (AUD) Tag) and it also verifies, on every request, the signed token that Cloudflare Access adds (<code>Cf-Access-Jwt-Assertion</code> header). Requests without a valid token get a <code>403</code> page, so nobody can get in by reaching the container around Access (LAN IP and port, another proxy). Neither value is a secret; setting only one of them stops the app at startup with an explicit error.</p>
+        <ul>
+          <li>A <strong>Bypass</strong> policy skips Access entirely, so Cloudflare sends no token and the app answers <code>403</code>. Use Allow policies (and log in) for everyone who should reach Tikka Masala.</li>
+          <li><code>/healthz</code> is never checked, so the Docker healthcheck keeps working.</li>
+          <li>The signed-in email (or "service token") and a <strong>Sign out</strong> link appear in the page header.</li>
+          <li>Rejected requests are logged with the client address and the reason, never with the token.</li>
+        </ul>
+
         <h3 id="doc-security">Security</h3>
         <ul>
           <li>The API token is never persisted in plaintext in the database, never shown in the UI after saving, and never held by the browser.</li>
           <li>The key comes from <code>TOKEN_ENCRYPTION_KEY</code> or from <code>DATA_DIR/encryption.key</code> (mode <code>0600</code>, never overwritten).</li>
           <li>Credentials are validated against Cloudflare before saving.</li>
+          <li>Requests that change data (any method other than GET, HEAD or OPTIONS) are rejected when the browser marks them as cross-site.</li>
           <li>Plaintext tokens saved by older versions are upgraded to encrypted form the first time they are read.</li>
           <li>Notification webhook URLs and Telegram bot tokens are stored encrypted and shown only masked. Older versions could write the Telegram bot token to the container logs at INFO level (the <code>httpx</code> logger, now set to WARNING): rotate the bot token if such logs were shared.</li>
         </ul>
-        <div class="callout">The web UI has no built-in authentication, and it can restore tunnel configurations with your token. Keep port 8080 on a trusted network, or put it behind a reverse proxy with authentication (Cloudflare Access works well).</div>
+        <div class="callout">The web UI has no accounts of its own, and it can restore tunnel configurations with your token. Keep port 8080 on a trusted network, or publish it behind Cloudflare Access and set <code>CF_ACCESS_TEAM_DOMAIN</code> and <code>CF_ACCESS_AUD</code> so the app enforces the login itself (see <a href="#doc-access">Cloudflare Access</a>).</div>
+
+        <h3 id="doc-accessibility">Accessibility</h3>
+        <p>The interface targets WCAG 2.2 level AA, in both themes and at every width:</p>
+        <ul>
+          <li>a <strong>Skip to content</strong> link, landmarks, one heading 1 per page and a page title that names the section</li>
+          <li>a visible focus indicator on every control, and keyboard access to everything, including tables that scroll sideways</li>
+          <li>text at 4.5:1 contrast or more and control borders at 3:1 or more, computed by the test suite from the theme's colour tokens</li>
+          <li>form errors that are announced, stay on screen and are tied to their fields; in-page updates are announced and keep focus where it was</li>
+          <li>statuses written as words, not only colours, and markers that stay visible in forced-colours (high contrast) mode</li>
+        </ul>
+        <p>If something does not work with your assistive technology, please <a href="https://github.com/gioxx/TikkaMasala/issues" target="_blank" rel="noopener">open an issue</a>.</p>
+
+        <h3 id="doc-upgrading">Upgrading from 1.3.x</h3>
+        <p>No manual steps: pull the new image and start it on the same data directory. On the first start:</p>
+        <ul>
+          <li>the database is copied to <code>app.db.pre-v1.bak</code>, then the saved Account ID, API token, automatic backup schedule and per-tunnel settings move into a profile named <strong>Default</strong>; backups, restore history and run history are kept</li>
+          <li>if <code>TOKEN_ENCRYPTION_KEY</code> was set, <strong>keep it set</strong>: the saved token was encrypted with it. If it was not set, a key is generated as <code>encryption.key</code> in the data directory</li>
+          <li>a token that 1.3.x kept only in a browser cookie is saved into the database the first time that browser opens the app, then the cookie is deleted; with no token saved anywhere, the setup screen opens</li>
+          <li><code>CLOUDFLARE_ACCOUNT_ID</code> and <code>CLOUDFLARE_API_TOKEN</code> are no longer just prefills: with both set, the app uses them for the Default profile and skips setup</li>
+          <li>notification destinations from the environment keep working and belong to Default; old page addresses redirect to the new ones</li>
+        </ul>
+        <p>What changes: applying a restore needs the confirmation checkbox and first saves the live configuration as a backup, and a restore always targets a tunnel in the backup's own account.</p>
+        <p>To roll back, stop the container, restore <code>app.db.pre-v1.bak</code> as <code>app.db</code> and start the exact image tag you ran before. Backups, restores and runs recorded after the upgrade are no longer listed (their JSON files stay in <code>backups/</code>). The <a href="https://github.com/gioxx/TikkaMasala#upgrading" target="_blank" rel="noopener">README</a> has the details.</p>
 
         <h3 id="doc-faq">FAQ</h3>
         <h4>What happens if I don't set <code>TOKEN_ENCRYPTION_KEY</code>?</h4>
-        <p>Nothing to worry about: the app generates a key as <code>encryption.key</code> in the data directory on first use and keeps using it. Keep that file with your data; without it the saved token can't be decrypted and you'd enter it again on the setup screen. Before downgrading to an older version, set <code>TOKEN_ENCRYPTION_KEY</code> to the content of that file.</p>
+        <p>Nothing to worry about: the app generates a key as <code>encryption.key</code> in the data directory on first use and keeps using it. Keep that file with your data; without it the saved token can't be decrypted and you'd enter it again on the setup screen. If you upgraded from 1.3.x with <code>TOKEN_ENCRYPTION_KEY</code> set, keep it set: the token saved by 1.3.x was encrypted with it.</p>
+        <h4>Can I manage more than one Cloudflare account?</h4>
+        <p>Yes. Add a profile under <strong>Settings &rarr; Profiles</strong> for each account; each has its own credentials, schedule, retention and notification destinations, and a switcher appears in the top bar. The choice is kept per browser.</p>
+        <h4>How do I undo a restore?</h4>
+        <p>Every restore first saves the tunnel's live configuration as a new backup ("Automatic snapshot before restoring backup #N"), linked from the success message. Restore that backup to go back.</p>
         <h4>Why does a restored route return 502 even though the backup worked fine?</h4>
         <p>Check whether that rule's origin is <code>localhost</code> or a loopback address: the backup detail page flags these as <strong>host-local</strong>. When <code>cloudflared</code> runs in a container, <code>localhost</code> means the container, not the Docker host. Point the rule at <code>host.docker.internal</code>, the bridge gateway IP, or a service/container name instead, and use <strong>Preview changes</strong> to see the full ingress diff before you apply.</p>
         <h4>The tunnel name link says "Cloudflare Tunnels have moved". What should I do?</h4>
